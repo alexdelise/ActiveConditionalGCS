@@ -1,0 +1,164 @@
+{
+  "base_config": "configs/prompt_mismatched_in_range_cfg_ablation_base.json",
+  "tag": "prompt_mismatched_in_range_cfg_ablation_sample_k1_daytime_beach",
+  "use_dc_presets": false,
+  "cases": [
+    {
+      "name": "reference_unconditioned",
+      "description": "Fill missing copied unconditioned reference rows for the in-range prompt-mismatched sunset sandy-coast signal using daytime-beach Christoffel sampling.",
+      "sampling_condition": "k1_daytime_beach",
+      "sampling_label": "$\\widetilde{\\mu}_{\\mathrm{db}}$",
+      "sampling_rank": 1,
+      "reconstruction_condition": "unprompted",
+      "reconstruction_label": "Unconditioned",
+      "recon_rank": 0,
+      "overrides": {
+        "ktilde": {
+          "name": "Ktilde_SD15__fft__k1daytimebeach_512x512_S500_ns20"
+        },
+        "reconstruction": {
+          "prompt": "",
+          "prompts": null
+        },
+        "sweep": {
+          "sampling_perc_list": [
+            0.00125,
+            0.0025,
+            0.005,
+            0.01,
+            0.025
+          ],
+          "repeats_per_setting": 5
+        }
+      }
+    },
+    {
+      "name": "sample_k1_daytime_beach__recover_prompt_sunset_beach_cfg1",
+      "description": "Recover the in-range prompt-mismatched sunset sandy-coast signal using daytime-beach Christoffel sampling and the sunset beach recovery prompt at CFG 1.",
+      "sampling_condition": "k1_daytime_beach",
+      "sampling_label": "$\\widetilde{\\mu}_{\\mathrm{db}}$",
+      "sampling_rank": 1,
+      "reconstruction_condition": "sunset_beach_cfg1",
+      "reconstruction_label": "CFG 1",
+      "recon_rank": 1,
+      "overrides": {
+        "gen_recon": {
+          "guidance_scale": 1.0
+        },
+        "ktilde": {
+          "name": "Ktilde_SD15__fft__k1daytimebeach_512x512_S500_ns20"
+        },
+        "reconstruction": {
+          "prompt": "sunset beach",
+          "prompts": null
+        },
+        "sweep": {
+          "sampling_perc_list": [
+            0.00125,
+            0.0025,
+            0.005,
+            0.01,
+            0.025
+          ],
+          "repeats_per_setting": 2
+        }
+      }
+    },
+    {
+      "name": "sample_k1_daytime_beach__recover_prompt_sunset_beach_cfg3",
+      "description": "Recover the in-range prompt-mismatched sunset sandy-coast signal using daytime-beach Christoffel sampling and the sunset beach recovery prompt at CFG 3.",
+      "sampling_condition": "k1_daytime_beach",
+      "sampling_label": "$\\widetilde{\\mu}_{\\mathrm{db}}$",
+      "sampling_rank": 1,
+      "reconstruction_condition": "sunset_beach_cfg3",
+      "reconstruction_label": "CFG 3",
+      "recon_rank": 2,
+      "overrides": {
+        "gen_recon": {
+          "guidance_scale": 3.0
+        },
+        "ktilde": {
+          "name": "Ktilde_SD15__fft__k1daytimebeach_512x512_S500_ns20"
+        },
+        "reconstruction": {
+          "prompt": "sunset beach",
+          "prompts": null
+        },
+        "sweep": {
+          "sampling_perc_list": [
+            0.00125,
+            0.0025,
+            0.005,
+            0.01,
+            0.025
+          ],
+          "repeats_per_setting": 2
+        }
+      }
+    },
+    {
+      "name": "sample_k1_daytime_beach__recover_prompt_sunset_beach_cfg5",
+      "description": "Recover the in-range prompt-mismatched sunset sandy-coast signal using daytime-beach Christoffel sampling and the sunset beach recovery prompt at CFG 5.",
+      "sampling_condition": "k1_daytime_beach",
+      "sampling_label": "$\\widetilde{\\mu}_{\\mathrm{db}}$",
+      "sampling_rank": 1,
+      "reconstruction_condition": "sunset_beach_cfg5",
+      "reconstruction_label": "CFG 5",
+      "recon_rank": 3,
+      "overrides": {
+        "gen_recon": {
+          "guidance_scale": 5.0
+        },
+        "ktilde": {
+          "name": "Ktilde_SD15__fft__k1daytimebeach_512x512_S500_ns20"
+        },
+        "reconstruction": {
+          "prompt": "sunset beach",
+          "prompts": null
+        },
+        "sweep": {
+          "sampling_perc_list": [
+            0.00125,
+            0.0025,
+            0.005,
+            0.01,
+            0.025
+          ],
+          "repeats_per_setting": 2
+        }
+      }
+    },
+    {
+      "name": "reference_cfg7p5",
+      "description": "Fill missing copied CFG 7.5 sunset-beach reference rows for the in-range prompt-mismatched sunset sandy-coast signal using daytime-beach Christoffel sampling.",
+      "sampling_condition": "k1_daytime_beach",
+      "sampling_label": "$\\widetilde{\\mu}_{\\mathrm{db}}$",
+      "sampling_rank": 1,
+      "reconstruction_condition": "sunset_beach",
+      "reconstruction_label": "CFG 7.5",
+      "recon_rank": 4,
+      "overrides": {
+        "gen_recon": {
+          "guidance_scale": 7.5
+        },
+        "ktilde": {
+          "name": "Ktilde_SD15__fft__k1daytimebeach_512x512_S500_ns20"
+        },
+        "reconstruction": {
+          "prompt": "sunset beach",
+          "prompts": null
+        },
+        "sweep": {
+          "sampling_perc_list": [
+            0.00125,
+            0.0025,
+            0.005,
+            0.01,
+            0.025
+          ],
+          "repeats_per_setting": 5
+        }
+      }
+    }
+  ]
+}

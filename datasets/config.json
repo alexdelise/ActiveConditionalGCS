@@ -1,0 +1,43 @@
+{
+  "datasets": {
+    "sunset_beach_signal_sd15_512x512": {
+      "height": 512,
+      "width": 512,
+      "num_steps": 20,
+      "guidance_scale": 7.5,
+      "seed": 13346,
+      "per_item_seed_offset": 0,
+      "prompts": [
+        "sunset beach"
+      ],
+      "save_images": true,
+      "save_meta_json": true
+    },
+    "sunset_sandy_coast_signal_sd15_512x512": {
+      "height": 512,
+      "width": 512,
+      "num_steps": 20,
+      "guidance_scale": 7.5,
+      "seed": 13346,
+      "per_item_seed_offset": 0,
+      "prompts": [
+        "sunset over a sandy coast"
+      ],
+      "save_images": true,
+      "save_meta_json": true
+    },
+    "out_of_range_512x512": {
+      "height": 512,
+      "width": 512,
+      "num_steps": 0,
+      "guidance_scale": 0.0,
+      "seed": 0,
+      "per_item_seed_offset": 0,
+      "prompts": [
+        "out-of-distribution sunset image"
+      ],
+      "save_images": true,
+      "save_meta_json": true
+    }
+  }
+}

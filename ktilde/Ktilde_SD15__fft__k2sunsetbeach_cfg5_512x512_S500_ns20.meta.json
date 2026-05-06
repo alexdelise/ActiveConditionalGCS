@@ -1,0 +1,17 @@
+{
+  "guidance_scale": 5.0,
+  "height": 512,
+  "max_samples": 500,
+  "model_id": "stable-diffusion-v1-5/stable-diffusion-v1-5",
+  "num_steps": 20,
+  "pair_same_prompt": true,
+  "prompt": "sunset beach",
+  "prompt_bank": [],
+  "prompt_mode": "single",
+  "prompt_schedule_counts": {
+    "sunset beach": 500
+  },
+  "prompt_template": "",
+  "seed": 12345,
+  "width": 512
+}

@@ -1,0 +1,72 @@
+{
+  "ktilde": {
+    "Ktilde_SD15__fft__k0_512x512_S500_ns20": {
+      "height": 512,
+      "width": 512,
+      "num_steps": 20,
+      "guidance_scale": 7.5,
+      "seed": 12345,
+      "max_samples": 500,
+      "prompt": "",
+      "prompt_bank": [],
+      "prompt_template": "",
+      "pair_same_prompt": true,
+      "role": "k0",
+      "sampling_rank": 0,
+      "christoffel_law": "single_prompt",
+      "label": "$k_0$ prior (unconditioned)",
+      "description": "Unconditioned Christoffel prior built from the empty SD1.5 prompt."
+    },
+    "Ktilde_SD15__fft__k1daytimebeach_512x512_S500_ns20": {
+      "height": 512,
+      "width": 512,
+      "num_steps": 20,
+      "guidance_scale": 7.5,
+      "seed": 12345,
+      "max_samples": 500,
+      "prompt": "daytime beach",
+      "prompt_bank": [],
+      "prompt_template": "",
+      "pair_same_prompt": true,
+      "role": "k1_daytime_beach",
+      "sampling_rank": 1,
+      "christoffel_law": "single_prompt",
+      "label": "$k_1$ prior (daytime beach)",
+      "description": "Prompt-conditioned Christoffel prior for the daytime beach prompt."
+    },
+    "Ktilde_SD15__fft__k2sunsetbeach_512x512_S500_ns20": {
+      "height": 512,
+      "width": 512,
+      "num_steps": 20,
+      "guidance_scale": 7.5,
+      "seed": 12345,
+      "max_samples": 500,
+      "prompt": "sunset beach",
+      "prompt_bank": [],
+      "prompt_template": "",
+      "pair_same_prompt": true,
+      "role": "k2_sunset_beach",
+      "sampling_rank": 2,
+      "christoffel_law": "single_prompt",
+      "label": "$k_2$ prior (sunset beach)",
+      "description": "Prompt-conditioned Christoffel prior for the sunset beach prompt."
+    },
+    "Ktilde_SD15__fft__k4cat_512x512_S500_ns20": {
+      "height": 512,
+      "width": 512,
+      "num_steps": 20,
+      "guidance_scale": 7.5,
+      "seed": 12345,
+      "max_samples": 500,
+      "prompt": "cat",
+      "prompt_bank": [],
+      "prompt_template": "",
+      "pair_same_prompt": true,
+      "role": "k4_cat",
+      "sampling_rank": 4,
+      "christoffel_law": "single_prompt",
+      "label": "$k_4$ prior (cat)",
+      "description": "Prompt-conditioned Christoffel prior for the cat prompt."
+    }
+  }
+}

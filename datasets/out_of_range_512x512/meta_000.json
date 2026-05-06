@@ -1,0 +1,11 @@
+{
+  "gt_png_path": "datasets/out_of_range_512x512/gt_000.png",
+  "guidance_scale": 0.0,
+  "height": 512,
+  "item_id": 0,
+  "prompt_sha256": "1e31d3faf3b8a0a162ddfb740ebf9c2d23ec8009d250c1ec42a8aeabd75478c9",
+  "prompt_text": "out-of-distribution sunset image",
+  "seed": 0,
+  "truth_num_steps": 0,
+  "width": 512
+}

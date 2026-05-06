@@ -1,0 +1,84 @@
+{
+  "dataset": {
+    "name": "sunset_sandy_coast_signal_sd15_512x512"
+  },
+  "dc_methods": {
+    "diffusion_backprop": {
+      "enabled": true,
+      "sigma_y": 0.0,
+      "init_from_meas_backproj": true,
+      "backproj_init_strength": 1.0,
+      "outer_iterations": 500,
+      "learning_rate": 0.01,
+      "lr_schedule": "cosine",
+      "lr_warmup_iterations": 10,
+      "lr_min_factor": 0.1,
+      "latent_l2_penalty": 0.0,
+      "normalize_grad": false,
+      "grad_clip": 1.0,
+      "early_stop_patience": 35,
+      "early_stop_min_rel_improvement": 5e-05,
+      "checkpoint_denoiser": true,
+      "log_every": 5
+    }
+  },
+  "gen_recon": {
+    "num_steps": 20,
+    "guidance_scale": 7.5,
+    "eta": 0.0
+  },
+  "image": {
+    "height": 512,
+    "width": 512
+  },
+  "ktilde": {
+    "name": "Ktilde_SD15__fft__k0_512x512_S500_ns20"
+  },
+  "optim": {
+    "nb_epochs": 1000,
+    "lr_scale": 0.01,
+    "adam_stepsize": 100.0,
+    "adam_beta1": 0.9,
+    "adam_beta2": 0.999,
+    "adam_eps": 1e-08,
+    "early_stop_loss": 1e-08,
+    "log_every": 10
+  },
+  "output": {
+    "plot_images": false,
+    "save_images": true,
+    "save_json": true,
+    "save_mat": false,
+    "save_npz": true
+  },
+  "reconstruction": {
+    "prompt": "sunset beach",
+    "prompts": null
+  },
+  "repro": {
+    "cudnn_benchmark": false,
+    "deterministic": false,
+    "seed": 12345
+  },
+  "runtime": {
+    "attention_slicing": "auto",
+    "gradient_checkpointing": true,
+    "torch_dtype": "float16"
+  },
+  "sampling": {
+    "methods_enabled": {
+      "cs": true,
+      "mcs": false
+    },
+    "weighted_ls": false
+  },
+  "sweep": {
+    "sampling_perc_list": [
+      0.0025,
+      0.005,
+      0.01
+    ],
+    "repeats_per_setting": 5,
+    "save_per_run_artifacts": true
+  }
+}

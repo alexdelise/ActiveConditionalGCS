@@ -1,0 +1,18 @@
+{
+  "dataset_key": "sunset_sandy_coast_signal_sd15_512x512",
+  "dataset_path": "datasets/sunset_sandy_coast_signal_sd15_512x512",
+  "items": [
+    {
+      "gt_png_path": "datasets/sunset_sandy_coast_signal_sd15_512x512/gt_000.png",
+      "guidance_scale": 7.5,
+      "height": 512,
+      "item_id": 0,
+      "meta_json_path": "datasets/sunset_sandy_coast_signal_sd15_512x512/meta_000.json",
+      "prompt_sha256": "d06bfb1f1cab642951b5e4b656574ed569deb1ff5eadc085fad2356d10af81d0",
+      "prompt_text": "sunset over a sandy coast",
+      "seed": 13346,
+      "truth_num_steps": 20,
+      "width": 512
+    }
+  ]
+}

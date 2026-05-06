@@ -1,0 +1,18 @@
+{
+  "dataset_key": "sunset_beach_signal_sd15_512x512",
+  "dataset_path": "datasets/sunset_beach_signal_sd15_512x512",
+  "items": [
+    {
+      "gt_png_path": "datasets/sunset_beach_signal_sd15_512x512/gt_000.png",
+      "guidance_scale": 7.5,
+      "height": 512,
+      "item_id": 0,
+      "meta_json_path": "datasets/sunset_beach_signal_sd15_512x512/meta_000.json",
+      "prompt_sha256": "8e646e7000134800bcd83799b9a34b9bdecdf5eb6ba2dcddffdb052dc7a29475",
+      "prompt_text": "sunset beach",
+      "seed": 13346,
+      "truth_num_steps": 20,
+      "width": 512
+    }
+  ]
+}

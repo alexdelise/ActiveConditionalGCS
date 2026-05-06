@@ -1,0 +1,83 @@
+{
+  "base_config": "configs/out_of_range_last3_base.json",
+  "tag": "out_of_range_last3_sample_k2_sunset_beach",
+  "use_dc_presets": false,
+  "cases": [
+    {
+      "name": "sample_k2_sunset_beach__recover_unprompted",
+      "description": "Recover an OOD sunset image using sunset-beach Christoffel sampling and an unconditioned recovery prior.",
+      "sampling_condition": "k2_sunset_beach",
+      "sampling_label": "$\\widetilde{\\mu}_{sb}$",
+      "sampling_rank": 2,
+      "reconstruction_condition": "unprompted",
+      "reconstruction_label": "Unconditioned",
+      "recon_rank": 0,
+      "overrides": {
+        "ktilde": {
+          "name": "Ktilde_SD15__fft__k2sunsetbeach_512x512_S500_ns20"
+        },
+        "reconstruction": {
+          "prompt": "",
+          "prompts": null
+        }
+      }
+    },
+    {
+      "name": "sample_k2_sunset_beach__recover_prompt_daytime_beach",
+      "description": "Recover an OOD sunset image using sunset-beach Christoffel sampling and a daytime beach recovery prompt.",
+      "sampling_condition": "k2_sunset_beach",
+      "sampling_label": "$\\widetilde{\\mu}_{sb}$",
+      "sampling_rank": 2,
+      "reconstruction_condition": "daytime_beach",
+      "reconstruction_label": "Daytime Beach",
+      "recon_rank": 1,
+      "overrides": {
+        "ktilde": {
+          "name": "Ktilde_SD15__fft__k2sunsetbeach_512x512_S500_ns20"
+        },
+        "reconstruction": {
+          "prompt": "daytime beach",
+          "prompts": null
+        }
+      }
+    },
+    {
+      "name": "sample_k2_sunset_beach__recover_prompt_sunset_beach",
+      "description": "Recover an OOD sunset image using sunset-beach Christoffel sampling and the sunset beach recovery prompt.",
+      "sampling_condition": "k2_sunset_beach",
+      "sampling_label": "$\\widetilde{\\mu}_{sb}$",
+      "sampling_rank": 2,
+      "reconstruction_condition": "sunset_beach",
+      "reconstruction_label": "Sunset Beach",
+      "recon_rank": 2,
+      "overrides": {
+        "ktilde": {
+          "name": "Ktilde_SD15__fft__k2sunsetbeach_512x512_S500_ns20"
+        },
+        "reconstruction": {
+          "prompt": "sunset beach",
+          "prompts": null
+        }
+      }
+    },
+    {
+      "name": "sample_k2_sunset_beach__recover_prompt_cat",
+      "description": "Recover an OOD sunset image using sunset-beach Christoffel sampling and an intentionally mismatched cat recovery prompt.",
+      "sampling_condition": "k2_sunset_beach",
+      "sampling_label": "$\\widetilde{\\mu}_{sb}$",
+      "sampling_rank": 2,
+      "reconstruction_condition": "cat",
+      "reconstruction_label": "Cat",
+      "recon_rank": 3,
+      "overrides": {
+        "ktilde": {
+          "name": "Ktilde_SD15__fft__k2sunsetbeach_512x512_S500_ns20"
+        },
+        "reconstruction": {
+          "prompt": "cat",
+          "prompts": null
+        }
+      }
+    }
+  ]
+}
