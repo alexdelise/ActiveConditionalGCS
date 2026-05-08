@@ -287,3 +287,16 @@ results/<experiment>[_split][_cfg_ablation]_sample_<prior>/diffusion_backprop/<c
 Each leaf run stores `run_config.json`, `dataset_item.json`, `run_data.npz`, `run_summary.txt`, `recon_cs.png`, `zero_filled_ifft.png`, and `z_rec.pt`.
 
 Each suite also writes `suite_manifest.json`, `suite_results.json`, and compact `results_cs.csv/.npz` tables.
+
+## Citation
+
+If you use this code in your research, please cite:
+
+```bibtex
+@article{delise2026active,
+  title={Active Learning for Conditional Generative Compressed Sensing},
+  author={DeLise, Alexander and Dexter, Nick},
+  journal={arXiv preprint arXiv:2605.05435},
+  year={2026}
+}
+```
