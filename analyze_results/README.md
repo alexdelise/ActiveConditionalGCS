@@ -11,4 +11,4 @@ This folder contains the analysis helpers and notebooks used to inspect reproduc
 - `sd15_prompt_mismatched_in_range_cfg_ablation.ipynb`: prompt-mismatched CFG ablation.
 - `sd15_out_of_range_cfg_ablation.ipynb`: out-of-range CFG ablation.
 
-The notebooks expect completed outputs under `../results/`.
+The notebooks expect completed outputs under the nested `../results/<experiment_family>/sunset/` layout and write PDF figures under `../results/analysis/...`.

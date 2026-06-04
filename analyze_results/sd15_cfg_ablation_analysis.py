@@ -84,18 +84,18 @@ BASE_DISTRIBUTIONS: List[Dict[str, Any]] = [
 
 EXPERIMENT_SPECS: Dict[str, Dict[str, str]] = {
     "prompt_matched_in_range": {
-        "new_tag_prefix": "prompt_matched_in_range_cfg_ablation",
-        "old_tag_prefix": "prompt_matched_in_range",
+        "ablation_root": "ablation/prompt_matched/sunset",
+        "result_root": "prompt_matched/sunset",
         "dataset_name": "sunset_beach_signal_sd15_512x512",
     },
     "prompt_mismatched_in_range": {
-        "new_tag_prefix": "prompt_mismatched_in_range_cfg_ablation",
-        "old_tag_prefix": "prompt_mismatched_in_range",
+        "ablation_root": "ablation/prompt_mismatched/sunset",
+        "result_root": "prompt_mismatched/sunset",
         "dataset_name": "sunset_sandy_coast_signal_sd15_512x512",
     },
     "out_of_range": {
-        "new_tag_prefix": "out_of_range_cfg_ablation",
-        "old_tag_prefix": "out_of_range",
+        "ablation_root": "ablation/out_of_range/sunset",
+        "result_root": "out_of_range/sunset",
         "dataset_name": "out_of_range_512x512",
     },
 }
@@ -114,8 +114,8 @@ def experiment_distributions(experiment: str = "prompt_matched_in_range") -> Lis
         prefix = str(item["prefix"])
         item["experiment"] = key
         item["dataset_name"] = str(spec["dataset_name"])
-        item["new_tag"] = f"{spec['new_tag_prefix']}_{prefix}"
-        item["old_tag"] = f"{spec['old_tag_prefix']}_{prefix}"
+        item["new_tag"] = f"{spec['ablation_root']}/{prefix}"
+        item["old_tag"] = f"{spec['result_root']}/{prefix}"
         distributions.append(item)
     return distributions
 
@@ -350,7 +350,8 @@ def sync_cfg7p5_references(
             split_case = (
                 root
                 / "results"
-                / f"{spec['old_tag_prefix']}_{split_name}_{prefix}"
+                / str(spec["result_root"])
+                / f"{split_name}_{prefix}"
                 / "diffusion_backprop"
                 / source_case
             )
@@ -715,10 +716,9 @@ def _save_figure(fig: Any, output_dir: str | Path | None, stem: str, *, show: bo
     if output_dir is not None:
         root = Path(output_dir)
         root.mkdir(parents=True, exist_ok=True)
-        for suffix in ["png", "pdf"]:
-            path = root / f"{stem}.{suffix}"
-            fig.savefig(path, dpi=EXPORT_DPI, bbox_inches="tight")
-            outputs[suffix] = path
+        path = root / f"{stem}.pdf"
+        fig.savefig(path, dpi=EXPORT_DPI, bbox_inches="tight")
+        outputs["pdf"] = path
     if show:
         plt.show()
     plt.close(fig)

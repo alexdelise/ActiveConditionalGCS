@@ -26,7 +26,7 @@ cache directory.
 
 The analysis helpers use Matplotlib with `text.usetex=True` for paper-style
 figures. Install a TeX distribution before running the notebooks that export
-PDF/PNG figures.
+PDF figures.
 
 ## File Tree
 
@@ -59,15 +59,11 @@ PDF/PNG figures.
 │   └── README.md
 │
 ├── 📁 configs/                          ← Base configs and suite manifests
-│   ├── prompt_matched_in_range_base.json
-│   ├── prompt_mismatched_in_range_base.json
-│   ├── prompt_mismatched_in_range_first4_base.json
-│   ├── prompt_mismatched_in_range_last3_base.json
-│   ├── out_of_range_base.json
-│   ├── out_of_range_first4_base.json
-│   ├── out_of_range_last3_base.json
-│   ├── *_cfg_ablation_base.json
-│   ├── *_sample_*_suite.json            ← Per-prior suite manifests launched by scripts
+│   ├── prompt_matched/sunset/
+│   ├── prompt_mismatched/sunset/
+│   ├── out_of_range/sunset/
+│   ├── ablation/<experiment>/sunset/
+│   ├── *_suite.json                     ← Per-prior suite manifests launched by scripts
 │   └── README.md
 │
 ├── 📁 datasets/                         ← Dataset artifacts and index files
@@ -84,11 +80,11 @@ PDF/PNG figures.
 │   └── README.md
 │
 ├── 📁 scripts/                          ← Parallel launch scripts and aggregate wrappers
-│   ├── run_<experiment>_sample_<prior>.sh              ← Per-prior paper run
-│   ├── run_<experiment>_all.sh                         ← All priors for one experiment
-│   ├── run_<experiment>_cfg_ablation_sample_<prior>.sh ← Per-prior CFG ablation
-│   ├── run_<experiment>_cfg_ablation_all.sh            ← All priors for one CFG ablation
-│   ├── run_<experiment>_first4_* / run_<experiment>_last3_* ← Split long sweeps
+│   ├── prompt_matched/sunset/            ← Per-prior and aggregate prompt-matched runs
+│   ├── prompt_mismatched/sunset/         ← Full, first4, last3, and aggregate mismatched runs
+│   ├── out_of_range/sunset/              ← Full, first4, last3, and aggregate OOD runs
+│   ├── ablation/<experiment>/sunset/     ← CFG-ablation launch scripts
+│   ├── ablation/ktilde/sunset/           ← CFG-conditioned K-tilde builders
 │   └── README.md
 │
 ├── 📁 analyze_results/                  ← Analysis helpers and notebooks for paper figures
@@ -99,16 +95,21 @@ PDF/PNG figures.
 │   └── README.md
 │
 ├── 📁 readmepics/                       ← Expected-output figures copied from completed original runs
-└── 📁 results/                          ← Empty output folder for regenerated code-only submission runs
+└── 📁 results/                          ← Ignored local outputs, organized by experiment family
+    ├── prompt_matched/sunset/
+    ├── prompt_mismatched/sunset/
+    ├── out_of_range/sunset/
+    ├── ablation/<experiment>/sunset/
+    └── analysis/<experiment>/sunset/
 ```
 
 ## Naming
 
-| Name | Dataset | Meaning |
-| --- | --- | --- |
-| `prompt_matched_in_range` | `sunset_beach_signal_sd15_512x512` | Signal and recovery prompt match in range. |
-| `prompt_mismatched_in_range` | `sunset_sandy_coast_signal_sd15_512x512` | Signal is in range but the recovery prompt is mismatched. |
-| `out_of_range` | `out_of_range_512x512` | External out-of-range sunset image. |
+| Family Path | Manuscript Name | Dataset | Meaning |
+| --- | --- | --- | --- |
+| `prompt_matched` | Prompt matched in range | `sunset_beach_signal_sd15_512x512` | Signal and recovery prompt match in range. |
+| `prompt_mismatched` | Prompt mismatched in range | `sunset_sandy_coast_signal_sd15_512x512` | Signal is in range but the recovery prompt is mismatched. |
+| `out_of_range` | Out of range | `out_of_range_512x512` | External out-of-range sunset image. |
 
 | Prior | Meaning |
 | --- | --- |
@@ -126,16 +127,16 @@ We provide commands to perform runs split by sampling distribution for parallel 
 Split by sampling distribution:
 
 ```bash
-bash scripts/run_prompt_matched_in_range_sample_k0_unconditioned.sh
-bash scripts/run_prompt_matched_in_range_sample_k1_daytime_beach.sh
-bash scripts/run_prompt_matched_in_range_sample_k2_sunset_beach.sh
-bash scripts/run_prompt_matched_in_range_sample_k4_cat.sh
+bash scripts/prompt_matched/sunset/sample_k0_unconditioned.sh
+bash scripts/prompt_matched/sunset/sample_k1_daytime_beach.sh
+bash scripts/prompt_matched/sunset/sample_k2_sunset_beach.sh
+bash scripts/prompt_matched/sunset/sample_k4_cat.sh
 ```
 
 Run all four distributions sequentially (not recommended):
 
 ```bash
-bash scripts/run_prompt_matched_in_range_all.sh
+bash scripts/prompt_matched/sunset/all.sh
 ```
 
 ### Prompt Mismatched In Range
@@ -145,40 +146,40 @@ For this experiment we recover over seven different sampling percentages. This c
 Split by sampling distribution for the complete first4+last3 sweep:
 
 ```bash
-bash scripts/run_prompt_mismatched_in_range_first4_last3_sample_k0_unconditioned.sh
-bash scripts/run_prompt_mismatched_in_range_first4_last3_sample_k1_daytime_beach.sh
-bash scripts/run_prompt_mismatched_in_range_first4_last3_sample_k2_sunset_beach.sh
-bash scripts/run_prompt_mismatched_in_range_first4_last3_sample_k4_cat.sh
+bash scripts/prompt_mismatched/sunset/first4_last3_sample_k0_unconditioned.sh
+bash scripts/prompt_mismatched/sunset/first4_last3_sample_k1_daytime_beach.sh
+bash scripts/prompt_mismatched/sunset/first4_last3_sample_k2_sunset_beach.sh
+bash scripts/prompt_mismatched/sunset/first4_last3_sample_k4_cat.sh
 ```
 
 Run all four distributions for the complete first4+last3 sweep (not recommended):
 
 ```bash
-bash scripts/run_prompt_mismatched_in_range_first4_last3_all.sh
+bash scripts/prompt_mismatched/sunset/first4_last3_all.sh
 ```
 
 Schedule the first four sampling rates separately:
 
 ```bash
-bash scripts/run_prompt_mismatched_in_range_first4_sample_k0_unconditioned.sh
-bash scripts/run_prompt_mismatched_in_range_first4_sample_k1_daytime_beach.sh
-bash scripts/run_prompt_mismatched_in_range_first4_sample_k2_sunset_beach.sh
-bash scripts/run_prompt_mismatched_in_range_first4_sample_k4_cat.sh
+bash scripts/prompt_mismatched/sunset/first4_sample_k0_unconditioned.sh
+bash scripts/prompt_mismatched/sunset/first4_sample_k1_daytime_beach.sh
+bash scripts/prompt_mismatched/sunset/first4_sample_k2_sunset_beach.sh
+bash scripts/prompt_mismatched/sunset/first4_sample_k4_cat.sh
 ```
 
 Schedule the last three sampling rates separately:
 
 ```bash
-bash scripts/run_prompt_mismatched_in_range_last3_sample_k0_unconditioned.sh
-bash scripts/run_prompt_mismatched_in_range_last3_sample_k1_daytime_beach.sh
-bash scripts/run_prompt_mismatched_in_range_last3_sample_k2_sunset_beach.sh
-bash scripts/run_prompt_mismatched_in_range_last3_sample_k4_cat.sh
+bash scripts/prompt_mismatched/sunset/last3_sample_k0_unconditioned.sh
+bash scripts/prompt_mismatched/sunset/last3_sample_k1_daytime_beach.sh
+bash scripts/prompt_mismatched/sunset/last3_sample_k2_sunset_beach.sh
+bash scripts/prompt_mismatched/sunset/last3_sample_k4_cat.sh
 ```
 
 This command runs all optimization for this experiment sequentially (not recommended):
 
 ```bash
-bash scripts/run_prompt_mismatched_in_range_all.sh
+bash scripts/prompt_mismatched/sunset/all.sh
 ```
 
 ### Out Of Range
@@ -187,40 +188,40 @@ For this experiment we recover over seven different sampling percentages. This c
 Split by sampling distribution for the complete first4+last3 sweep:
 
 ```bash
-bash scripts/run_out_of_range_first4_last3_sample_k0_unconditioned.sh
-bash scripts/run_out_of_range_first4_last3_sample_k1_daytime_beach.sh
-bash scripts/run_out_of_range_first4_last3_sample_k2_sunset_beach.sh
-bash scripts/run_out_of_range_first4_last3_sample_k4_cat.sh
+bash scripts/out_of_range/sunset/first4_last3_sample_k0_unconditioned.sh
+bash scripts/out_of_range/sunset/first4_last3_sample_k1_daytime_beach.sh
+bash scripts/out_of_range/sunset/first4_last3_sample_k2_sunset_beach.sh
+bash scripts/out_of_range/sunset/first4_last3_sample_k4_cat.sh
 ```
 
 Run all four distributions for the complete first4+last3 sweep:
 
 ```bash
-bash scripts/run_out_of_range_first4_last3_all.sh
+bash scripts/out_of_range/sunset/first4_last3_all.sh
 ```
 
 Schedule the first four sampling rates separately:
 
 ```bash
-bash scripts/run_out_of_range_first4_sample_k0_unconditioned.sh
-bash scripts/run_out_of_range_first4_sample_k1_daytime_beach.sh
-bash scripts/run_out_of_range_first4_sample_k2_sunset_beach.sh
-bash scripts/run_out_of_range_first4_sample_k4_cat.sh
+bash scripts/out_of_range/sunset/first4_sample_k0_unconditioned.sh
+bash scripts/out_of_range/sunset/first4_sample_k1_daytime_beach.sh
+bash scripts/out_of_range/sunset/first4_sample_k2_sunset_beach.sh
+bash scripts/out_of_range/sunset/first4_sample_k4_cat.sh
 ```
 
 Schedule the last three sampling rates separately:
 
 ```bash
-bash scripts/run_out_of_range_last3_sample_k0_unconditioned.sh
-bash scripts/run_out_of_range_last3_sample_k1_daytime_beach.sh
-bash scripts/run_out_of_range_last3_sample_k2_sunset_beach.sh
-bash scripts/run_out_of_range_last3_sample_k4_cat.sh
+bash scripts/out_of_range/sunset/last3_sample_k0_unconditioned.sh
+bash scripts/out_of_range/sunset/last3_sample_k1_daytime_beach.sh
+bash scripts/out_of_range/sunset/last3_sample_k2_sunset_beach.sh
+bash scripts/out_of_range/sunset/last3_sample_k4_cat.sh
 ```
 
 This command runs all optimization for this experiment sequentially (not recommended):
 
 ```bash
-bash scripts/run_out_of_range_all.sh
+bash scripts/out_of_range/sunset/all.sh
 ```
 
 ## CFG Ablation Commands
@@ -230,16 +231,16 @@ bash scripts/run_out_of_range_all.sh
 Split by sampling distribution:
 
 ```bash
-bash scripts/run_prompt_matched_in_range_cfg_ablation_sample_k0_unconditioned.sh
-bash scripts/run_prompt_matched_in_range_cfg_ablation_sample_k1_daytime_beach.sh
-bash scripts/run_prompt_matched_in_range_cfg_ablation_sample_k2_sunset_beach.sh
-bash scripts/run_prompt_matched_in_range_cfg_ablation_sample_k4_cat.sh
+bash scripts/ablation/prompt_matched/sunset/sample_k0_unconditioned.sh
+bash scripts/ablation/prompt_matched/sunset/sample_k1_daytime_beach.sh
+bash scripts/ablation/prompt_matched/sunset/sample_k2_sunset_beach.sh
+bash scripts/ablation/prompt_matched/sunset/sample_k4_cat.sh
 ```
 
 Run all four distributions sequentially (not recommended):
 
 ```bash
-bash scripts/run_prompt_matched_in_range_cfg_ablation_all.sh
+bash scripts/ablation/prompt_matched/sunset/all.sh
 ```
 
 ### Prompt Mismatched In Range CFG Ablation
@@ -247,16 +248,16 @@ bash scripts/run_prompt_matched_in_range_cfg_ablation_all.sh
 Split by sampling distribution:
 
 ```bash
-bash scripts/run_prompt_mismatched_in_range_cfg_ablation_sample_k0_unconditioned.sh
-bash scripts/run_prompt_mismatched_in_range_cfg_ablation_sample_k1_daytime_beach.sh
-bash scripts/run_prompt_mismatched_in_range_cfg_ablation_sample_k2_sunset_beach.sh
-bash scripts/run_prompt_mismatched_in_range_cfg_ablation_sample_k4_cat.sh
+bash scripts/ablation/prompt_mismatched/sunset/sample_k0_unconditioned.sh
+bash scripts/ablation/prompt_mismatched/sunset/sample_k1_daytime_beach.sh
+bash scripts/ablation/prompt_mismatched/sunset/sample_k2_sunset_beach.sh
+bash scripts/ablation/prompt_mismatched/sunset/sample_k4_cat.sh
 ```
 
 Run all four distributions sequentially (not recommended):
 
 ```bash
-bash scripts/run_prompt_mismatched_in_range_cfg_ablation_all.sh
+bash scripts/ablation/prompt_mismatched/sunset/all.sh
 ```
 
 ### Out Of Range CFG Ablation
@@ -264,16 +265,16 @@ bash scripts/run_prompt_mismatched_in_range_cfg_ablation_all.sh
 Split by sampling distribution:
 
 ```bash
-bash scripts/run_out_of_range_cfg_ablation_sample_k0_unconditioned.sh
-bash scripts/run_out_of_range_cfg_ablation_sample_k1_daytime_beach.sh
-bash scripts/run_out_of_range_cfg_ablation_sample_k2_sunset_beach.sh
-bash scripts/run_out_of_range_cfg_ablation_sample_k4_cat.sh
+bash scripts/ablation/out_of_range/sunset/sample_k0_unconditioned.sh
+bash scripts/ablation/out_of_range/sunset/sample_k1_daytime_beach.sh
+bash scripts/ablation/out_of_range/sunset/sample_k2_sunset_beach.sh
+bash scripts/ablation/out_of_range/sunset/sample_k4_cat.sh
 ```
 
 Run all four distributions sequentially (not recommended):
 
 ```bash
-bash scripts/run_out_of_range_cfg_ablation_all.sh
+bash scripts/ablation/out_of_range/sunset/all.sh
 ```
 
 ## Output Layout
@@ -281,12 +282,13 @@ bash scripts/run_out_of_range_cfg_ablation_all.sh
 Runs write to:
 
 ```text
-results/<experiment>[_split][_cfg_ablation]_sample_<prior>/diffusion_backprop/<case>/cs/item_000/samp_<rate>/rep_<id>/
+results/<experiment_family>/sunset/[first4_|last3_]sample_<prior>/diffusion_backprop/<case>/cs/item_000/samp_<rate>/rep_<id>/
+results/ablation/<experiment_family>/sunset/sample_<prior>/diffusion_backprop/<case>/cs/item_000/samp_<rate>/rep_<id>/
 ```
 
 Each leaf run stores `run_config.json`, `dataset_item.json`, `run_data.npz`, `run_summary.txt`, `recon_cs.png`, `zero_filled_ifft.png`, and `z_rec.pt`.
 
-Each suite also writes `suite_manifest.json`, `suite_results.json`, and compact `results_cs.csv/.npz` tables.
+Each suite also writes `suite_manifest.json`, `suite_results.json`, and compact `results_cs.csv/.npz` tables. Analysis notebooks write paper figures as PDFs under `results/analysis/...`.
 
 ## Citation
 

@@ -162,7 +162,7 @@ def load_run_data_npz(path: str | Path) -> Dict[str, Any]:
 
 
 def discover_regression_tags(sd15_root: str | Path) -> List[str]:
-    """Return top-level result tags that contain conditioning-suite manifests."""
+    """Return result tags that contain conditioning-suite manifests."""
 
     root = find_sd15_root(sd15_root)
     results_root = root / "results"
@@ -171,12 +171,17 @@ def discover_regression_tags(sd15_root: str | Path) -> List[str]:
 
     tags: set[str] = set()
     for manifest_path in results_root.rglob("suite_manifest.json"):
+        manifest = load_json(manifest_path)
+        suite_tag = str(manifest.get("suite_tag", "")).strip("/")
+        if suite_tag:
+            tags.add(suite_tag)
+            continue
         relative_parent = manifest_path.parent.relative_to(results_root)
-        pieces = relative_parent.parts
-        if len(pieces) >= 2:
-            tags.add(pieces[0])
-        elif pieces:
-            tags.add(pieces[0])
+        pieces = list(relative_parent.parts)
+        if pieces and pieces[-1] in {"diffusion_backprop"}:
+            pieces.pop()
+        if pieces:
+            tags.add("/".join(pieces))
     return sorted(tags)
 
 

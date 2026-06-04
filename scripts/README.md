@@ -1,11 +1,12 @@
 # Scripts
 
-The scripts are copied from the working run structure and renamed to descriptive experiment names. They are designed for parallel cluster use.
-
-## Naming Pattern
+The launch scripts mirror the nested config and result layout. Experiment family
+and dataset live in the directory path, while the filename names the run variant.
 
 ```text
-run_<experiment>[_first4|_last3|_cfg_ablation]_sample_<prior>.sh
+scripts/<experiment_family>/sunset/sample_<prior>.sh
+scripts/<experiment_family>/sunset/[first4_|last3_]sample_<prior>.sh
+scripts/ablation/<experiment_family>/sunset/sample_<prior>.sh
 ```
 
 All paper launch scripts run `cs`, meaning Christoffel/K-tilde sampling.
@@ -21,15 +22,20 @@ The split lets different sampling distributions run independently in parallel.
 
 ## Aggregates
 
-- `run_prompt_matched_in_range_all.sh`: all four priors for prompt-matched `cs`.
-- `run_prompt_mismatched_in_range_first4_all.sh`: all four priors for the first four mismatched rates.
-- `run_prompt_mismatched_in_range_last3_all.sh`: all four priors for the last three mismatched rates.
-- `run_out_of_range_first4_all.sh`: all four priors for the first four out-of-range rates.
-- `run_out_of_range_last3_all.sh`: all four priors for the last three out-of-range rates.
+- `prompt_matched/sunset/all.sh`: all four priors for prompt-matched `cs`.
+- `prompt_mismatched/sunset/first4_all.sh`: all four priors for the first four mismatched rates.
+- `prompt_mismatched/sunset/last3_all.sh`: all four priors for the last three mismatched rates.
+- `out_of_range/sunset/first4_all.sh`: all four priors for the first four out-of-range rates.
+- `out_of_range/sunset/last3_all.sh`: all four priors for the last three out-of-range rates.
 
-Convenience wrappers named `run_<experiment>_first4_last3_sample_<prior>.sh` run both split parts for one sampling distribution.
-Aggregate convenience wrappers named `run_<experiment>_first4_last3_all.sh` run both split parts across all four sampling distributions.
+Convenience wrappers named `first4_last3_sample_<prior>.sh` run both split parts
+for one sampling distribution. Aggregate convenience wrappers named
+`first4_last3_all.sh` run both split parts across all four sampling
+distributions.
 
 ## CFG Ablation
 
 CFG-ablation scripts first copy existing reference rows from the corresponding standard split or standard run, then launch the CFG 1, 3, and 5 cases. This preserves the original paper workflow and avoids recomputing reference cases unnecessarily.
+
+The K-tilde builders needed by the CFG-ablation notebooks live under
+`ablation/ktilde/sunset/build_cfg*_conditioned_prompts.sh`.

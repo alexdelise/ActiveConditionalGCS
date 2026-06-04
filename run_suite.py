@@ -81,7 +81,7 @@ def main() -> None:
     parser.add_argument(
         "--config",
         type=str,
-        default="configs/prompt_matched_in_range_sample_k0_unconditioned_suite.json",
+        default="configs/prompt_matched/sunset/sample_k0_unconditioned_suite.json",
         help="Path to the suite manifest JSON.",
     )
     parser.add_argument("--tag", type=str, default=None, help="Optional override for the manifest results tag.")
