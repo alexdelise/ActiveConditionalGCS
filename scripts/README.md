@@ -7,6 +7,9 @@ and dataset live in the directory path, while the filename names the run variant
 scripts/<experiment_family>/sunset/sample_<prior>.sh
 scripts/<experiment_family>/sunset/[first4_|last3_]sample_<prior>.sh
 scripts/ablation/<experiment_family>/sunset/sample_<prior>.sh
+scripts/ktilde/main/build_<prior>.sh
+scripts/ktilde/cfg_ablation/build_<prior>_cfg<scale>.sh
+scripts/ktilde/convergence/[build_|measure_]<prior>.sh
 ```
 
 All paper launch scripts run `cs`, meaning Christoffel/K-tilde sampling.
@@ -33,12 +36,30 @@ for one sampling distribution. Aggregate convenience wrappers named
 `first4_last3_all.sh` run both split parts across all four sampling
 distributions.
 
+## K-Tilde Builders
+
+Canonical k-tilde build launchers live together under `ktilde/`:
+
+- `ktilde/main/`: one launcher for each of the four primary CFG 7.5, S500
+  priors, plus `build_all.sh`.
+- `ktilde/cfg_ablation/`: one launcher for each of the nine conditioned CFG 1,
+  3, and 5 S500 priors, per-CFG aggregates, and `build_all.sh`.
+- `ktilde/convergence/`: one S10000 reference builder and one convergence
+  measurement launcher for each of the four paper prompts.
+
+All build launchers delegate to `ktilde/build_named.sh`, honor `PYTHON_BIN`,
+validate existing artifacts by default, and forward arguments such as
+`--force`. The top-level `ktilde/build_all_paper.sh` aggregate processes all
+13 checked-in paper priors sequentially.
+
 ## CFG Ablation
 
 CFG-ablation scripts first copy existing reference rows from the corresponding standard split or standard run, then launch the CFG 1, 3, and 5 cases. This preserves the original paper workflow and avoids recomputing reference cases unnecessarily.
 
-The K-tilde builders needed by the CFG-ablation notebooks live under
-`ablation/ktilde/sunset/build_cfg*_conditioned_prompts.sh`.
+The historical K-tilde commands under
+`ablation/ktilde/sunset/build_cfg*_conditioned_prompts.sh` remain as
+compatibility aliases. They delegate to the canonical
+`ktilde/cfg_ablation/build_cfg*_all.sh` launchers.
 
 ## K-Tilde Convergence
 

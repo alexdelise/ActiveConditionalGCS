@@ -2,4 +2,6 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-exec "$SCRIPT_DIR/../../../ktilde/cfg_ablation/build_cfg3_all.sh" "$@"
+
+"$SCRIPT_DIR/main/build_all.sh" "$@"
+"$SCRIPT_DIR/cfg_ablation/build_all.sh" "$@"

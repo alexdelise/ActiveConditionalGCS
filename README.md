@@ -86,7 +86,9 @@ PDF figures.
 │   ├── prompt_mismatched/sunset/         ← Full, first4, last3, and aggregate mismatched runs
 │   ├── out_of_range/sunset/              ← Full, first4, last3, and aggregate OOD runs
 │   ├── ablation/<experiment>/sunset/     ← CFG-ablation launch scripts
-│   ├── ablation/ktilde/sunset/           ← CFG-conditioned K-tilde builders
+│   ├── ablation/ktilde/sunset/           ← Compatibility aliases for older CFG K-tilde commands
+│   ├── ktilde/main/                       ← Four primary S500 paper-prior builders
+│   ├── ktilde/cfg_ablation/               ← Nine CFG-ablation S500 prior builders
 │   ├── ktilde/convergence/                ← Independent S10000 build and convergence launchers
 │   └── README.md
 │
@@ -120,6 +122,35 @@ PDF figures.
 | `k1_daytime_beach` | Daytime beach prompt prior. |
 | `k2_sunset_beach` | Sunset beach prompt prior. |
 | `k4_cat` | Cat prompt prior. |
+
+## K-Tilde Rebuild Commands
+
+Every checked-in k-tilde used by the paper has a corresponding independent
+launcher under `scripts/ktilde/`. All launchers reuse an existing artifact
+after validating its metadata; pass `--force` to regenerate it.
+
+Rebuild or validate the four primary CFG 7.5, S500 paper priors:
+
+```bash
+bash scripts/ktilde/main/build_all.sh
+```
+
+Rebuild or validate all nine conditioned CFG 1, 3, and 5 S500 ablation priors:
+
+```bash
+bash scripts/ktilde/cfg_ablation/build_all.sh
+```
+
+Rebuild or validate all 13 checked-in paper priors sequentially:
+
+```bash
+bash scripts/ktilde/build_all_paper.sh
+```
+
+Each aggregate is composed of per-artifact launchers in the same directory, so
+the jobs can also be scheduled independently. The historical
+`scripts/ablation/ktilde/sunset/build_cfg*_conditioned_prompts.sh` commands
+remain as compatibility aliases for the canonical CFG aggregate launchers.
 
 ## K-Tilde Convergence Commands
 
