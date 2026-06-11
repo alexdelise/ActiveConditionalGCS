@@ -32,4 +32,7 @@ reruns the same estimator and saves only the relative L2 error of every iterate
 under `results/analysis/ktilde_convergence/`. It also verifies that the rerun
 finishes at the saved reference.
 
+The independent build and measurement launchers for all four references live
+under `scripts/ktilde/convergence/`.
+
 The `.npz` stores the probability map. The matching `.meta.json` stores prompt, seed, number of Monte Carlo samples, guidance scale, and grid size.

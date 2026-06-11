@@ -39,3 +39,17 @@ CFG-ablation scripts first copy existing reference rows from the corresponding s
 
 The K-tilde builders needed by the CFG-ablation notebooks live under
 `ablation/ktilde/sunset/build_cfg*_conditioned_prompts.sh`.
+
+## K-Tilde Convergence
+
+The launchers under `ktilde/convergence/` are split into independent jobs for
+the four paper prompts:
+
+- `build_<prior>.sh` creates the final 10,000-iteration reference in `ktilde/`.
+- `measure_<prior>.sh` reruns the estimator and writes only the relative L2
+  convergence trace under `results/analysis/ktilde_convergence/`.
+- `build_all.sh` and `measure_all.sh` run their corresponding four jobs
+  sequentially.
+
+Run a prompt's build before its matching measurement. All launchers honor
+`PYTHON_BIN` and forward additional arguments such as `--force`.

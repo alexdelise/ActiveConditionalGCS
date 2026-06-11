@@ -38,6 +38,7 @@ PDF figures.
 ├── 📄 THIRD_PARTY_NOTICES.md            ← Third-party attribution notes
 ├── 📄 build_dataset.py                  ← Builds/validates dataset artifacts from `datasets/config.json`
 ├── 📄 build_ktilde.py                   ← Builds/validates Christoffel/K-tilde artifacts
+├── 📄 run_ktilde_convergence.py         ← Reruns Algorithm 1 and records relative L2 convergence
 ├── 📄 run_conditioning_regression.py    ← Suite runner used by all experiment scripts
 ├── 📄 run_cs.py                         ← Single-config Christoffel/K-tilde sampler runner
 ├── 📄 run_mcs.py                        ← Optional MCS baseline runner, not used by paper scripts
@@ -76,6 +77,7 @@ PDF figures.
 ├── 📁 ktilde/                           ← Precomputed Christoffel/K-tilde artifacts
 │   ├── config.json
 │   ├── config_cfg_ablation.json
+│   ├── config_convergence.json
 │   ├── Ktilde_SD15__fft__*.npz
 │   └── README.md
 │
@@ -85,6 +87,7 @@ PDF figures.
 │   ├── out_of_range/sunset/              ← Full, first4, last3, and aggregate OOD runs
 │   ├── ablation/<experiment>/sunset/     ← CFG-ablation launch scripts
 │   ├── ablation/ktilde/sunset/           ← CFG-conditioned K-tilde builders
+│   ├── ktilde/convergence/                ← Independent S10000 build and convergence launchers
 │   └── README.md
 │
 ├── 📁 analyze_results/                  ← Analysis helpers and notebooks for paper figures
@@ -118,6 +121,46 @@ PDF figures.
 | `k2_sunset_beach` | Sunset beach prompt prior. |
 | `k4_cat` | Cat prompt prior. |
 
+## K-Tilde Convergence Commands
+
+The convergence experiment has two phases for each of the four paper prompts.
+First, build the final 10,000-iteration reference under `ktilde/`. Then rerun
+the same deterministic estimator and record
+`||K_tilde_iteration - K_tilde_final||_2 / ||K_tilde_final||_2`. The rerun
+saves only the compact error trace and metadata under
+`results/analysis/ktilde_convergence/`; it does not save intermediate k-tildes.
+
+Each command below is an independent job. A measurement job requires only its
+matching reference build to have completed.
+
+Build the four final references:
+
+```bash
+bash scripts/ktilde/convergence/build_k0_unconditioned.sh
+bash scripts/ktilde/convergence/build_k1_daytime_beach.sh
+bash scripts/ktilde/convergence/build_k2_sunset_beach.sh
+bash scripts/ktilde/convergence/build_k4_cat.sh
+```
+
+Measure the four convergence traces:
+
+```bash
+bash scripts/ktilde/convergence/measure_k0_unconditioned.sh
+bash scripts/ktilde/convergence/measure_k1_daytime_beach.sh
+bash scripts/ktilde/convergence/measure_k2_sunset_beach.sh
+bash scripts/ktilde/convergence/measure_k4_cat.sh
+```
+
+Sequential aggregate wrappers are also available:
+
+```bash
+bash scripts/ktilde/convergence/build_all.sh
+bash scripts/ktilde/convergence/measure_all.sh
+```
+
+Pass `--force` to a build or measurement launcher to replace its existing
+artifact. The convergence runner validates that the final rerun matches its
+saved S10000 reference.
 
 ## Main Experiment Commands
 We provide commands to perform runs split by sampling distribution for parallel efficiency. Each program launched by one of the command belows requires about 5GB VRAM, so all four runs, corresponding to each sampling distribution, can fit on a 24GB VRAM GPU like the NVIDIA RTX A5000 GPUs we use in the paper. 
@@ -289,6 +332,10 @@ results/ablation/<experiment_family>/sunset/sample_<prior>/diffusion_backprop/<c
 Each leaf run stores `run_config.json`, `dataset_item.json`, `run_data.npz`, `run_summary.txt`, `recon_cs.png`, `zero_filled_ifft.png`, and `z_rec.pt`.
 
 Each suite also writes `suite_manifest.json`, `suite_results.json`, and compact `results_cs.csv/.npz` tables. Analysis notebooks write paper figures as PDFs under `results/analysis/...`.
+
+K-tilde convergence runs write one compact `.convergence.npz` trace and one
+matching `.convergence.meta.json` file per prompt under
+`results/analysis/ktilde_convergence/`.
 
 ## Citation
 
