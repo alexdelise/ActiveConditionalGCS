@@ -162,6 +162,11 @@ Pass `--force` to a build or measurement launcher to replace its existing
 artifact. The convergence runner validates that the final rerun matches its
 saved S10000 reference.
 
+After all four measurement jobs finish, run the early convergence section in
+`analyze_results/sd15_ktilde_lambda_comparison.ipynb`. It displays the 2x2
+panel and saves the panel plus four individual PDFs under
+`results/analysis/ktilde_convergence/figures/`.
+
 ## Main Experiment Commands
 We provide commands to perform runs split by sampling distribution for parallel efficiency. Each program launched by one of the command belows requires about 5GB VRAM, so all four runs, corresponding to each sampling distribution, can fit on a 24GB VRAM GPU like the NVIDIA RTX A5000 GPUs we use in the paper. 
 

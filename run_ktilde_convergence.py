@@ -17,6 +17,15 @@ def convergence_output_paths(output_dir: Path, ktilde_name: str) -> tuple[Path, 
     return output_dir / f"{stem}.npz", output_dir / f"{stem}.meta.json"
 
 
+def display_path(path: Path, project_root: Path) -> str:
+    """Return a project-relative path when possible, otherwise an absolute path."""
+
+    try:
+        return str(path.resolve().relative_to(project_root.resolve()))
+    except ValueError:
+        return str(path.resolve())
+
+
 def save_convergence_trace(
     trace_path: Path,
     metadata_path: Path,
@@ -116,9 +125,9 @@ def main() -> None:
         "artifact_type": "ktilde_convergence_trace",
         "formula": "||K_tilde_iteration - K_tilde_final||_2 / ||K_tilde_final||_2",
         "ktilde_name": definition.name,
-        "catalog_path": str(catalog_path.relative_to(root)),
-        "reference_path": str(reference_path.relative_to(root)),
-        "trace_path": str(trace_path.relative_to(root)),
+        "catalog_path": display_path(catalog_path, root),
+        "reference_path": display_path(reference_path, root),
+        "trace_path": display_path(trace_path, root),
         "iterations": int(len(iterations)),
         "reference_l2_norm": reference_norm,
         "final_relative_l2_error": float(relative_l2_error[-1]),

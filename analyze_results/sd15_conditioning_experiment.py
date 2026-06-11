@@ -333,6 +333,73 @@ def load_ktilde_bank(
     return dict(sorted(bank.items(), key=lambda item: int(item[1]["sampling_rank"])))
 
 
+def load_ktilde_convergence_traces(
+    sd15_root: str | Path,
+    *,
+    config_path: Optional[str | Path] = None,
+    results_dir: Optional[str | Path] = None,
+    skip_missing: bool = False,
+) -> Dict[str, Dict[str, Any]]:
+    """Load and validate the four Algorithm 1 convergence traces."""
+
+    root = find_sd15_root(sd15_root)
+    config_file = Path(config_path or "ktilde/config_convergence.json")
+    if not config_file.is_absolute():
+        config_file = root / config_file
+    trace_root = Path(results_dir or "results/analysis/ktilde_convergence")
+    if not trace_root.is_absolute():
+        trace_root = root / trace_root
+
+    catalog_payload = load_json(config_file)
+    catalog = {str(name): dict(entry) for name, entry in dict(catalog_payload.get("ktilde", {})).items()}
+    traces: Dict[str, Dict[str, Any]] = {}
+    missing_paths: List[Path] = []
+    for name, raw_entry in catalog.items():
+        trace_path = trace_root / f"{name}.convergence.npz"
+        if not trace_path.is_file():
+            missing_paths.append(trace_path)
+            continue
+        with np.load(str(trace_path), allow_pickle=False) as payload:
+            iterations = np.asarray(payload["iteration"], dtype=np.int64)
+            relative_l2_error = np.asarray(payload["relative_l2_error"], dtype=np.float64)
+            metadata = json.loads(str(payload["meta"]))
+
+        expected_iterations = int(raw_entry["max_samples"])
+        if iterations.ndim != 1 or relative_l2_error.ndim != 1 or iterations.shape != relative_l2_error.shape:
+            raise ValueError(f"Malformed convergence trace arrays: {trace_path}")
+        if iterations.size != expected_iterations or not np.array_equal(
+            iterations,
+            np.arange(1, expected_iterations + 1, dtype=np.int64),
+        ):
+            raise ValueError(f"Convergence trace does not contain iterations 1 through {expected_iterations}: {trace_path}")
+        if np.any(~np.isfinite(relative_l2_error)) or np.any(relative_l2_error < 0.0):
+            raise ValueError(f"Convergence trace contains invalid relative L2 errors: {trace_path}")
+        if metadata.get("ktilde_name") != name:
+            raise ValueError(f"Convergence trace metadata names the wrong k-tilde: {trace_path}")
+        if metadata.get("reference_matches_rerun") is not True:
+            raise ValueError(f"Convergence rerun did not validate against its final reference: {trace_path}")
+
+        role = str(raw_entry.get("role", name))
+        traces[role] = {
+            **raw_entry,
+            "name": name,
+            "role": role,
+            "trace_path": trace_path,
+            "iteration": iterations,
+            "relative_l2_error": relative_l2_error,
+            "metadata": metadata,
+        }
+
+    if missing_paths and not skip_missing:
+        missing_block = "\n".join(f"  - {path}" for path in missing_paths)
+        raise FileNotFoundError(
+            "Missing k-tilde convergence traces. Run the matching "
+            "scripts/ktilde/convergence/measure_<prior>.sh launchers first:\n"
+            f"{missing_block}"
+        )
+    return dict(sorted(traces.items(), key=lambda item: int(item[1].get("sampling_rank", 0))))
+
+
 def empirical_lambda_self(k_tilde_num: np.ndarray, mu_sampling: np.ndarray) -> float:
     """Return max K_c / mu_cs over the support of a sampling prior."""
 
@@ -1026,6 +1093,114 @@ def export_lambda_figure_set(
         show=show,
         limits=limits,
     )
+    return outputs
+
+
+def _positive_ktilde_convergence_trace(info: Mapping[str, Any]) -> tuple[np.ndarray, np.ndarray]:
+    """Return finite positive convergence values suitable for a logarithmic axis."""
+
+    iterations = np.asarray(info["iteration"], dtype=np.int64)
+    relative_l2_error = np.asarray(info["relative_l2_error"], dtype=np.float64)
+    keep = np.isfinite(relative_l2_error) & (relative_l2_error > 0.0)
+    if not np.any(keep):
+        raise ValueError(f"Convergence trace has no positive values to plot: {info.get('trace_path', '')}")
+    return iterations[keep], relative_l2_error[keep]
+
+
+def _style_ktilde_convergence_axis(ax, info: Mapping[str, Any]) -> None:
+    """Apply the shared paper style to one k-tilde convergence axis."""
+
+    iterations, relative_l2_error = _positive_ktilde_convergence_trace(info)
+    role = str(info.get("role", ""))
+    ax.plot(
+        iterations,
+        relative_l2_error,
+        color=SD15_PRIOR_COLORS.get(role, "#16324F"),
+        linewidth=2.8,
+    )
+    ax.set_yscale("log")
+    ax.set_xlim(0, int(np.asarray(info["iteration"]).max()))
+    ax.set_title(_prior_descriptor(info))
+    ax.grid(True, which="both", linestyle=":", alpha=0.48)
+    ax.margins(x=0.0)
+
+
+def plot_ktilde_convergence_trace(
+    traces: Mapping[str, Mapping[str, Any]],
+    *,
+    role: str,
+    output_path: Optional[str | Path] = None,
+    show: bool = False,
+) -> Optional[Path]:
+    """Plot one Algorithm 1 relative-L2 convergence trace."""
+
+    import matplotlib.pyplot as plt
+
+    info = dict(traces[str(role)])
+    with plt.rc_context(SD15_PRESENTATION_RC):
+        fig, ax = plt.subplots(figsize=(7.4, 5.8), constrained_layout=True)
+        fig.set_constrained_layout_pads(w_pad=0.04, h_pad=0.04, wspace=0.02, hspace=0.02)
+        _style_ktilde_convergence_axis(ax, info)
+        ax.set_xlabel(r"Algorithm 1 Iteration")
+        ax.set_ylabel(r"Relative $\ell_2$ Error")
+        return _save_plot(fig, output_path, show=show)
+
+
+def plot_ktilde_convergence_grid(
+    traces: Mapping[str, Mapping[str, Any]],
+    *,
+    roles: Optional[Sequence[str]] = None,
+    output_path: Optional[str | Path] = None,
+    show: bool = False,
+) -> Optional[Path]:
+    """Plot the four paper-prompt convergence traces as a 2x2 panel."""
+
+    import matplotlib.pyplot as plt
+
+    ordered_roles = [str(role) for role in (roles or traces.keys())]
+    infos = [dict(traces[role]) for role in ordered_roles]
+    if len(infos) > 4:
+        raise ValueError("The k-tilde convergence grid supports at most four traces.")
+
+    with plt.rc_context(SD15_PRESENTATION_RC):
+        fig, axes = plt.subplots(2, 2, figsize=(13.2, 10.0), constrained_layout=True, sharex=True, sharey=True)
+        axes_flat = np.asarray(axes, dtype=object).reshape(-1)
+        fig.set_constrained_layout_pads(w_pad=0.04, h_pad=0.04, wspace=0.04, hspace=0.04)
+        for ax, info in zip(axes_flat, infos):
+            _style_ktilde_convergence_axis(ax, info)
+        for ax in axes_flat[len(infos) :]:
+            ax.set_visible(False)
+        fig.supxlabel(r"Algorithm 1 Iteration")
+        fig.supylabel(r"Relative $\ell_2$ Error")
+        return _save_plot(fig, output_path, show=show)
+
+
+def export_ktilde_convergence_figure_set(
+    traces: Mapping[str, Mapping[str, Any]],
+    *,
+    output_dir: str | Path,
+    show: bool = False,
+    show_individual: bool = False,
+    file_format: str = "pdf",
+) -> Dict[str, Path]:
+    """Save all convergence plots, optionally showing the grid or individuals."""
+
+    root = Path(output_dir)
+    root.mkdir(parents=True, exist_ok=True)
+    suffix = str(file_format).lstrip(".")
+    outputs: Dict[str, Path] = {}
+    outputs["grid"] = plot_ktilde_convergence_grid(
+        traces,
+        output_path=root / f"sd15_ktilde_convergence_grid.{suffix}",
+        show=show,
+    )
+    for role in traces:
+        outputs[str(role)] = plot_ktilde_convergence_trace(
+            traces,
+            role=str(role),
+            output_path=root / f"sd15_ktilde_convergence_{role}.{suffix}",
+            show=show_individual,
+        )
     return outputs
 
 
