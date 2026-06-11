@@ -17,4 +17,19 @@ To rebuild a K-tilde artifact:
 python build_ktilde.py --name Ktilde_SD15__fft__k2sunsetbeach_512x512_S500_ns20
 ```
 
+`config_convergence.json` defines separate 10,000-iteration references for the
+unconditioned, daytime-beach, sunset-beach, and cat prompts. These references
+leave the main 500-iteration paper priors unchanged. Build one reference with:
+
+```bash
+python build_ktilde.py \
+  --config ktilde/config_convergence.json \
+  --name Ktilde_SD15__fft__k2sunsetbeach_512x512_S10000_ns20
+```
+
+After its final reference exists, `run_ktilde_convergence.py` deterministically
+reruns the same estimator and saves only the relative L2 error of every iterate
+under `results/analysis/ktilde_convergence/`. It also verifies that the rerun
+finishes at the saved reference.
+
 The `.npz` stores the probability map. The matching `.meta.json` stores prompt, seed, number of Monte Carlo samples, guidance scale, and grid size.

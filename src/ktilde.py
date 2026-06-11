@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import numpy as np
 import torch
@@ -135,13 +135,21 @@ def ktilde_metadata(definition: KtildeBuildConfig, prompt_schedule: List[str]) -
 
 
 @torch.inference_mode()
-def estimate_ktilde_christoffel(definition: KtildeBuildConfig, pipe, prompt_schedule: List[str]) -> Tuple[np.ndarray, np.ndarray]:
+def estimate_ktilde_christoffel(
+    definition: KtildeBuildConfig,
+    pipe,
+    prompt_schedule: List[str],
+    *,
+    iteration_callback: Optional[Callable[[int, np.ndarray], None]] = None,
+) -> Tuple[np.ndarray, np.ndarray]:
     """Estimate the Christoffel function used by Christoffel sampling.
 
     Args:
         definition: K-tilde catalog entry to estimate.
         pipe: Loaded SD1.5 diffusion pipeline.
         prompt_schedule: Prompt sequence used over all Monte Carlo samples.
+        iteration_callback: Optional observer called with the one-based iteration
+            number and current k-tilde after every trial.
 
     Returns:
         The estimated k-tilde vector and the normalized sampling probabilities.
@@ -200,6 +208,8 @@ def estimate_ktilde_christoffel(definition: KtildeBuildConfig, pipe, prompt_sche
         diff = (image_i - image_j).reshape(channels, num_pixels).to(dtype=torch.float32, device=DEVICE)
         diff_norm = diff.norm(p=2).item()
         if diff_norm == 0.0:
+            if iteration_callback is not None:
+                iteration_callback(sample_id + 1, k_tilde)
             continue
 
         # The Christoffel estimate tracks the largest normalized Fourier energy
@@ -212,6 +222,8 @@ def estimate_ktilde_christoffel(definition: KtildeBuildConfig, pipe, prompt_sche
         if sample_id == 0 or sample_id % 10 == 0 or sample_id == int(definition.max_samples) - 1:
             delta = np.linalg.norm(k_tilde - previous, 2)
             print(sample_id, delta)
+        if iteration_callback is not None:
+            iteration_callback(sample_id + 1, k_tilde)
 
     total = np.sum(k_tilde)
     # Degenerate all-zero estimates fall back to a valid uniform distribution
