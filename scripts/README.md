@@ -68,7 +68,8 @@ the four paper prompts:
 
 - `build_<prior>.sh` creates the final 10,000-iteration reference in `ktilde/`.
 - `measure_<prior>.sh` reruns the estimator and writes only the relative L2
-  convergence trace under `results/analysis/ktilde_convergence/`.
+  convergence trace under `results/analysis/ktilde_convergence/`, while
+  streaming the measured relative L2 error after every iteration.
 - `build_all.sh` and `measure_all.sh` run their corresponding four jobs
   sequentially.
 

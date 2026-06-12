@@ -108,8 +108,14 @@ def main() -> None:
     relative_l2_error: List[float] = []
 
     def record_relative_error(iteration: int, current_ktilde: np.ndarray) -> None:
+        error = float(np.linalg.norm(current_ktilde - reference_ktilde, 2) / reference_norm)
         iterations.append(int(iteration))
-        relative_l2_error.append(float(np.linalg.norm(current_ktilde - reference_ktilde, 2) / reference_norm))
+        relative_l2_error.append(error)
+        print(
+            f"[ktilde convergence] iteration {iteration}/{definition.max_samples} "
+            f"relative_l2_error={error:.8e}",
+            flush=True,
+        )
 
     pipe = load_sd15_pipeline(RuntimeConfig())
     rerun_ktilde, _ = estimate_ktilde_christoffel(
