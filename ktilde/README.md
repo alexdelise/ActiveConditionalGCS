@@ -48,7 +48,7 @@ After its final reference exists, `run_ktilde_convergence.py` deterministically
 reruns the same estimator and saves only the relative L2 error of every iterate
 under `results/analysis/ktilde_convergence/`. It also verifies that the rerun
 finishes at the saved reference and prints the measured relative L2 error after
-every iteration.
+every 10 iterations.
 
 The independent build and measurement launchers for all four references live
 under `scripts/ktilde/convergence/`.

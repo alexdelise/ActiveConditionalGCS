@@ -160,8 +160,8 @@ the same deterministic estimator and record
 `||K_tilde_iteration - K_tilde_final||_2 / ||K_tilde_final||_2`. The rerun
 saves only the compact error trace and metadata under
 `results/analysis/ktilde_convergence/`; it does not save intermediate k-tildes.
-Each measurement job also streams the measured relative L2 error after every
-iteration.
+Each measurement job also streams the measured relative L2 error every 10
+iterations.
 
 Each command below is an independent job. A measurement job requires only its
 matching reference build to have completed.
