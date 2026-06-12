@@ -16,7 +16,7 @@ All paper launch scripts run `cs`, meaning Christoffel/K-tilde sampling.
 
 ## Split Runs
 
-The longer `prompt_mismatched_in_range` and `out_of_range` experiments keep the original split:
+All three main experiments use the same seven-rate grid and split:
 
 - `first4`: sampling ratios `0.00015625`, `0.0003125`, `0.000625`, `0.00125`
 - `last3`: sampling ratios `0.0025`, `0.005`, `0.01`
@@ -26,6 +26,8 @@ The split lets different sampling distributions run independently in parallel.
 ## Aggregates
 
 - `prompt_matched/sunset/all.sh`: all four priors for prompt-matched `cs`.
+- `prompt_matched/sunset/first4_all.sh`: all four priors for the first four prompt-matched rates.
+- `prompt_matched/sunset/last3_all.sh`: all four priors for the last three prompt-matched rates.
 - `prompt_mismatched/sunset/first4_all.sh`: all four priors for the first four mismatched rates.
 - `prompt_mismatched/sunset/last3_all.sh`: all four priors for the last three mismatched rates.
 - `out_of_range/sunset/first4_all.sh`: all four priors for the first four out-of-range rates.
@@ -54,7 +56,10 @@ validate existing artifacts by default, and forward arguments such as
 
 ## CFG Ablation
 
-CFG-ablation scripts first copy existing reference rows from the corresponding standard split or standard run, then launch the CFG 1, 3, and 5 cases. This preserves the original paper workflow and avoids recomputing reference cases unnecessarily.
+CFG-ablation scripts first copy existing reference rows from the corresponding
+standard split or standard run, then launch the CFG 1, 3, and 5 cases. The
+updated prompt-matched ablation follows its seven-rate first4/last3 main sweep;
+the other ablations retain their existing five-rate grids.
 
 The historical K-tilde commands under
 `ablation/ktilde/sunset/build_cfg*_conditioned_prompts.sh` remain as

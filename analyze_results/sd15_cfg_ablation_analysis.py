@@ -48,6 +48,15 @@ EXPORT_DPI = 800
 DEFAULT_CONFIDENCE_LEVEL = 0.95
 SAMPLING_X_LABEL = r"Sampling Ratio $m/n$"
 ABLATION_SAMPLING_PERCENTAGES: tuple[float, ...] = (0.00125, 0.0025, 0.005, 0.01, 0.025)
+PROMPT_MATCHED_ABLATION_SAMPLING_PERCENTAGES: tuple[float, ...] = (
+    0.00015625,
+    0.0003125,
+    0.000625,
+    0.00125,
+    0.0025,
+    0.005,
+    0.01,
+)
 PANEL_TITLE_FONT = {"fontfamily": "serif", "fontname": "Computer Modern Roman"}
 
 
@@ -99,6 +108,14 @@ EXPERIMENT_SPECS: Dict[str, Dict[str, str]] = {
         "dataset_name": "out_of_range_512x512",
     },
 }
+
+
+def experiment_sampling_percentages(experiment: str) -> tuple[float, ...]:
+    """Return the sampling grid used by one CFG-ablation experiment."""
+
+    if str(experiment) == "prompt_matched_in_range":
+        return PROMPT_MATCHED_ABLATION_SAMPLING_PERCENTAGES
+    return ABLATION_SAMPLING_PERCENTAGES
 
 
 def experiment_distributions(experiment: str = "prompt_matched_in_range") -> List[Dict[str, Any]]:
@@ -301,14 +318,13 @@ def sync_cfg7p5_references(
     sd15_root: str | Path | None = None,
     *,
     experiment: str = "prompt_matched_in_range",
-    sampling_percentages: Sequence[float] | None = ABLATION_SAMPLING_PERCENTAGES,
+    sampling_percentages: Sequence[float] | None = None,
     dry_run: bool = False,
 ) -> pd.DataFrame:
     """Refresh copied CFG 7.5 reference artifacts from finished main-experiment runs.
 
-    The prompt-matched experiment stores the reference as one complete case folder.
-    The prompt-mismatched and out-of-range experiments may have sources split across first4/last3 result folders,
-    so this also merges any available sampled subdirectories into reference_cfg7p5.
+    Main-experiment sources may be split across first4/last3 result folders, so
+    this merges available sampled subdirectories into reference_cfg7p5.
     """
 
     root = find_sd15_root(sd15_root)
@@ -317,7 +333,7 @@ def sync_cfg7p5_references(
         raise KeyError(f"Unknown CFG-ablation experiment {experiment!r}; expected one of {sorted(EXPERIMENT_SPECS)}.")
     spec = EXPERIMENT_SPECS[key]
     if sampling_percentages is None:
-        sample_values = [float(value) for value in ABLATION_SAMPLING_PERCENTAGES]
+        sample_values = [float(value) for value in experiment_sampling_percentages(key)]
     else:
         sample_values = [float(value) for value in sampling_percentages]
     records: List[Dict[str, Any]] = []
@@ -445,7 +461,7 @@ def load_cfg_ablation_rows(
     sd15_root: str | Path | None = None,
     *,
     experiment: str = "prompt_matched_in_range",
-    sampling_percentages: Sequence[float] | None = ABLATION_SAMPLING_PERCENTAGES,
+    sampling_percentages: Sequence[float] | None = None,
 ) -> pd.DataFrame:
     """Load all available CFG-ablation rows, including copied or original references."""
 
@@ -480,7 +496,10 @@ def load_cfg_ablation_rows(
     for column in numeric_columns:
         if column in frame.columns:
             frame[column] = pd.to_numeric(frame[column], errors="coerce")
-    frame = _filter_sampling_percentages(frame, sampling_percentages)
+    selected_sampling_percentages = sampling_percentages
+    if selected_sampling_percentages is None:
+        selected_sampling_percentages = experiment_sampling_percentages(experiment)
+    frame = _filter_sampling_percentages(frame, selected_sampling_percentages)
     if frame.empty:
         return pd.DataFrame()
     dedupe_columns = [

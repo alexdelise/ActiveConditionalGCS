@@ -5,6 +5,8 @@ This folder contains JSON inputs for the reproducibility scripts.
 ## Base Configs
 
 - `prompt_matched/sunset/base.json`: prompt-matched in-range sunset experiment.
+- `prompt_matched/sunset/first4_base.json`: first four sampling rates for parallel prompt-matched runs.
+- `prompt_matched/sunset/last3_base.json`: last three sampling rates for parallel prompt-matched runs.
 - `prompt_mismatched/sunset/base.json`: prompt-mismatched in-range sunset experiment.
 - `prompt_mismatched/sunset/first4_base.json`: first four sampling rates for parallel prompt-mismatched runs.
 - `prompt_mismatched/sunset/last3_base.json`: last three sampling rates for parallel prompt-mismatched runs.

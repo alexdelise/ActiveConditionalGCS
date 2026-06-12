@@ -82,7 +82,7 @@ PDF figures.
 │   └── README.md
 │
 ├── 📁 scripts/                          ← Parallel launch scripts and aggregate wrappers
-│   ├── prompt_matched/sunset/            ← Per-prior and aggregate prompt-matched runs
+│   ├── prompt_matched/sunset/            ← Full, first4, last3, and aggregate prompt-matched runs
 │   ├── prompt_mismatched/sunset/         ← Full, first4, last3, and aggregate mismatched runs
 │   ├── out_of_range/sunset/              ← Full, first4, last3, and aggregate OOD runs
 │   ├── ablation/<experiment>/sunset/     ← CFG-ablation launch scripts
@@ -102,6 +102,7 @@ PDF figures.
 ├── 📁 readmepics/                       ← Expected-output figures copied from completed original runs
 └── 📁 results/                          ← Ignored local outputs, organized by experiment family
     ├── prompt_matched/sunset/
+    ├── prompt_matched_old/sunset/         ← Archived pre-fix prompt-matched outputs
     ├── prompt_mismatched/sunset/
     ├── out_of_range/sunset/
     ├── ablation/<experiment>/sunset/
@@ -205,7 +206,44 @@ We provide commands to perform runs split by sampling distribution for parallel 
 
 ### Prompt Matched In Range
 
-Split by sampling distribution:
+This experiment uses the same seven sampling percentages and optimizer settings
+as the other main experiments. The complete sweep can be split into the first
+four and last three sampling percentages for parallel scheduling.
+
+Split by sampling distribution for the complete first4+last3 sweep:
+
+```bash
+bash scripts/prompt_matched/sunset/first4_last3_sample_k0_unconditioned.sh
+bash scripts/prompt_matched/sunset/first4_last3_sample_k1_daytime_beach.sh
+bash scripts/prompt_matched/sunset/first4_last3_sample_k2_sunset_beach.sh
+bash scripts/prompt_matched/sunset/first4_last3_sample_k4_cat.sh
+```
+
+Run all four distributions for the complete first4+last3 sweep (not recommended):
+
+```bash
+bash scripts/prompt_matched/sunset/first4_last3_all.sh
+```
+
+Schedule the first four sampling rates separately:
+
+```bash
+bash scripts/prompt_matched/sunset/first4_sample_k0_unconditioned.sh
+bash scripts/prompt_matched/sunset/first4_sample_k1_daytime_beach.sh
+bash scripts/prompt_matched/sunset/first4_sample_k2_sunset_beach.sh
+bash scripts/prompt_matched/sunset/first4_sample_k4_cat.sh
+```
+
+Schedule the last three sampling rates separately:
+
+```bash
+bash scripts/prompt_matched/sunset/last3_sample_k0_unconditioned.sh
+bash scripts/prompt_matched/sunset/last3_sample_k1_daytime_beach.sh
+bash scripts/prompt_matched/sunset/last3_sample_k2_sunset_beach.sh
+bash scripts/prompt_matched/sunset/last3_sample_k4_cat.sh
+```
+
+Run an unsplit seven-rate sweep by sampling distribution:
 
 ```bash
 bash scripts/prompt_matched/sunset/sample_k0_unconditioned.sh
@@ -214,7 +252,7 @@ bash scripts/prompt_matched/sunset/sample_k2_sunset_beach.sh
 bash scripts/prompt_matched/sunset/sample_k4_cat.sh
 ```
 
-Run all four distributions sequentially (not recommended):
+Run all four unsplit distributions sequentially (not recommended):
 
 ```bash
 bash scripts/prompt_matched/sunset/all.sh
@@ -309,6 +347,10 @@ bash scripts/out_of_range/sunset/all.sh
 
 ### Prompt Matched In Range CFG Ablation
 
+The updated prompt-matched ablation uses the fixed seven-rate grid and copies
+its unconditioned and CFG 7.5 references from the prompt-matched first4/last3
+main-experiment outputs.
+
 Split by sampling distribution:
 
 ```bash
@@ -370,6 +412,9 @@ results/ablation/<experiment_family>/sunset/sample_<prior>/diffusion_backprop/<c
 Each leaf run stores `run_config.json`, `dataset_item.json`, `run_data.npz`, `run_summary.txt`, `recon_cs.png`, `zero_filled_ifft.png`, and `z_rec.pt`.
 
 Each suite also writes `suite_manifest.json`, `suite_results.json`, and compact `results_cs.csv/.npz` tables. Analysis notebooks write paper figures as PDFs under `results/analysis/...`.
+
+The pre-fix prompt-matched main and CFG-ablation artifacts are archived under
+the corresponding `prompt_matched_old` result and analysis directories.
 
 K-tilde convergence runs write one compact `.convergence.npz` trace and one
 matching `.convergence.meta.json` file per prompt under
