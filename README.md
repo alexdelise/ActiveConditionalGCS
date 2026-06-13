@@ -199,7 +199,9 @@ saved S10000 reference.
 After all four measurement jobs finish, run the early convergence section in
 `analyze_results/sd15_ktilde_lambda_comparison.ipynb`. It displays the 2x2
 panel and saves the panel plus four individual PDFs under
-`results/analysis/ktilde_convergence/figures/`.
+`results/analysis/ktilde_convergence/figures/`. The panel is saved as
+`sd15_ktilde_convergence_grid.pdf`; the standalone files follow
+`sd15_ktilde_convergence_<role>.pdf`.
 
 ## Main Experiment Commands
 We provide commands to perform runs split by sampling distribution for parallel efficiency. Each program launched by one of the command belows requires about 5GB VRAM, so all four runs, corresponding to each sampling distribution, can fit on a 24GB VRAM GPU like the NVIDIA RTX A5000 GPUs we use in the paper. 
@@ -411,7 +413,12 @@ results/ablation/<experiment_family>/sunset/sample_<prior>/diffusion_backprop/<c
 
 Each leaf run stores `run_config.json`, `dataset_item.json`, `run_data.npz`, `run_summary.txt`, `recon_cs.png`, `zero_filled_ifft.png`, and `z_rec.pt`.
 
-Each suite also writes `suite_manifest.json`, `suite_results.json`, and compact `results_cs.csv/.npz` tables. Analysis notebooks write paper figures as PDFs under `results/analysis/...`.
+Each suite also writes `suite_manifest.json`, `suite_results.json`, and compact `results_cs.csv/.npz` tables. These raw and restartable experiment artifacts stay under `results/<experiment_family>/...` or `results/ablation/<experiment_family>/...`.
+
+`results/analysis/...` is the separate derived-output layer. Analysis notebooks
+write paper figures and compact summaries there so they do not mix with the
+raw per-run artifacts. Analysis-only measurements, such as the compact k-tilde
+convergence traces, also write directly into this layer.
 
 The pre-fix prompt-matched main and CFG-ablation artifacts are archived under
 the corresponding `prompt_matched_old` result and analysis directories.

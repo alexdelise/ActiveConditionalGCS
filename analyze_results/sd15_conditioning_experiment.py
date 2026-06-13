@@ -47,6 +47,8 @@ SD15_PLOT_EXCLUDED_ROLES: set[str] = set()
 SD15_EXPORT_DPI = 800
 
 SD15_X_LABEL = r"Sampling Ratio $m/n$"
+KTILDE_CONVERGENCE_X_LABEL = "iterations"
+KTILDE_CONVERGENCE_Y_LABEL = r"Relative $\ell_2$ Error"
 SD15_METRIC_LABELS = {
     "psnr_db": r"$\mathrm{PSNR\ (dB)}$",
     "ssim": r"$\mathrm{SSIM}$",
@@ -1141,8 +1143,8 @@ def plot_ktilde_convergence_trace(
         fig, ax = plt.subplots(figsize=(7.4, 5.8), constrained_layout=True)
         fig.set_constrained_layout_pads(w_pad=0.04, h_pad=0.04, wspace=0.02, hspace=0.02)
         _style_ktilde_convergence_axis(ax, info)
-        ax.set_xlabel(r"Algorithm 1 Iteration")
-        ax.set_ylabel(r"Relative $\ell_2$ Error")
+        ax.set_xlabel(KTILDE_CONVERGENCE_X_LABEL)
+        ax.set_ylabel(KTILDE_CONVERGENCE_Y_LABEL)
         return _save_plot(fig, output_path, show=show)
 
 
@@ -1170,8 +1172,8 @@ def plot_ktilde_convergence_grid(
             _style_ktilde_convergence_axis(ax, info)
         for ax in axes_flat[len(infos) :]:
             ax.set_visible(False)
-        fig.supxlabel(r"Algorithm 1 Iteration")
-        fig.supylabel(r"Relative $\ell_2$ Error")
+        fig.supxlabel(KTILDE_CONVERGENCE_X_LABEL, fontsize=SD15_PRESENTATION_RC["axes.labelsize"])
+        fig.supylabel(KTILDE_CONVERGENCE_Y_LABEL, fontsize=SD15_PRESENTATION_RC["axes.labelsize"])
         return _save_plot(fig, output_path, show=show)
 
 
@@ -1183,7 +1185,7 @@ def export_ktilde_convergence_figure_set(
     show_individual: bool = False,
     file_format: str = "pdf",
 ) -> Dict[str, Path]:
-    """Save all convergence plots, optionally showing the grid or individuals."""
+    """Save the convergence grid and every standalone plot."""
 
     root = Path(output_dir)
     root.mkdir(parents=True, exist_ok=True)

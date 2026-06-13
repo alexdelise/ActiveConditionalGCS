@@ -53,6 +53,10 @@ every 10 iterations.
 The independent build and measurement launchers for all four references live
 under `scripts/ktilde/convergence/`.
 
+The convergence section in `analyze_results/sd15_ktilde_lambda_comparison.ipynb`
+saves the 2x2 grid and all four standalone plots under
+`results/analysis/ktilde_convergence/figures/`.
+
 The shared `scripts/ktilde/build_named.sh` helper resolves the configured
 Python interpreter and invokes `build_ktilde.py`; per-artifact scripts provide
 the exact catalog and artifact name. The `.npz` stores the probability map.

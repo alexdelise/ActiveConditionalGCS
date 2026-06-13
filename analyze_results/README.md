@@ -18,4 +18,10 @@ The notebooks expect completed outputs under the nested `../results/<experiment_
 The early convergence section in `sd15_ktilde_lambda_comparison.ipynb` expects
 all four traces from `scripts/ktilde/convergence/measure_<prior>.sh`. It
 displays the shared 2x2 panel and saves that panel plus four standalone PDFs
-under `results/analysis/ktilde_convergence/figures/`.
+under `results/analysis/ktilde_convergence/figures/`. The panel is
+`sd15_ktilde_convergence_grid.pdf`, and the standalone files are named
+`sd15_ktilde_convergence_<role>.pdf`.
+
+The top-level experiment-family directories under `results/` contain raw,
+restartable run artifacts. `results/analysis/` contains derived figures,
+compact summaries, and analysis-only traces generated from those runs.
