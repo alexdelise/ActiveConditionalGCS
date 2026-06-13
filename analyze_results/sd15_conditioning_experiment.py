@@ -47,7 +47,7 @@ SD15_PLOT_EXCLUDED_ROLES: set[str] = set()
 SD15_EXPORT_DPI = 800
 
 SD15_X_LABEL = r"Sampling Ratio $m/n$"
-KTILDE_CONVERGENCE_X_LABEL = "iterations"
+KTILDE_CONVERGENCE_X_LABEL = "Iterations"
 KTILDE_CONVERGENCE_Y_LABEL = r"Relative $\ell_2$ Error"
 SD15_METRIC_LABELS = {
     "psnr_db": r"$\mathrm{PSNR\ (dB)}$",
@@ -506,33 +506,10 @@ def _mu_subscript(role: str) -> str:
     return subscript_map.get(role_text, role_text)
 
 
-def _prior_descriptor(info: Mapping[str, Any]) -> str:
-    """Return the human-readable prior description without the leading k-label."""
+def _sampling_distribution_label(role: str) -> str:
+    """Return the paper label for one sampling distribution."""
 
-    role_text = str(info.get("role", "")).strip()
-    descriptor_map = {
-        "k0": "Unconditioned",
-        "k1_daytime_beach": "Daytime Beach",
-        "k2_sunset_beach": "Sunset Beach",
-        "k4_cat": "Cat",
-    }
-    if role_text in descriptor_map:
-        return descriptor_map[role_text]
-
-    label_text = str(info.get("label", "")).strip()
-    if "(" in label_text and label_text.endswith(")"):
-        raw_descriptor = label_text[label_text.find("(") + 1 : -1].strip()
-        return " ".join(token.capitalize() for token in raw_descriptor.split())
-
-    description = str(info.get("description", "")).strip()
-    if description:
-        cleaned = description.replace("Prompt-conditioned Christoffel prior for ", "")
-        cleaned = cleaned.replace("Unconditioned Christoffel prior built from ", "")
-        cleaned = cleaned.rstrip(".")
-        return " ".join(token.capitalize() for token in cleaned.split())
-
-    fallback = str(info.get("role", "")).replace("_", " ").strip()
-    return " ".join(token.capitalize() for token in fallback.split())
+    return rf"$\widetilde{{\mu}}_{{\mathrm{{{_mu_subscript(role)}}}}}$"
 
 
 def _mu_symbol(role: str, *, hat: bool = False) -> str:
@@ -1122,7 +1099,7 @@ def _style_ktilde_convergence_axis(ax, info: Mapping[str, Any]) -> None:
     )
     ax.set_yscale("log")
     ax.set_xlim(0, int(np.asarray(info["iteration"]).max()))
-    ax.set_title(_prior_descriptor(info))
+    ax.set_title(_sampling_distribution_label(role))
     ax.grid(True, which="both", linestyle=":", alpha=0.48)
     ax.margins(x=0.0)
 

@@ -420,6 +420,24 @@ write paper figures and compact summaries there so they do not mix with the
 raw per-run artifacts. Analysis-only measurements, such as the compact k-tilde
 convergence traces, also write directly into this layer.
 
+All generated outputs live under `results/` because that entire directory is
+ignored by Git and can be reproduced from the checked-in code and configs. Its
+top-level directories separate outputs by purpose:
+
+| Directory | Purpose |
+| --- | --- |
+| `results/prompt_matched/` | Raw reconstruction runs for the prompt-matched in-range experiment. |
+| `results/prompt_mismatched/` | Raw reconstruction runs for the prompt-mismatched in-range experiment. |
+| `results/out_of_range/` | Raw reconstruction runs for the out-of-range experiment. |
+| `results/ablation/` | Raw CFG-ablation reconstruction runs, subdivided by the same experiment families. |
+| `results/prompt_matched_old/` | Archived raw prompt-matched runs from before the experiment correction. |
+| `results/analysis/` | Derived PDFs, compact summaries, and analysis-only traces produced from the raw runs. |
+
+Keeping `analysis/` separate prevents regenerated figures and summaries from
+being mixed into the expensive, restartable reconstruction-run directories.
+The experiment-family directories remain separate because their datasets,
+prompt relationships, manifests, and paper comparisons are different.
+
 The pre-fix prompt-matched main and CFG-ablation artifacts are archived under
 the corresponding `prompt_matched_old` result and analysis directories.
 

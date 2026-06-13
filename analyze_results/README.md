@@ -25,3 +25,6 @@ under `results/analysis/ktilde_convergence/figures/`. The panel is
 The top-level experiment-family directories under `results/` contain raw,
 restartable run artifacts. `results/analysis/` contains derived figures,
 compact summaries, and analysis-only traces generated from those runs.
+This separation keeps notebook-generated outputs out of the raw run trees;
+all of them remain under the Git-ignored `results/` root because they are
+reproducible outputs rather than source files.
