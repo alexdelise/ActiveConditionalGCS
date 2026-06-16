@@ -38,7 +38,7 @@ PDF figures.
 ├── 📄 THIRD_PARTY_NOTICES.md            ← Third-party attribution notes
 ├── 📄 build_dataset.py                  ← Builds/validates dataset artifacts from `datasets/config.json`
 ├── 📄 build_ktilde.py                   ← Builds/validates Christoffel/K-tilde artifacts
-├── 📄 run_ktilde_convergence.py         ← Reruns Algorithm 1 and records relative L2 convergence
+├── 📄 run_ktilde_convergence.py         ← Reruns Algorithm 1 and records scalar convergence diagnostics
 ├── 📄 run_conditioning_regression.py    ← Suite runner used by all experiment scripts
 ├── 📄 run_cs.py                         ← Single-config Christoffel/K-tilde sampler runner
 ├── 📄 run_mcs.py                        ← Optional MCS baseline runner, not used by paper scripts
@@ -157,11 +157,13 @@ remain as compatibility aliases for the canonical CFG aggregate launchers.
 
 The convergence experiment has two phases for each of the four paper prompts.
 First, build the final 10,000-iteration reference under `ktilde/`. Then rerun
-the same deterministic estimator and record
-`||K_tilde_iteration - K_tilde_final||_2 / ||K_tilde_final||_2`. The rerun
-saves only the compact error trace and metadata under
+the same deterministic estimator and record scalar convergence metrics:
+relative `l2` error, relative `linf` error, the raw theory-facing statistic
+`max_i K_tilde_final_unitary(i) / mu_iteration(i)`, and the max absolute
+log-ratio between the final and current sampling distributions. The rerun saves
+only the compact error trace and metadata under
 `results/analysis/ktilde_convergence/`; it does not save intermediate k-tildes.
-Each measurement job also streams the measured relative L2 error every 10
+Each measurement job also streams all measured convergence metrics every 10
 iterations.
 
 Each command below is an independent job. A measurement job requires only its
@@ -179,10 +181,10 @@ bash scripts/ktilde/convergence/build_k4_cat.sh
 Measure the four convergence traces:
 
 ```bash
-bash scripts/ktilde/convergence/measure_k0_unconditioned.sh
-bash scripts/ktilde/convergence/measure_k1_daytime_beach.sh
-bash scripts/ktilde/convergence/measure_k2_sunset_beach.sh
-bash scripts/ktilde/convergence/measure_k4_cat.sh
+bash scripts/ktilde/convergence/measure_k0_unconditioned.sh --force
+bash scripts/ktilde/convergence/measure_k1_daytime_beach.sh --force
+bash scripts/ktilde/convergence/measure_k2_sunset_beach.sh --force
+bash scripts/ktilde/convergence/measure_k4_cat.sh --force
 ```
 
 Sequential aggregate wrappers are also available:
@@ -197,11 +199,11 @@ artifact. The convergence runner validates that the final rerun matches its
 saved S10000 reference.
 
 After all four measurement jobs finish, run the early convergence section in
-`analyze_results/sd15_ktilde_lambda_comparison.ipynb`. It displays the 2x2
-panel and saves the panel plus four individual PDFs under
-`results/analysis/ktilde_convergence/figures/`. The panel is saved as
-`sd15_ktilde_convergence_grid.pdf`; the standalone files follow
-`sd15_ktilde_convergence_<role>.pdf`.
+`analyze_results/sd15_ktilde_lambda_comparison.ipynb`. It displays a 2x2
+panel for each metric and saves each panel plus its four individual PDFs under
+`results/analysis/ktilde_convergence/figures/`. The relative-`l2` panel keeps
+the historical name `sd15_ktilde_convergence_grid.pdf`; the added metrics use
+explicit stems such as `sd15_ktilde_convergence_relative_linf_error_grid.pdf`.
 
 ## Main Experiment Commands
 We provide commands to perform runs split by sampling distribution for parallel efficiency. Each program launched by one of the command belows requires about 5GB VRAM, so all four runs, corresponding to each sampling distribution, can fit on a 24GB VRAM GPU like the NVIDIA RTX A5000 GPUs we use in the paper. 

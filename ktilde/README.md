@@ -45,16 +45,18 @@ bash scripts/ktilde/convergence/build_k2_sunset_beach.sh
 ```
 
 After its final reference exists, `run_ktilde_convergence.py` deterministically
-reruns the same estimator and saves only the relative L2 error of every iterate
-under `results/analysis/ktilde_convergence/`. It also verifies that the rerun
-finishes at the saved reference and prints the measured relative L2 error after
-every 10 iterations.
+reruns the same estimator and saves scalar convergence metrics for every
+iterate under `results/analysis/ktilde_convergence/`: relative `l2` error,
+relative `linf` error, `max_i K_tilde_final_unitary(i) / mu_iteration(i)`, and
+the max absolute log-ratio between final and current sampling distributions. It
+also verifies that the rerun finishes at the saved reference and prints all
+measured convergence metrics every 10 iterations.
 
 The independent build and measurement launchers for all four references live
 under `scripts/ktilde/convergence/`.
 
 The convergence section in `analyze_results/sd15_ktilde_lambda_comparison.ipynb`
-saves the 2x2 grid and all four standalone plots under
+saves one 2x2 grid per metric and all standalone plots under
 `results/analysis/ktilde_convergence/figures/`.
 
 The shared `scripts/ktilde/build_named.sh` helper resolves the configured

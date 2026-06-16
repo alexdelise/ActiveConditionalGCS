@@ -5,9 +5,18 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Mapping
 
 import numpy as np
+
+
+TRACE_SCHEMA_VERSION = 2
+TRACE_METRIC_NAMES = (
+    "relative_l2_error",
+    "relative_linf_error",
+    "lambda_ref_over_mu_m",
+    "max_abs_log_mu_ratio",
+)
 
 
 def convergence_output_paths(output_dir: Path, ktilde_name: str) -> tuple[Path, Path]:
@@ -30,7 +39,7 @@ def save_convergence_trace(
     trace_path: Path,
     metadata_path: Path,
     iterations: List[int],
-    relative_l2_error: List[float],
+    metric_traces: Mapping[str, List[float]],
     metadata: Dict[str, Any],
 ) -> None:
     """Save one compact convergence trace and its human-readable metadata."""
@@ -38,13 +47,58 @@ def save_convergence_trace(
     from src.utils import json_dump
 
     trace_path.parent.mkdir(parents=True, exist_ok=True)
-    np.savez_compressed(
-        str(trace_path),
-        iteration=np.asarray(iterations, dtype=np.int64),
-        relative_l2_error=np.asarray(relative_l2_error, dtype=np.float64),
-        meta=json.dumps(metadata),
-    )
+    payload: Dict[str, Any] = {"iteration": np.asarray(iterations, dtype=np.int64), "meta": json.dumps(metadata)}
+    for metric_name, values in metric_traces.items():
+        payload[str(metric_name)] = np.asarray(values, dtype=np.float64)
+    np.savez_compressed(str(trace_path), **payload)
     json_dump(metadata_path, metadata)
+
+
+def ktilde_unitary_energy_scale(metadata: Mapping[str, Any], probabilities: np.ndarray) -> float:
+    """Return the H*W factor converting stored FFT energies to the unitary convention."""
+
+    height = int(metadata.get("height", 0) or 0)
+    width = int(metadata.get("width", 0) or 0)
+    if height > 0 and width > 0:
+        return float(height * width)
+    return float(np.asarray(probabilities, dtype=np.float64).size)
+
+
+def distribution_from_ktilde(ktilde: np.ndarray) -> np.ndarray:
+    """Normalize one k-tilde iterate into its sampling distribution."""
+
+    values = np.asarray(ktilde, dtype=np.float64).reshape(-1)
+    total = float(np.sum(values))
+    if total <= 0.0 or not np.isfinite(total):
+        return np.ones_like(values, dtype=np.float64) / float(values.size)
+    return values / total
+
+
+def max_abs_log_ratio(reference_mu: np.ndarray, current_mu: np.ndarray) -> float:
+    """Return max_i |log(reference_mu_i / current_mu_i)|, with infinities for zero support mismatches."""
+
+    reference = np.asarray(reference_mu, dtype=np.float64).reshape(-1)
+    current = np.asarray(current_mu, dtype=np.float64).reshape(-1)
+    positive = (reference > 0.0) & (current > 0.0)
+    both_zero = (reference == 0.0) & (current == 0.0)
+    if not np.all(positive | both_zero):
+        return float("inf")
+    if not np.any(positive):
+        return 0.0
+    return float(np.max(np.abs(np.log(reference[positive] / current[positive])), initial=0.0))
+
+
+def lambda_ref_over_mu(reference_ktilde_unitary: np.ndarray, current_mu: np.ndarray) -> float:
+    """Return max_i K_ref(i) / mu_M(i), using the unitary-scaled reference numerator."""
+
+    reference = np.asarray(reference_ktilde_unitary, dtype=np.float64).reshape(-1)
+    current = np.asarray(current_mu, dtype=np.float64).reshape(-1)
+    positive = current > 0.0
+    if np.any((reference > 0.0) & ~positive):
+        return float("inf")
+    ratio = np.zeros_like(reference, dtype=np.float64)
+    ratio[positive] = reference[positive] / current[positive]
+    return float(np.max(ratio, initial=0.0))
 
 
 def main() -> None:
@@ -93,11 +147,17 @@ def main() -> None:
             f"Final reference k-tilde not found: {reference_path}. "
             f"Build it first with: python build_ktilde.py --config {args.config} --name {args.name}"
         )
-    reference_ktilde, _, reference_metadata = load_ktilde_npz(reference_path)
+    reference_ktilde, reference_probabilities, reference_metadata = load_ktilde_npz(reference_path)
     validate_ktilde_metadata(reference_metadata, definition)
     reference_norm = float(np.linalg.norm(reference_ktilde, 2))
+    reference_linf_norm = float(np.max(np.abs(reference_ktilde), initial=0.0))
     if reference_norm == 0.0:
         raise ValueError(f"Final reference k-tilde is all zero: {reference_path}")
+    if reference_linf_norm == 0.0:
+        raise ValueError(f"Final reference k-tilde has zero infinity norm: {reference_path}")
+    reference_probabilities = np.asarray(reference_probabilities, dtype=np.float64).reshape(-1)
+    unitary_energy_scale = ktilde_unitary_energy_scale(reference_metadata, reference_probabilities)
+    reference_ktilde_unitary = np.asarray(reference_ktilde, dtype=np.float64).reshape(-1) / unitary_energy_scale
 
     output_dir = root / args.output_dir
     trace_path, metadata_path = convergence_output_paths(output_dir, definition.name)
@@ -105,16 +165,28 @@ def main() -> None:
         raise FileExistsError(f"Convergence trace already exists: {trace_path}. Pass --force to overwrite it.")
 
     iterations: List[int] = []
-    relative_l2_error: List[float] = []
+    metric_traces: Dict[str, List[float]] = {metric_name: [] for metric_name in TRACE_METRIC_NAMES}
 
     def record_relative_error(iteration: int, current_ktilde: np.ndarray) -> None:
-        error = float(np.linalg.norm(current_ktilde - reference_ktilde, 2) / reference_norm)
+        current = np.asarray(current_ktilde, dtype=np.float64).reshape(-1)
+        difference = current - np.asarray(reference_ktilde, dtype=np.float64).reshape(-1)
+        current_mu = distribution_from_ktilde(current)
+        metrics = {
+            "relative_l2_error": float(np.linalg.norm(difference, 2) / reference_norm),
+            "relative_linf_error": float(np.max(np.abs(difference), initial=0.0) / reference_linf_norm),
+            "lambda_ref_over_mu_m": lambda_ref_over_mu(reference_ktilde_unitary, current_mu),
+            "max_abs_log_mu_ratio": max_abs_log_ratio(reference_probabilities, current_mu),
+        }
         iterations.append(int(iteration))
-        relative_l2_error.append(error)
+        for metric_name, value in metrics.items():
+            metric_traces[metric_name].append(float(value))
         if iteration % 10 == 0 or iteration == int(definition.max_samples):
             print(
                 f"[ktilde convergence] iteration {iteration}/{definition.max_samples} "
-                f"relative_l2_error={error:.8e}",
+                f"relative_l2_error={metrics['relative_l2_error']:.8e} "
+                f"relative_linf_error={metrics['relative_linf_error']:.8e} "
+                f"lambda_ref_over_mu_m={metrics['lambda_ref_over_mu_m']:.8e} "
+                f"max_abs_log_mu_ratio={metrics['max_abs_log_mu_ratio']:.8e}",
                 flush=True,
             )
 
@@ -124,20 +196,33 @@ def main() -> None:
         pipe,
         build_prompt_schedule(definition),
         iteration_callback=record_relative_error,
+        print_progress=False,
     )
 
     final_difference = rerun_ktilde - reference_ktilde
     reference_matches = bool(np.allclose(rerun_ktilde, reference_ktilde, rtol=float(args.rtol), atol=float(args.atol)))
     metadata: Dict[str, Any] = {
         "artifact_type": "ktilde_convergence_trace",
+        "schema_version": TRACE_SCHEMA_VERSION,
         "formula": "||K_tilde_iteration - K_tilde_final||_2 / ||K_tilde_final||_2",
+        "formulas": {
+            "relative_l2_error": "||K_tilde_iteration - K_tilde_final||_2 / ||K_tilde_final||_2",
+            "relative_linf_error": "||K_tilde_iteration - K_tilde_final||_inf / ||K_tilde_final||_inf",
+            "lambda_ref_over_mu_m": "max_i K_tilde_final_unitary(i) / mu_iteration(i)",
+            "max_abs_log_mu_ratio": "max_i |log(mu_final(i) / mu_iteration(i))|",
+        },
         "ktilde_name": definition.name,
         "catalog_path": display_path(catalog_path, root),
         "reference_path": display_path(reference_path, root),
         "trace_path": display_path(trace_path, root),
         "iterations": int(len(iterations)),
         "reference_l2_norm": reference_norm,
-        "final_relative_l2_error": float(relative_l2_error[-1]),
+        "reference_linf_norm": reference_linf_norm,
+        "unitary_fft_energy_scale": unitary_energy_scale,
+        "final_relative_l2_error": float(metric_traces["relative_l2_error"][-1]),
+        "final_relative_linf_error": float(metric_traces["relative_linf_error"][-1]),
+        "final_lambda_ref_over_mu_m": float(metric_traces["lambda_ref_over_mu_m"][-1]),
+        "final_max_abs_log_mu_ratio": float(metric_traces["max_abs_log_mu_ratio"][-1]),
         "final_difference_l2_norm": float(np.linalg.norm(final_difference, 2)),
         "final_difference_max_abs": float(np.max(np.abs(final_difference), initial=0.0)),
         "reference_matches_rerun": reference_matches,
@@ -146,7 +231,7 @@ def main() -> None:
         "reference_metadata": reference_metadata,
         "environment": collect_env_info(),
     }
-    save_convergence_trace(trace_path, metadata_path, iterations, relative_l2_error, metadata)
+    save_convergence_trace(trace_path, metadata_path, iterations, metric_traces, metadata)
     print("Convergence trace ready:", trace_path)
     print("Final reference matches rerun:", reference_matches)
 

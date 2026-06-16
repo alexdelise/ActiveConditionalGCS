@@ -48,7 +48,24 @@ SD15_EXPORT_DPI = 800
 
 SD15_X_LABEL = r"Sampling Ratio $m/n$"
 KTILDE_CONVERGENCE_X_LABEL = "Iterations"
-KTILDE_CONVERGENCE_Y_LABEL = r"Relative $\ell_2$ Error"
+KTILDE_CONVERGENCE_METRICS: Dict[str, Dict[str, str]] = {
+    "relative_l2_error": {
+        "label": r"Relative $\ell_2$ Error",
+        "filename": "convergence",
+    },
+    "relative_linf_error": {
+        "label": r"Relative $\ell_\infty$ Error",
+        "filename": "convergence_relative_linf_error",
+    },
+    "lambda_ref_over_mu_m": {
+        "label": r"$\max_i\, \widetilde{K}_{10000}(i) / \widetilde{\mu}_M(i)$",
+        "filename": "convergence_lambda_ref_over_mu_m",
+    },
+    "max_abs_log_mu_ratio": {
+        "label": r"$\max_i\, |\log(\widetilde{\mu}_{10000}(i)/\widetilde{\mu}_M(i))|$",
+        "filename": "convergence_max_abs_log_mu_ratio",
+    },
+}
 SD15_METRIC_LABELS = {
     "psnr_db": r"$\mathrm{PSNR\ (dB)}$",
     "ssim": r"$\mathrm{SSIM}$",
@@ -363,19 +380,34 @@ def load_ktilde_convergence_traces(
             continue
         with np.load(str(trace_path), allow_pickle=False) as payload:
             iterations = np.asarray(payload["iteration"], dtype=np.int64)
-            relative_l2_error = np.asarray(payload["relative_l2_error"], dtype=np.float64)
+            missing_metrics = [metric for metric in KTILDE_CONVERGENCE_METRICS if metric not in payload.files]
+            if missing_metrics:
+                missing_text = ", ".join(missing_metrics)
+                raise ValueError(
+                    f"Convergence trace is missing metric arrays ({missing_text}): {trace_path}. "
+                    "Rerun scripts/ktilde/convergence/measure_<prior>.sh with --force."
+                )
+            metric_arrays = {
+                metric: np.asarray(payload[metric], dtype=np.float64)
+                for metric in KTILDE_CONVERGENCE_METRICS
+            }
             metadata = json.loads(str(payload["meta"]))
 
         expected_iterations = int(raw_entry["max_samples"])
-        if iterations.ndim != 1 or relative_l2_error.ndim != 1 or iterations.shape != relative_l2_error.shape:
-            raise ValueError(f"Malformed convergence trace arrays: {trace_path}")
+        if iterations.ndim != 1:
+            raise ValueError(f"Malformed convergence iteration array: {trace_path}")
         if iterations.size != expected_iterations or not np.array_equal(
             iterations,
             np.arange(1, expected_iterations + 1, dtype=np.int64),
         ):
             raise ValueError(f"Convergence trace does not contain iterations 1 through {expected_iterations}: {trace_path}")
-        if np.any(~np.isfinite(relative_l2_error)) or np.any(relative_l2_error < 0.0):
-            raise ValueError(f"Convergence trace contains invalid relative L2 errors: {trace_path}")
+        for metric, values in metric_arrays.items():
+            if values.ndim != 1 or values.shape != iterations.shape:
+                raise ValueError(f"Malformed convergence trace array '{metric}': {trace_path}")
+            if np.any(values < 0.0):
+                raise ValueError(f"Convergence trace contains negative values for '{metric}': {trace_path}")
+            if metric in {"relative_l2_error", "relative_linf_error"} and np.any(~np.isfinite(values)):
+                raise ValueError(f"Convergence trace contains nonfinite values for '{metric}': {trace_path}")
         if metadata.get("ktilde_name") != name:
             raise ValueError(f"Convergence trace metadata names the wrong k-tilde: {trace_path}")
         if metadata.get("reference_matches_rerun") is not True:
@@ -388,7 +420,7 @@ def load_ktilde_convergence_traces(
             "role": role,
             "trace_path": trace_path,
             "iteration": iterations,
-            "relative_l2_error": relative_l2_error,
+            **metric_arrays,
             "metadata": metadata,
         }
 
@@ -1075,25 +1107,34 @@ def export_lambda_figure_set(
     return outputs
 
 
-def _positive_ktilde_convergence_trace(info: Mapping[str, Any]) -> tuple[np.ndarray, np.ndarray]:
+def _ktilde_convergence_metric_info(metric: str) -> Dict[str, str]:
+    """Return plotting metadata for one convergence metric."""
+
+    metric_key = str(metric)
+    if metric_key not in KTILDE_CONVERGENCE_METRICS:
+        raise KeyError(f"Unknown k-tilde convergence metric '{metric_key}'.")
+    return dict(KTILDE_CONVERGENCE_METRICS[metric_key])
+
+
+def _positive_ktilde_convergence_trace(info: Mapping[str, Any], *, metric: str) -> tuple[np.ndarray, np.ndarray]:
     """Return finite positive convergence values suitable for a logarithmic axis."""
 
     iterations = np.asarray(info["iteration"], dtype=np.int64)
-    relative_l2_error = np.asarray(info["relative_l2_error"], dtype=np.float64)
-    keep = np.isfinite(relative_l2_error) & (relative_l2_error > 0.0)
+    values = np.asarray(info[str(metric)], dtype=np.float64)
+    keep = np.isfinite(values) & (values > 0.0)
     if not np.any(keep):
-        raise ValueError(f"Convergence trace has no positive values to plot: {info.get('trace_path', '')}")
-    return iterations[keep], relative_l2_error[keep]
+        raise ValueError(f"Convergence trace has no finite positive values for '{metric}': {info.get('trace_path', '')}")
+    return iterations[keep], values[keep]
 
 
-def _style_ktilde_convergence_axis(ax, info: Mapping[str, Any]) -> None:
+def _style_ktilde_convergence_axis(ax, info: Mapping[str, Any], *, metric: str) -> None:
     """Apply the shared paper style to one k-tilde convergence axis."""
 
-    iterations, relative_l2_error = _positive_ktilde_convergence_trace(info)
+    iterations, values = _positive_ktilde_convergence_trace(info, metric=metric)
     role = str(info.get("role", ""))
     ax.plot(
         iterations,
-        relative_l2_error,
+        values,
         color=SD15_PRIOR_COLORS.get(role, "#16324F"),
         linewidth=2.8,
     )
@@ -1108,20 +1149,22 @@ def plot_ktilde_convergence_trace(
     traces: Mapping[str, Mapping[str, Any]],
     *,
     role: str,
+    metric: str = "relative_l2_error",
     output_path: Optional[str | Path] = None,
     show: bool = False,
 ) -> Optional[Path]:
-    """Plot one Algorithm 1 relative-L2 convergence trace."""
+    """Plot one Algorithm 1 convergence metric trace."""
 
     import matplotlib.pyplot as plt
 
+    metric_info = _ktilde_convergence_metric_info(metric)
     info = dict(traces[str(role)])
     with plt.rc_context(SD15_PRESENTATION_RC):
         fig, ax = plt.subplots(figsize=(7.4, 5.8), constrained_layout=True)
         fig.set_constrained_layout_pads(w_pad=0.04, h_pad=0.04, wspace=0.02, hspace=0.02)
-        _style_ktilde_convergence_axis(ax, info)
+        _style_ktilde_convergence_axis(ax, info, metric=metric)
         ax.set_xlabel(KTILDE_CONVERGENCE_X_LABEL)
-        ax.set_ylabel(KTILDE_CONVERGENCE_Y_LABEL)
+        ax.set_ylabel(metric_info["label"])
         return _save_plot(fig, output_path, show=show)
 
 
@@ -1129,13 +1172,15 @@ def plot_ktilde_convergence_grid(
     traces: Mapping[str, Mapping[str, Any]],
     *,
     roles: Optional[Sequence[str]] = None,
+    metric: str = "relative_l2_error",
     output_path: Optional[str | Path] = None,
     show: bool = False,
 ) -> Optional[Path]:
-    """Plot the four paper-prompt convergence traces as a 2x2 panel."""
+    """Plot one convergence metric for the four paper prompts as a 2x2 panel."""
 
     import matplotlib.pyplot as plt
 
+    metric_info = _ktilde_convergence_metric_info(metric)
     ordered_roles = [str(role) for role in (roles or traces.keys())]
     infos = [dict(traces[role]) for role in ordered_roles]
     if len(infos) > 4:
@@ -1146,11 +1191,11 @@ def plot_ktilde_convergence_grid(
         axes_flat = np.asarray(axes, dtype=object).reshape(-1)
         fig.set_constrained_layout_pads(w_pad=0.04, h_pad=0.04, wspace=0.04, hspace=0.04)
         for ax, info in zip(axes_flat, infos):
-            _style_ktilde_convergence_axis(ax, info)
+            _style_ktilde_convergence_axis(ax, info, metric=metric)
         for ax in axes_flat[len(infos) :]:
             ax.set_visible(False)
         fig.supxlabel(KTILDE_CONVERGENCE_X_LABEL, fontsize=SD15_PRESENTATION_RC["axes.labelsize"])
-        fig.supylabel(KTILDE_CONVERGENCE_Y_LABEL, fontsize=SD15_PRESENTATION_RC["axes.labelsize"])
+        fig.supylabel(metric_info["label"], fontsize=SD15_PRESENTATION_RC["axes.labelsize"])
         return _save_plot(fig, output_path, show=show)
 
 
@@ -1161,25 +1206,32 @@ def export_ktilde_convergence_figure_set(
     show: bool = False,
     show_individual: bool = False,
     file_format: str = "pdf",
+    metrics: Optional[Sequence[str]] = None,
 ) -> Dict[str, Path]:
-    """Save the convergence grid and every standalone plot."""
+    """Save a convergence grid and every standalone plot for each requested metric."""
 
     root = Path(output_dir)
     root.mkdir(parents=True, exist_ok=True)
     suffix = str(file_format).lstrip(".")
     outputs: Dict[str, Path] = {}
-    outputs["grid"] = plot_ktilde_convergence_grid(
-        traces,
-        output_path=root / f"sd15_ktilde_convergence_grid.{suffix}",
-        show=show,
-    )
-    for role in traces:
-        outputs[str(role)] = plot_ktilde_convergence_trace(
+    requested_metrics = [str(metric) for metric in (metrics or KTILDE_CONVERGENCE_METRICS.keys())]
+    for metric in requested_metrics:
+        metric_info = _ktilde_convergence_metric_info(metric)
+        stem = str(metric_info["filename"])
+        outputs[f"{metric}_grid"] = plot_ktilde_convergence_grid(
             traces,
-            role=str(role),
-            output_path=root / f"sd15_ktilde_convergence_{role}.{suffix}",
-            show=show_individual,
+            metric=metric,
+            output_path=root / f"sd15_ktilde_{stem}_grid.{suffix}",
+            show=show,
         )
+        for role in traces:
+            outputs[f"{metric}_{role}"] = plot_ktilde_convergence_trace(
+                traces,
+                role=str(role),
+                metric=metric,
+                output_path=root / f"sd15_ktilde_{stem}_{role}.{suffix}",
+                show=show_individual,
+            )
     return outputs
 
 

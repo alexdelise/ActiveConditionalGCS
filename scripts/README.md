@@ -72,9 +72,9 @@ The launchers under `ktilde/convergence/` are split into independent jobs for
 the four paper prompts:
 
 - `build_<prior>.sh` creates the final 10,000-iteration reference in `ktilde/`.
-- `measure_<prior>.sh` reruns the estimator and writes only the relative L2
-  convergence trace under `results/analysis/ktilde_convergence/`, while
-  streaming the measured relative L2 error every 10 iterations.
+- `measure_<prior>.sh` reruns the estimator and writes compact scalar
+  convergence traces under `results/analysis/ktilde_convergence/`, while
+  streaming all measured convergence metrics every 10 iterations.
 - `build_all.sh` and `measure_all.sh` run their corresponding four jobs
   sequentially.
 

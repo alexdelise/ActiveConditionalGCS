@@ -141,6 +141,7 @@ def estimate_ktilde_christoffel(
     prompt_schedule: List[str],
     *,
     iteration_callback: Optional[Callable[[int, np.ndarray], None]] = None,
+    print_progress: bool = True,
 ) -> Tuple[np.ndarray, np.ndarray]:
     """Estimate the Christoffel function used by Christoffel sampling.
 
@@ -150,6 +151,7 @@ def estimate_ktilde_christoffel(
         prompt_schedule: Prompt sequence used over all Monte Carlo samples.
         iteration_callback: Optional observer called with the one-based iteration
             number and current k-tilde after every trial.
+        print_progress: Whether to print the raw k-tilde update delta.
 
     Returns:
         The estimated k-tilde vector and the normalized sampling probabilities.
@@ -219,7 +221,7 @@ def estimate_ktilde_christoffel(
         contribution /= diff_norm**2
         k_tilde = np.maximum(previous, contribution)
 
-        if sample_id == 0 or sample_id % 10 == 0 or sample_id == int(definition.max_samples) - 1:
+        if print_progress and (sample_id == 0 or sample_id % 10 == 0 or sample_id == int(definition.max_samples) - 1):
             delta = np.linalg.norm(k_tilde - previous, 2)
             print(sample_id, delta)
         if iteration_callback is not None:
