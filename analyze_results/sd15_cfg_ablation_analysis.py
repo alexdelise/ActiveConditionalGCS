@@ -47,8 +47,7 @@ PRESENTATION_RC: Dict[str, Any] = {
 EXPORT_DPI = 800
 DEFAULT_CONFIDENCE_LEVEL = 0.95
 SAMPLING_X_LABEL = r"Sampling Ratio $m/n$"
-ABLATION_SAMPLING_PERCENTAGES: tuple[float, ...] = (0.00125, 0.0025, 0.005, 0.01, 0.025)
-PROMPT_MATCHED_ABLATION_SAMPLING_PERCENTAGES: tuple[float, ...] = (
+ABLATION_SAMPLING_PERCENTAGES: tuple[float, ...] = (
     0.00015625,
     0.0003125,
     0.000625,
@@ -57,6 +56,7 @@ PROMPT_MATCHED_ABLATION_SAMPLING_PERCENTAGES: tuple[float, ...] = (
     0.005,
     0.01,
 )
+OLD_ABLATION_SAMPLING_PERCENTAGES: tuple[float, ...] = (0.00125, 0.0025, 0.005, 0.01, 0.025)
 PANEL_TITLE_FONT = {"fontfamily": "serif", "fontname": "Computer Modern Roman"}
 
 
@@ -91,21 +91,48 @@ BASE_DISTRIBUTIONS: List[Dict[str, Any]] = [
     },
 ]
 
-EXPERIMENT_SPECS: Dict[str, Dict[str, str]] = {
+EXPERIMENT_SPECS: Dict[str, Dict[str, Any]] = {
     "prompt_matched_in_range": {
         "ablation_root": "ablation/prompt_matched/sunset",
         "result_root": "prompt_matched/sunset",
         "dataset_name": "sunset_beach_signal_sd15_512x512",
+        "split": True,
+        "archived": False,
     },
     "prompt_mismatched_in_range": {
         "ablation_root": "ablation/prompt_mismatched/sunset",
         "result_root": "prompt_mismatched/sunset",
         "dataset_name": "sunset_sandy_coast_signal_sd15_512x512",
+        "split": True,
+        "archived": False,
     },
     "out_of_range": {
         "ablation_root": "ablation/out_of_range/sunset",
         "result_root": "out_of_range/sunset",
         "dataset_name": "out_of_range_512x512",
+        "split": True,
+        "archived": False,
+    },
+    "prompt_matched_in_range_old": {
+        "ablation_root": "ablation/prompt_matched_old/sunset",
+        "result_root": "prompt_matched_old/sunset",
+        "dataset_name": "sunset_beach_signal_sd15_512x512",
+        "split": False,
+        "archived": True,
+    },
+    "prompt_mismatched_in_range_old": {
+        "ablation_root": "ablation/prompt_mismatched_old/sunset",
+        "result_root": "prompt_mismatched/sunset",
+        "dataset_name": "sunset_sandy_coast_signal_sd15_512x512",
+        "split": False,
+        "archived": True,
+    },
+    "out_of_range_old": {
+        "ablation_root": "ablation/out_of_range_old/sunset",
+        "result_root": "out_of_range/sunset",
+        "dataset_name": "out_of_range_512x512",
+        "split": False,
+        "archived": True,
     },
 }
 
@@ -113,8 +140,11 @@ EXPERIMENT_SPECS: Dict[str, Dict[str, str]] = {
 def experiment_sampling_percentages(experiment: str) -> tuple[float, ...]:
     """Return the sampling grid used by one CFG-ablation experiment."""
 
-    if str(experiment) == "prompt_matched_in_range":
-        return PROMPT_MATCHED_ABLATION_SAMPLING_PERCENTAGES
+    key = str(experiment)
+    if key not in EXPERIMENT_SPECS:
+        raise KeyError(f"Unknown CFG-ablation experiment {experiment!r}; expected one of {sorted(EXPERIMENT_SPECS)}.")
+    if bool(EXPERIMENT_SPECS[key].get("archived", False)):
+        return OLD_ABLATION_SAMPLING_PERCENTAGES
     return ABLATION_SAMPLING_PERCENTAGES
 
 
@@ -132,7 +162,17 @@ def experiment_distributions(experiment: str = "prompt_matched_in_range") -> Lis
         item["experiment"] = key
         item["dataset_name"] = str(spec["dataset_name"])
         item["new_tag"] = f"{spec['ablation_root']}/{prefix}"
+        item["new_tags"] = (
+            [f"{spec['ablation_root']}/first4_{prefix}", f"{spec['ablation_root']}/last3_{prefix}"]
+            if bool(spec.get("split", False))
+            else [item["new_tag"]]
+        )
         item["old_tag"] = f"{spec['result_root']}/{prefix}"
+        item["old_tags"] = (
+            [f"{spec['result_root']}/first4_{prefix}", f"{spec['result_root']}/last3_{prefix}"]
+            if bool(spec.get("split", False))
+            else [item["old_tag"]]
+        )
         distributions.append(item)
     return distributions
 
@@ -142,9 +182,10 @@ DISTRIBUTIONS: List[Dict[str, Any]] = experiment_distributions("prompt_matched_i
 LINE_SPECS: List[Dict[str, Any]] = [
     {"key": "unconditioned", "label": "Unconditioned", "rank": 0, "cfg_scale": np.nan},
     {"key": "cfg1", "label": "CFG 1", "rank": 1, "cfg_scale": 1.0},
-    {"key": "cfg3", "label": "CFG 3", "rank": 2, "cfg_scale": 3.0},
-    {"key": "cfg5", "label": "CFG 5", "rank": 3, "cfg_scale": 5.0},
-    {"key": "cfg7p5", "label": "CFG 7.5", "rank": 4, "cfg_scale": 7.5},
+    {"key": "cfg1p5", "label": "CFG 1.5", "rank": 2, "cfg_scale": 1.5},
+    {"key": "cfg3", "label": "CFG 3", "rank": 3, "cfg_scale": 3.0},
+    {"key": "cfg5", "label": "CFG 5", "rank": 4, "cfg_scale": 5.0},
+    {"key": "cfg7p5", "label": "CFG 7.5", "rank": 5, "cfg_scale": 7.5},
 ]
 
 METRIC_SPECS: List[tuple[str, str]] = [
@@ -157,6 +198,7 @@ PLOT_METRIC_SPECS: List[tuple[str, str]] = METRIC_SPECS[:2]
 LINE_COLORS: Dict[str, str] = {
     "unconditioned": "#4C78A8",
     "cfg1": "#54A24B",
+    "cfg1p5": "#B279A2",
     "cfg3": "#F58518",
     "cfg5": "#6A3D9A",
     "cfg7p5": "#E45756",
@@ -164,6 +206,7 @@ LINE_COLORS: Dict[str, str] = {
 LINE_MARKERS: Dict[str, str] = {
     "unconditioned": "o",
     "cfg1": "D",
+    "cfg1p5": "v",
     "cfg3": "s",
     "cfg5": "^",
     "cfg7p5": "P",
@@ -268,10 +311,21 @@ def _line_spec(key: str) -> Dict[str, Any]:
     raise KeyError(f"Unknown line key: {key}")
 
 
+def _line_specs_from_frame(frame: pd.DataFrame) -> List[Dict[str, Any]]:
+    """Return configured recovery lines that have rows in the loaded experiment."""
+
+    if frame.empty or "line_condition" not in frame.columns:
+        return list(LINE_SPECS)
+    available = {str(value) for value in frame["line_condition"].dropna().unique()}
+    return [dict(spec) for spec in LINE_SPECS if str(spec["key"]) in available]
+
+
 def _new_case_name(distribution: Mapping[str, Any], line_key: str) -> str:
     prefix = str(distribution["prefix"])
     if line_key == "cfg1":
         return f"{prefix}__recover_prompt_sunset_beach_cfg1"
+    if line_key == "cfg1p5":
+        return f"{prefix}__recover_prompt_sunset_beach_cfg1p5"
     if line_key == "cfg3":
         return f"{prefix}__recover_prompt_sunset_beach_cfg3"
     if line_key == "cfg5":
@@ -279,25 +333,39 @@ def _new_case_name(distribution: Mapping[str, Any], line_key: str) -> str:
     raise KeyError(f"No new CFG case for line key {line_key!r}.")
 
 
-def case_root_candidates(sd15_root: str | Path, distribution: Mapping[str, Any], line_key: str) -> List[Path]:
-    """Return candidate result folders, preferring copied references in the ablation tree."""
+def case_root_candidate_groups(
+    sd15_root: str | Path,
+    distribution: Mapping[str, Any],
+    line_key: str,
+) -> List[List[Path]]:
+    """Return ordered groups of case roots, combining split roots before fallbacks."""
 
     root = find_sd15_root(sd15_root)
-    new_root = root / "results" / str(distribution["new_tag"]) / "diffusion_backprop"
-    old_root = root / "results" / str(distribution["old_tag"]) / "diffusion_backprop"
     prefix = str(distribution["prefix"])
+    new_roots = [root / "results" / str(tag) for tag in distribution["new_tags"]]
+    old_roots = [root / "results" / str(tag) for tag in distribution["old_tags"]]
+    unsplit_new_root = root / "results" / str(distribution["new_tag"])
+    unsplit_old_root = root / "results" / str(distribution["old_tag"])
 
     if line_key == "unconditioned":
         return [
-            new_root / "reference_unconditioned",
-            old_root / f"{prefix}__recover_unprompted",
+            [new_root / "reference_unconditioned" for new_root in new_roots],
+            [unsplit_new_root / "reference_unconditioned"],
+            [old_root / f"{prefix}__recover_unprompted" for old_root in old_roots],
+            [unsplit_old_root / f"{prefix}__recover_unprompted"],
         ]
     if line_key == "cfg7p5":
         return [
-            new_root / "reference_cfg7p5",
-            old_root / f"{prefix}__recover_prompt_sunset_beach",
+            [new_root / "reference_cfg7p5" for new_root in new_roots],
+            [unsplit_new_root / "reference_cfg7p5"],
+            [old_root / f"{prefix}__recover_prompt_sunset_beach" for old_root in old_roots],
+            [unsplit_old_root / f"{prefix}__recover_prompt_sunset_beach"],
         ]
-    return [new_root / _new_case_name(distribution, line_key)]
+    case_name = _new_case_name(distribution, line_key)
+    return [
+        [new_root / case_name for new_root in new_roots],
+        [unsplit_new_root / case_name],
+    ]
 
 
 def _sampling_dir_name(value: float) -> str:
@@ -314,17 +382,17 @@ def _copy_tree_contents(src: Path, dst: Path, *, dry_run: bool = False) -> int:
     return file_count
 
 
-def sync_cfg7p5_references(
+def sync_main_references(
     sd15_root: str | Path | None = None,
     *,
     experiment: str = "prompt_matched_in_range",
     sampling_percentages: Sequence[float] | None = None,
     dry_run: bool = False,
 ) -> pd.DataFrame:
-    """Refresh copied CFG 7.5 reference artifacts from finished main-experiment runs.
+    """Refresh compatible unconditioned and CFG 7.5 references from main runs.
 
-    Main-experiment sources may be split across first4/last3 result folders, so
-    this merges available sampled subdirectories into reference_cfg7p5.
+    Current ablations use first4/last3 result tags matching the main experiments.
+    Archived ablations are never modified.
     """
 
     root = find_sd15_root(sd15_root)
@@ -332,83 +400,100 @@ def sync_cfg7p5_references(
     if key not in EXPERIMENT_SPECS:
         raise KeyError(f"Unknown CFG-ablation experiment {experiment!r}; expected one of {sorted(EXPERIMENT_SPECS)}.")
     spec = EXPERIMENT_SPECS[key]
+    if bool(spec.get("archived", False)):
+        return pd.DataFrame(
+            [
+                {
+                    "experiment": key,
+                    "distribution_key": str(distribution["key"]),
+                    "reference": "",
+                    "source_kind": "archive",
+                    "sampling_dir": "",
+                    "status": "archived_no_sync",
+                    "copied_files": 0,
+                    "source": "",
+                    "destination": str(root / "results" / str(distribution["new_tag"])),
+                }
+                for distribution in experiment_distributions(key)
+            ]
+        )
     if sampling_percentages is None:
         sample_values = [float(value) for value in experiment_sampling_percentages(key)]
     else:
         sample_values = [float(value) for value in sampling_percentages]
     records: List[Dict[str, Any]] = []
+    references = [
+        ("unconditioned", "recover_unprompted", "reference_unconditioned"),
+        ("cfg7p5", "recover_prompt_sunset_beach", "reference_cfg7p5"),
+    ]
 
     for distribution in experiment_distributions(key):
         prefix = str(distribution["prefix"])
-        source_case = f"{prefix}__recover_prompt_sunset_beach"
-        target_root = root / "results" / str(distribution["new_tag"]) / "diffusion_backprop"
-        dest_case = target_root / "reference_cfg7p5"
         copied_any = False
 
-        combined_case = root / "results" / str(distribution["old_tag"]) / "diffusion_backprop" / source_case
-        if combined_case.is_dir():
-            copied_files = _copy_tree_contents(combined_case, dest_case, dry_run=dry_run)
-            copied_any = True
-            records.append(
-                {
-                    "experiment": key,
-                    "distribution_key": str(distribution["key"]),
-                    "source_kind": "combined",
-                    "sampling_dir": "all",
-                    "status": "would_copy" if dry_run else "copied",
-                    "copied_files": int(copied_files),
-                    "source": str(combined_case),
-                    "destination": str(dest_case),
-                }
-            )
-
         for split_name in ("first4", "last3"):
-            split_case = (
-                root
-                / "results"
-                / str(spec["result_root"])
-                / f"{split_name}_{prefix}"
-                / "diffusion_backprop"
-                / source_case
-            )
-            if not split_case.is_dir():
-                continue
-            for sample_value in sample_values:
-                sampling_dir = _sampling_dir_name(sample_value)
-                src = split_case / "cs" / "item_000" / sampling_dir
-                if not src.is_dir():
+            source_root = root / "results" / str(spec["result_root"]) / f"{split_name}_{prefix}"
+            target_root = root / "results" / str(spec["ablation_root"]) / f"{split_name}_{prefix}"
+            for reference, source_suffix, target_name in references:
+                split_case = source_root / f"{prefix}__{source_suffix}"
+                dest_case = target_root / target_name
+                if not split_case.is_dir():
                     continue
-                dst = dest_case / "cs" / "item_000" / sampling_dir
-                copied_files = _copy_tree_contents(src, dst, dry_run=dry_run)
-                copied_any = True
-                records.append(
-                    {
-                        "experiment": key,
-                        "distribution_key": str(distribution["key"]),
-                        "source_kind": split_name,
-                        "sampling_dir": sampling_dir,
-                        "status": "would_copy" if dry_run else "copied",
-                        "copied_files": int(copied_files),
-                        "source": str(src),
-                        "destination": str(dst),
-                    }
-                )
+                for sample_value in sample_values:
+                    sampling_dir = _sampling_dir_name(sample_value)
+                    src = split_case / "cs" / "item_000" / sampling_dir
+                    if not src.is_dir():
+                        continue
+                    dst = dest_case / "cs" / "item_000" / sampling_dir
+                    copied_files = _copy_tree_contents(src, dst, dry_run=dry_run)
+                    copied_any = True
+                    records.append(
+                        {
+                            "experiment": key,
+                            "distribution_key": str(distribution["key"]),
+                            "reference": reference,
+                            "source_kind": split_name,
+                            "sampling_dir": sampling_dir,
+                            "status": "would_copy" if dry_run else "copied",
+                            "copied_files": int(copied_files),
+                            "source": str(src),
+                            "destination": str(dst),
+                        }
+                    )
 
         if not copied_any:
             records.append(
                 {
                     "experiment": key,
                     "distribution_key": str(distribution["key"]),
+                    "reference": "",
                     "source_kind": "",
                     "sampling_dir": "",
                     "status": "missing_source",
                     "copied_files": 0,
                     "source": str(root / "results"),
-                    "destination": str(dest_case),
+                    "destination": str(root / "results" / str(spec["ablation_root"])),
                 }
             )
 
     return pd.DataFrame(records)
+
+
+def sync_cfg7p5_references(
+    sd15_root: str | Path | None = None,
+    *,
+    experiment: str = "prompt_matched_in_range",
+    sampling_percentages: Sequence[float] | None = None,
+    dry_run: bool = False,
+) -> pd.DataFrame:
+    """Compatibility alias that now synchronizes both reusable main references."""
+
+    return sync_main_references(
+        sd15_root,
+        experiment=experiment,
+        sampling_percentages=sampling_percentages,
+        dry_run=dry_run,
+    )
 
 
 def load_case_rows(
@@ -420,14 +505,21 @@ def load_case_rows(
     """Load one distribution/CFG line from per-run artifacts or compact npz output."""
 
     line = _line_spec(line_key)
-    for case_root in case_root_candidates(sd15_root, distribution, line_key):
-        rows = _load_run_data_rows(case_root)
-        if not rows:
-            rows = _load_compact_npz_rows(case_root)
-        if not rows:
+    for case_root_group in case_root_candidate_groups(sd15_root, distribution, line_key):
+        group_frames: List[pd.DataFrame] = []
+        for case_root in case_root_group:
+            rows = _load_run_data_rows(case_root)
+            if not rows:
+                rows = _load_compact_npz_rows(case_root)
+            if not rows:
+                continue
+            root_frame = pd.DataFrame(rows)
+            root_frame["case_root"] = str(case_root)
+            group_frames.append(root_frame)
+        if not group_frames:
             continue
 
-        frame = pd.DataFrame(rows)
+        frame = pd.concat(group_frames, ignore_index=True, sort=False)
         frame["distribution_key"] = str(distribution["key"])
         frame["distribution_label"] = str(distribution["label"])
         frame["distribution_name"] = str(distribution["name"])
@@ -438,7 +530,6 @@ def load_case_rows(
         frame["line_label"] = str(line["label"])
         frame["line_rank"] = int(line["rank"])
         frame["cfg_scale"] = float(line["cfg_scale"]) if np.isfinite(line["cfg_scale"]) else np.nan
-        frame["case_root"] = str(case_root)
         return frame
 
     return pd.DataFrame()
@@ -759,6 +850,7 @@ def plot_metric_curves(
     if frame.empty:
         raise ValueError("No CFG-ablation rows were found.")
     summary = build_metric_summary(frame, confidence_level=confidence_level)
+    line_specs = _line_specs_from_frame(frame)
     zero_summaries = {
         metric: build_zero_filled_metric_summary(frame, metric, confidence_level=confidence_level)
         for metric, _ in PLOT_METRIC_SPECS
@@ -782,7 +874,7 @@ def plot_metric_curves(
             dist_subset = summary[summary["distribution_key"] == dist_key]
             for row_idx, (metric, metric_label) in enumerate(PLOT_METRIC_SPECS):
                 ax = axes_array[row_idx, col_idx]
-                for line in LINE_SPECS:
+                for line in line_specs:
                     line_key = str(line["key"])
                     group = dist_subset[dist_subset["line_condition"] == line_key].sort_values("samp_perc", kind="stable")
                     if group.empty:
@@ -880,7 +972,7 @@ def _default_panel_sampling_percentage(frame: pd.DataFrame) -> float:
 
     available_sets: List[set[float]] = []
     for distribution in _distributions_from_frame(frame):
-        for line in LINE_SPECS:
+        for line in _line_specs_from_frame(frame):
             subset = frame[
                 (frame["distribution_key"] == str(distribution["key"]))
                 & (frame["line_condition"] == str(line["key"]))
@@ -982,7 +1074,8 @@ def plot_reconstruction_panel(
 
     distributions = _distributions_from_frame(frame)
     n_rows = len(distributions)
-    n_cols = 2 + len(LINE_SPECS)
+    line_specs = _line_specs_from_frame(frame)
+    n_cols = 2 + len(line_specs)
     with plt.rc_context(PRESENTATION_RC):
         fig, axes = plt.subplots(
             n_rows,
@@ -1033,7 +1126,7 @@ def plot_reconstruction_panel(
             if row_idx == 0:
                 ax.set_title(_panel_title_text(ZERO_FILLED_LABEL), fontsize=22, pad=6, color=ZERO_FILLED_COLOR, **PANEL_TITLE_FONT)
 
-            for col_offset, line in enumerate(LINE_SPECS, start=2):
+            for col_offset, line in enumerate(line_specs, start=2):
                 line_key = str(line["key"])
                 ax = axes[row_idx, col_offset]
                 selected = _best_panel_row(

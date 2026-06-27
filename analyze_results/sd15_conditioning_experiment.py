@@ -85,16 +85,11 @@ SD15_LAMBDA_CMAP_COLORS = ["#16324F", "#3A7CA5", "#8DC7B4", "#DDEBD6", "#FCFBF7"
 SD15_PENALTY_CMAP_COLORS = ["#FFF7ED", "#F8D19A", "#EE8F63", "#C8556D", "#5B1746"]
 SD15_DISTRIBUTION_CMAP_COLORS = ["#16324F", "#3A7CA5", "#8DC7B4", "#DDEBD6", "#FCFBF7"]
 SD15_LAMBDA_STYLE_RECON_COLORS = ["#16324F", "#3A7CA5", "#6DB7AD", "#9CCB8B", "#CDBE7A"]
-DC_METHOD_LABELS = {
-    "diffusion_backprop": "Diffusion Backprop",
-}
 SAMPLING_METHOD_LABELS = {
     "cs": "CS (Christoffel)",
     "mcs": "MCS",
 }
 REGRESSION_ROW_COLUMNS = [
-    "dc_method",
-    "dc_method_label",
     "sampling_method",
     "sampling_method_label",
     "suite_case",
@@ -118,8 +113,6 @@ REGRESSION_ROW_COLUMNS = [
     "_result_source",
 ]
 MEAN_METRIC_COLUMNS = [
-    "dc_method",
-    "dc_method_label",
     "sampling_method",
     "sampling_method_label",
     "sampling_condition",
@@ -138,6 +131,7 @@ MEAN_METRIC_COLUMNS = [
 SUMMARY_METRICS = ["psnr_db", "ssim", "pixel_mae", "grain", "runtime_sec"]
 DEFAULT_CONFIDENCE_LEVEL = 0.95
 UNPROMPTED_DISPLAY_LABEL = "Unconditioned"
+RESOLVED_SUITE_MANIFEST_FILENAME = "resolved_suite_manifest.json"
 
 
 def _candidate_roots(start: Path) -> Iterable[Path]:
@@ -161,6 +155,13 @@ def load_json(path: str | Path) -> Dict[str, Any]:
 
     with Path(path).open("r", encoding="utf-8") as handle:
         return json.load(handle)
+
+
+def resolved_suite_manifest_path(root: str | Path) -> Optional[Path]:
+    """Return the generated suite manifest path under a result root."""
+
+    candidate = Path(root) / RESOLVED_SUITE_MANIFEST_FILENAME
+    return candidate if candidate.is_file() else None
 
 
 def _npz_value_to_python(value: np.ndarray) -> Any:
@@ -189,18 +190,15 @@ def discover_regression_tags(sd15_root: str | Path) -> List[str]:
         return []
 
     tags: set[str] = set()
-    for manifest_path in results_root.rglob("suite_manifest.json"):
+    for manifest_path in results_root.rglob(RESOLVED_SUITE_MANIFEST_FILENAME):
         manifest = load_json(manifest_path)
         suite_tag = str(manifest.get("suite_tag", "")).strip("/")
         if suite_tag:
             tags.add(suite_tag)
             continue
         relative_parent = manifest_path.parent.relative_to(results_root)
-        pieces = list(relative_parent.parts)
-        if pieces and pieces[-1] in {"diffusion_backprop"}:
-            pieces.pop()
-        if pieces:
-            tags.add("/".join(pieces))
+        if relative_parent.parts:
+            tags.add("/".join(relative_parent.parts))
     return sorted(tags)
 
 
@@ -250,7 +248,6 @@ def _drop_duplicate_run_rows(frame: pd.DataFrame) -> pd.DataFrame:
 def _attach_regression_metadata(
     frame: pd.DataFrame,
     *,
-    dc_method: str,
     sampling_method: str,
     case: Mapping[str, Any],
     case_tag: str,
@@ -258,8 +255,6 @@ def _attach_regression_metadata(
     """Attach suite metadata expected by the plotting helpers."""
 
     frame = frame.copy()
-    frame["dc_method"] = dc_method
-    frame["dc_method_label"] = DC_METHOD_LABELS.get(dc_method, dc_method)
     frame["sampling_method"] = sampling_method
     frame["sampling_method_label"] = SAMPLING_METHOD_LABELS.get(sampling_method, sampling_method)
     frame["suite_case"] = str(case.get("name", ""))
@@ -1325,7 +1320,6 @@ def load_regression_rows(
     sd15_root: str | Path,
     *,
     tag: str,
-    dc_methods: Optional[Sequence[str]] = None,
     sampling_methods: Optional[Sequence[str]] = None,
     include_partial: bool = True,
 ) -> pd.DataFrame:
@@ -1337,7 +1331,6 @@ def load_regression_rows(
     """
 
     root = find_sd15_root(sd15_root)
-    dc_method_filter = {str(item) for item in (dc_methods or [])}
     sampling_filter = {str(item) for item in (sampling_methods or [])}
     rows: List[pd.DataFrame] = []
     tag_root = root / "results" / str(tag)
@@ -1346,60 +1339,55 @@ def load_regression_rows(
         hint = f" Available tags: {', '.join(available)}." if available else ""
         raise FileNotFoundError(f"Results tag not found: {tag_root}.{hint}")
 
-    method_roots = sorted(path for path in tag_root.iterdir() if path.is_dir() and (path / "suite_manifest.json").is_file())
-    if not method_roots and (tag_root / "suite_manifest.json").is_file():
-        method_roots = [tag_root]
+    manifest_path = resolved_suite_manifest_path(tag_root)
+    if manifest_path is None:
+        raise FileNotFoundError(f"Resolved suite manifest not found: {tag_root / RESOLVED_SUITE_MANIFEST_FILENAME}")
 
-    for method_root in method_roots:
-        manifest = load_json(method_root / "suite_manifest.json")
-        dc_method = str(manifest.get("dc_method", method_root.name))
-        if dc_method_filter and dc_method not in dc_method_filter:
+    manifest = load_json(manifest_path)
+    for case in list(manifest.get("cases", [])):
+        case_tag = str(case.get("tag", "")).strip()
+        if not case_tag:
             continue
-        for case in list(manifest.get("cases", [])):
-            case_tag = str(case.get("tag", "")).strip()
-            if not case_tag:
-                continue
-            case_root = root / "results" / case_tag
-            if not case_root.is_dir():
-                continue
+        case_root = root / "results" / case_tag
+        if not case_root.is_dir():
+            continue
 
-            csv_by_method = {
-                csv_path.stem.replace("results_", ""): csv_path for csv_path in sorted(case_root.glob("results_*.csv"))
-            }
-            method_names = set(csv_by_method)
+        csv_by_method = {
+            csv_path.stem.replace("results_", ""): csv_path for csv_path in sorted(case_root.glob("results_*.csv"))
+        }
+        method_names = set(csv_by_method)
+        if include_partial:
+            method_names.update(_partial_sampling_methods(case_root))
+
+        for sampling_method in sorted(method_names):
+            if sampling_filter and sampling_method not in sampling_filter:
+                continue
+            frame_parts: List[pd.DataFrame] = []
+
+            csv_path = csv_by_method.get(sampling_method)
+            if csv_path is not None:
+                csv_frame = pd.read_csv(csv_path)
+                if not csv_frame.empty:
+                    csv_frame["_result_source"] = "results_csv"
+                    frame_parts.append(csv_frame)
+
             if include_partial:
-                method_names.update(_partial_sampling_methods(case_root))
+                partial_frame = _load_partial_run_frame(case_root, sampling_method)
+                if not partial_frame.empty:
+                    frame_parts.append(partial_frame)
 
-            for sampling_method in sorted(method_names):
-                if sampling_filter and sampling_method not in sampling_filter:
-                    continue
-                frame_parts: List[pd.DataFrame] = []
+            if not frame_parts:
+                continue
 
-                csv_path = csv_by_method.get(sampling_method)
-                if csv_path is not None:
-                    csv_frame = pd.read_csv(csv_path)
-                    if not csv_frame.empty:
-                        csv_frame["_result_source"] = "results_csv"
-                        frame_parts.append(csv_frame)
-
-                if include_partial:
-                    partial_frame = _load_partial_run_frame(case_root, sampling_method)
-                    if not partial_frame.empty:
-                        frame_parts.append(partial_frame)
-
-                if not frame_parts:
-                    continue
-
-                frame = pd.concat(frame_parts, ignore_index=True, sort=False)
-                frame = _attach_regression_metadata(
-                    frame,
-                    dc_method=dc_method,
-                    sampling_method=sampling_method,
-                    case=case,
-                    case_tag=case_tag,
-                )
-                frame = _drop_duplicate_run_rows(frame)
-                rows.append(frame)
+            frame = pd.concat(frame_parts, ignore_index=True, sort=False)
+            frame = _attach_regression_metadata(
+                frame,
+                sampling_method=sampling_method,
+                case=case,
+                case_tag=case_tag,
+            )
+            frame = _drop_duplicate_run_rows(frame)
+            rows.append(frame)
 
     if not rows:
         return pd.DataFrame(columns=REGRESSION_ROW_COLUMNS)
@@ -1530,12 +1518,10 @@ def _aggregate_metric_statistics(
 
 
 def _validate_single_panel_subset(frame: pd.DataFrame) -> None:
-    """Make sure one plot call corresponds to one DC method and sampling method."""
+    """Make sure one plot call corresponds to one sampling method."""
 
     if frame.empty:
         return
-    if frame["dc_method"].nunique(dropna=True) > 1:
-        raise ValueError("Filter to one dc_method before calling this plotting helper.")
     if frame["sampling_method"].nunique(dropna=True) > 1:
         raise ValueError("Filter to one sampling_method before calling this plotting helper.")
 
@@ -1553,8 +1539,6 @@ def build_metric_summary_table(
     summary = _aggregate_metric_statistics(
         frame,
         group_cols=[
-            "dc_method",
-            "dc_method_label",
             "sampling_method",
             "sampling_method_label",
             "sampling_condition",
@@ -1574,7 +1558,7 @@ def build_metric_summary_table(
             for condition, label in zip(summary["reconstruction_condition"], summary["reconstruction_label"])
         ]
     return summary.sort_values(
-        ["dc_method", "sampling_method", "sampling_rank", "recon_rank", "samp_perc"],
+        ["sampling_method", "sampling_rank", "recon_rank", "samp_perc"],
         kind="stable",
     ).reset_index(drop=True)
 

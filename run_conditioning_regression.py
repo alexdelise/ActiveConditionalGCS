@@ -1,4 +1,4 @@
-"""Run a diffusion-backprop experiment suite over prompt/sampling cases."""
+"""Run a conditioning experiment suite over prompt/sampling cases."""
 
 from __future__ import annotations
 
@@ -9,7 +9,9 @@ from pathlib import Path
 from typing import Any, Dict, List, Mapping, Sequence
 
 
-RECONSTRUCTION_METHOD = "diffusion_backprop"
+RECONSTRUCTION_SOLVER = "sd15_backprop"
+EXPERIMENT_MANIFEST_FILENAME = "experiment_manifest.json"
+RESOLVED_SUITE_MANIFEST_FILENAME = "resolved_suite_manifest.json"
 
 
 def parse_names_csv(text: str | None) -> List[str]:
@@ -68,9 +70,7 @@ def selected_cases(cases: Sequence[Mapping[str, Any]], names: Sequence[str]) -> 
 def case_tag(base_tag: str, case_name: str) -> str:
     """Return the nested results tag for one suite case."""
 
-    pieces = [str(base_tag).strip("/"), RECONSTRUCTION_METHOD, str(case_name).strip("/")]
-    # Keeping the reconstruction method in the tag mirrors the original results
-    # layout while making the public copy diffusion-backprop-only.
+    pieces = [str(base_tag).strip("/"), str(case_name).strip("/")]
     return "/".join(piece for piece in pieces if piece)
 
 
@@ -88,22 +88,6 @@ def ktilde_artifact_path(project_root: Path, ktilde_name: str) -> Path:
     return project_root / "ktilde" / f"{str(ktilde_name).strip()}.npz"
 
 
-def validate_method_compat(value: str | None) -> None:
-    """Accept the historical method flag only when it requests diffusion backprop."""
-
-    requested = parse_names_csv(value)
-    if not requested:
-        return
-    # Scripts still pass --dc-methods for compatibility with the original launch
-    # format; reject anything except the supported method.
-    bad = [item for item in requested if item != RECONSTRUCTION_METHOD]
-    if bad:
-        raise ValueError(
-            "This submission only runs diffusion_backprop. "
-            f"Unsupported --dc-methods values: {bad}"
-        )
-
-
 def main() -> None:
     """Parse CLI arguments and run the requested experiment suite."""
 
@@ -111,7 +95,7 @@ def main() -> None:
 
     from src.config import from_run_dict, load_json, run_config_to_dict
 
-    parser = argparse.ArgumentParser(description="Run a diffusion-backprop experiment suite.")
+    parser = argparse.ArgumentParser(description="Run a conditioning experiment suite.")
     parser.add_argument(
         "--suite-config",
         type=str,
@@ -123,12 +107,6 @@ def main() -> None:
         type=str,
         default=None,
         help="Optional override for the top-level results tag.",
-    )
-    parser.add_argument(
-        "--dc-methods",
-        type=str,
-        default=RECONSTRUCTION_METHOD,
-        help="Compatibility flag; only diffusion_backprop is supported.",
     )
     parser.add_argument(
         "--cases",
@@ -159,7 +137,6 @@ def main() -> None:
         help="Skip cases whose named k-tilde artifact has not been built yet.",
     )
     args = parser.parse_args()
-    validate_method_compat(args.dc_methods)
 
     suite_manifest = load_json(root / args.suite_config)
     suite_tag = str(args.tag if args.tag is not None else suite_manifest.get("tag", "")).strip()
@@ -184,7 +161,6 @@ def main() -> None:
         raise ValueError("--sampling-families and --sampling-methods are mutually exclusive.")
 
     top_level_root = root / "results" / suite_tag
-    method_root = top_level_root / RECONSTRUCTION_METHOD
 
     resolved_cases: List[Dict[str, Any]] = []
     for case in selected:
@@ -209,7 +185,7 @@ def main() -> None:
                 "reconstruction_label": str(case.get("reconstruction_label", case.get("reconstruction_condition", ""))),
                 "recon_rank": int(case.get("recon_rank", 0)),
                 "tag": case_tag(suite_tag, name),
-                "reconstruction_method": RECONSTRUCTION_METHOD,
+                "reconstruction_solver": RECONSTRUCTION_SOLVER,
                 "ktilde_name": cfg.ktilde.name,
                 "ktilde_artifact_path": str(artifact_path),
                 "ktilde_exists": bool(artifact_path.is_file()),
@@ -227,15 +203,15 @@ def main() -> None:
             )
         return
 
-    method_root.mkdir(parents=True, exist_ok=True)
+    top_level_root.mkdir(parents=True, exist_ok=True)
     json_dump(
-        method_root / "suite_manifest.json",
+        top_level_root / RESOLVED_SUITE_MANIFEST_FILENAME,
         {
             # Store both the suite manifest and each merged run config for
             # reproducibility audits after the run completes.
             "config_path": str((root / args.suite_config).resolve()),
             "suite_tag": suite_tag,
-            "reconstruction_method": RECONSTRUCTION_METHOD,
+            "reconstruction_solver": RECONSTRUCTION_SOLVER,
             "base_config": base_config_rel,
             "sampling_families": families,
             "sampling_method_ids": method_ids,
@@ -253,7 +229,7 @@ def main() -> None:
                 {
                     "name": case["name"],
                     "tag": case["tag"],
-                    "reconstruction_method": RECONSTRUCTION_METHOD,
+                    "reconstruction_solver": RECONSTRUCTION_SOLVER,
                     "status": "skipped_missing_ktilde",
                     "ktilde_name": case["ktilde_name"],
                     "ktilde_artifact_path": case["ktilde_artifact_path"],
@@ -276,7 +252,7 @@ def main() -> None:
             {
                 "name": case["name"],
                 "tag": case["tag"],
-                "reconstruction_method": RECONSTRUCTION_METHOD,
+                "reconstruction_solver": RECONSTRUCTION_SOLVER,
                 "status": "complete",
                 "sampling_condition": case["sampling_condition"],
                 "reconstruction_condition": case["reconstruction_condition"],
@@ -284,18 +260,18 @@ def main() -> None:
                 "outputs": outputs,
             }
         )
-        json_dump(method_root / "suite_results.json", {"reconstruction_method": RECONSTRUCTION_METHOD, "results": suite_results})
+        json_dump(top_level_root / "suite_results.json", {"reconstruction_solver": RECONSTRUCTION_SOLVER, "results": suite_results})
 
-    json_dump(method_root / "suite_results.json", {"reconstruction_method": RECONSTRUCTION_METHOD, "results": suite_results})
+    json_dump(top_level_root / "suite_results.json", {"reconstruction_solver": RECONSTRUCTION_SOLVER, "results": suite_results})
     json_dump(
-        top_level_root / "conditioning_regression_manifest.json",
+        top_level_root / EXPERIMENT_MANIFEST_FILENAME,
         {
             "suite_tag": suite_tag,
             "suite_config": str((root / args.suite_config).resolve()),
-            "reconstruction_method": RECONSTRUCTION_METHOD,
+            "reconstruction_solver": RECONSTRUCTION_SOLVER,
             "sampling_families": families,
             "sampling_method_ids": method_ids,
-            "suite_manifest_path": str((method_root / "suite_manifest.json").resolve()),
+            "resolved_suite_manifest_path": str((top_level_root / RESOLVED_SUITE_MANIFEST_FILENAME).resolve()),
             "cases": resolved_cases,
         },
     )

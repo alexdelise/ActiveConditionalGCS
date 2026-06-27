@@ -9,6 +9,9 @@ from pathlib import Path
 from typing import Any, Dict, List, Mapping, Sequence
 
 
+RESOLVED_SUITE_MANIFEST_FILENAME = "resolved_suite_manifest.json"
+
+
 def parse_names_csv(text: str | None) -> List[str]:
     """Parse a comma-separated list of case names."""
 
@@ -157,7 +160,7 @@ def main() -> None:
 
     suite_root.mkdir(parents=True, exist_ok=True)
     json_dump(
-        suite_root / "suite_manifest.json",
+        suite_root / RESOLVED_SUITE_MANIFEST_FILENAME,
         {
             "config_path": str((root / args.config).resolve()),
             "suite_tag": suite_tag,

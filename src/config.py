@@ -101,14 +101,6 @@ def enabled_sampling_method_ids(
     return out
 
 
-def active_dc_method(cfg: "RunConfig") -> str:
-    """Return the enabled reconstruction method for a run config."""
-
-    if not cfg.dc_methods.diffusion_backprop.enabled:
-        raise ValueError("diffusion_backprop must be enabled for all submission runs.")
-    return "diffusion_backprop"
-
-
 @dataclass(frozen=True)
 class RuntimeConfig:
     """Runtime settings for loading and executing the fixed SD1.5 pipeline."""
@@ -158,10 +150,9 @@ class ReconstructionConfig:
 
 
 @dataclass(frozen=True)
-class DiffusionBackpropConfig:
+class ReconstructionSolverConfig:
     """Parameters for repeated end-to-end backprop through the complete denoising chain."""
 
-    enabled: bool = False
     sigma_y: float = 0.0
     init_from_meas_backproj: bool = False
     backproj_init_strength: float = 1.0
@@ -177,13 +168,6 @@ class DiffusionBackpropConfig:
     early_stop_min_rel_improvement: float = 0.0
     checkpoint_denoiser: bool = True
     log_every: int = 1
-
-
-@dataclass(frozen=True)
-class DCMethodsConfig:
-    """Collection of reconstruction methods exposed by the submission."""
-
-    diffusion_backprop: DiffusionBackpropConfig = field(default_factory=DiffusionBackpropConfig)
 
 
 @dataclass(frozen=True)
@@ -247,7 +231,7 @@ class RunConfig:
     runtime: RuntimeConfig
     gen_recon: GenerationConfig
     reconstruction: ReconstructionConfig
-    dc_methods: DCMethodsConfig
+    reconstruction_solver: ReconstructionSolverConfig
     sampling: SamplingConfig
     sweep: SweepConfig
     optim: OptimConfig
@@ -345,28 +329,25 @@ def from_run_dict(payload: Dict[str, Any]) -> RunConfig:
         "prompts": reconstruction_payload["prompts"],
     }
 
-    backprop_payload = dict(dict(normalized.get("dc_methods", {})).get("diffusion_backprop", {}))
-    # The public copy exposes diffusion backprop only, but accepts historical
-    # synonym keys for learning-rate settings so older paper configs still load.
-    normalized["dc_methods"] = {
-        "diffusion_backprop": {
-            "enabled": bool(backprop_payload.get("enabled", False)),
-            "sigma_y": float(backprop_payload.get("sigma_y", 0.0)),
-            "init_from_meas_backproj": bool(backprop_payload.get("init_from_meas_backproj", False)),
-            "backproj_init_strength": float(backprop_payload.get("backproj_init_strength", 1.0)),
-            "outer_iterations": int(backprop_payload.get("outer_iterations", 25)),
-            "learning_rate": float(backprop_payload.get("learning_rate", 5e-2)),
-            "lr_schedule": str(backprop_payload.get("lr_schedule", backprop_payload.get("learning_rate_schedule", "constant"))),
-            "lr_warmup_iterations": int(backprop_payload.get("lr_warmup_iterations", backprop_payload.get("lr_warmup_iters", 0))),
-            "lr_min_factor": float(backprop_payload.get("lr_min_factor", backprop_payload.get("minimum_learning_rate_factor", 0.0))),
-            "latent_l2_penalty": float(backprop_payload.get("latent_l2_penalty", 0.0)),
-            "normalize_grad": bool(backprop_payload.get("normalize_grad", False)),
-            "grad_clip": float(backprop_payload.get("grad_clip", 0.0)),
-            "early_stop_patience": int(backprop_payload.get("early_stop_patience", 0)),
-            "early_stop_min_rel_improvement": float(backprop_payload.get("early_stop_min_rel_improvement", 0.0)),
-            "checkpoint_denoiser": bool(backprop_payload.get("checkpoint_denoiser", True)),
-            "log_every": int(backprop_payload.get("log_every", 1)),
-        }
+    if "dc_methods" in normalized:
+        raise ValueError("Run configs now use 'reconstruction_solver' instead of 'dc_methods'.")
+    solver_payload = dict(normalized.get("reconstruction_solver", {}))
+    normalized["reconstruction_solver"] = {
+        "sigma_y": float(solver_payload.get("sigma_y", 0.0)),
+        "init_from_meas_backproj": bool(solver_payload.get("init_from_meas_backproj", False)),
+        "backproj_init_strength": float(solver_payload.get("backproj_init_strength", 1.0)),
+        "outer_iterations": int(solver_payload.get("outer_iterations", 25)),
+        "learning_rate": float(solver_payload.get("learning_rate", 5e-2)),
+        "lr_schedule": str(solver_payload.get("lr_schedule", solver_payload.get("learning_rate_schedule", "constant"))),
+        "lr_warmup_iterations": int(solver_payload.get("lr_warmup_iterations", solver_payload.get("lr_warmup_iters", 0))),
+        "lr_min_factor": float(solver_payload.get("lr_min_factor", solver_payload.get("minimum_learning_rate_factor", 0.0))),
+        "latent_l2_penalty": float(solver_payload.get("latent_l2_penalty", 0.0)),
+        "normalize_grad": bool(solver_payload.get("normalize_grad", False)),
+        "grad_clip": float(solver_payload.get("grad_clip", 0.0)),
+        "early_stop_patience": int(solver_payload.get("early_stop_patience", 0)),
+        "early_stop_min_rel_improvement": float(solver_payload.get("early_stop_min_rel_improvement", 0.0)),
+        "checkpoint_denoiser": bool(solver_payload.get("checkpoint_denoiser", True)),
+        "log_every": int(solver_payload.get("log_every", 1)),
     }
 
     output_payload = dict(normalized.get("output", {}))
@@ -401,9 +382,7 @@ def from_run_dict(payload: Dict[str, Any]) -> RunConfig:
         runtime=_construct(RuntimeConfig, normalized["runtime"]),
         gen_recon=_construct(GenerationConfig, dict(normalized["gen_recon"])),
         reconstruction=_construct(ReconstructionConfig, normalized["reconstruction"]),
-        dc_methods=DCMethodsConfig(
-            diffusion_backprop=_construct(DiffusionBackpropConfig, normalized["dc_methods"]["diffusion_backprop"]),
-        ),
+        reconstruction_solver=_construct(ReconstructionSolverConfig, normalized["reconstruction_solver"]),
         sampling=_construct(SamplingConfig, normalized["sampling"]),
         sweep=_construct(SweepConfig, normalized["sweep"]),
         optim=_construct(OptimConfig, dict(normalized["optim"])),

@@ -15,7 +15,7 @@ def main() -> None:
     from src.runner import run_method
 
     parser = argparse.ArgumentParser(description="Run the MCS sweep for a tagged experiment.")
-    parser.add_argument("--config", type=str, default="configs/diffusion_backprop_example.json", help="Path to the run config JSON.")
+    parser.add_argument("--config", type=str, default="configs/example_run.json", help="Path to the run config JSON.")
     parser.add_argument("--tag", type=str, required=True, help="Results tag used under the results folder.")
     args = parser.parse_args()
 

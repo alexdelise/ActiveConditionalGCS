@@ -95,8 +95,10 @@ PDF figures.
 ├── 📁 analyze_results/                  ← Analysis helpers and notebooks for paper figures
 │   ├── sd15_conditioning_experiment.py
 │   ├── sd15_cfg_ablation_analysis.py
-│   ├── sd15_*_results*.ipynb
-│   ├── sd15_*_cfg_ablation.ipynb
+│   ├── *_results.ipynb
+│   ├── *_cfg_ablation.ipynb
+│   ├── ktilde_lambda_comparison.ipynb
+│   ├── old/                              ← Archived pre-fix notebooks
 │   └── README.md
 │
 ├── 📁 readmepics/                       ← Expected-output figures copied from completed original runs
@@ -199,7 +201,7 @@ artifact. The convergence runner validates that the final rerun matches its
 saved S10000 reference.
 
 After all four measurement jobs finish, run the early convergence section in
-`analyze_results/sd15_ktilde_lambda_comparison.ipynb`. It displays a 2x2
+`analyze_results/ktilde_lambda_comparison.ipynb`. It displays a 2x2
 panel for each metric and saves each panel plus its four individual PDFs under
 `results/analysis/ktilde_convergence/figures/`. The relative-`l2` panel keeps
 the historical name `sd15_ktilde_convergence_grid.pdf`; the added metrics use
@@ -349,73 +351,51 @@ bash scripts/out_of_range/sunset/all.sh
 
 ## CFG Ablation Commands
 
-### Prompt Matched In Range CFG Ablation
+The corrected recovery-only CFG ablation covers CFG 1, 1.5, 3, and 5 using
+the same seven sampling ratios, five trials, and optimization settings as each
+corresponding main experiment. Compatible unconditioned and CFG 7.5 rows are
+copied from the main first4/last3 results before each split runs.
 
-The updated prompt-matched ablation uses the fixed seven-rate grid and copies
-its unconditioned and CFG 7.5 references from the prompt-matched first4/last3
-main-experiment outputs.
-
-Split by sampling distribution:
-
-```bash
-bash scripts/ablation/prompt_matched/sunset/sample_k0_unconditioned.sh
-bash scripts/ablation/prompt_matched/sunset/sample_k1_daytime_beach.sh
-bash scripts/ablation/prompt_matched/sunset/sample_k2_sunset_beach.sh
-bash scripts/ablation/prompt_matched/sunset/sample_k4_cat.sh
-```
-
-Run all four distributions sequentially (not recommended):
+For any `<experiment>` in `prompt_matched`, `prompt_mismatched`, or
+`out_of_range`, schedule one sampling distribution's first four and last three
+rates independently:
 
 ```bash
-bash scripts/ablation/prompt_matched/sunset/all.sh
+bash scripts/ablation/<experiment>/sunset/first4_sample_k0_unconditioned.sh
+bash scripts/ablation/<experiment>/sunset/last3_sample_k0_unconditioned.sh
 ```
 
-### Prompt Mismatched In Range CFG Ablation
-
-Split by sampling distribution:
+Replace `sample_k0_unconditioned` with `sample_k1_daytime_beach`,
+`sample_k2_sunset_beach`, or `sample_k4_cat` for the other sampling
+distributions. Convenience wrappers run both splits for one distribution:
 
 ```bash
-bash scripts/ablation/prompt_mismatched/sunset/sample_k0_unconditioned.sh
-bash scripts/ablation/prompt_mismatched/sunset/sample_k1_daytime_beach.sh
-bash scripts/ablation/prompt_mismatched/sunset/sample_k2_sunset_beach.sh
-bash scripts/ablation/prompt_mismatched/sunset/sample_k4_cat.sh
+bash scripts/ablation/<experiment>/sunset/first4_last3_sample_k2_sunset_beach.sh
 ```
 
-Run all four distributions sequentially (not recommended):
+Aggregate split launchers are also available, though running all four
+distributions sequentially is not recommended:
 
 ```bash
-bash scripts/ablation/prompt_mismatched/sunset/all.sh
+bash scripts/ablation/<experiment>/sunset/first4_all.sh
+bash scripts/ablation/<experiment>/sunset/last3_all.sh
 ```
 
-### Out Of Range CFG Ablation
-
-Split by sampling distribution:
-
-```bash
-bash scripts/ablation/out_of_range/sunset/sample_k0_unconditioned.sh
-bash scripts/ablation/out_of_range/sunset/sample_k1_daytime_beach.sh
-bash scripts/ablation/out_of_range/sunset/sample_k2_sunset_beach.sh
-bash scripts/ablation/out_of_range/sunset/sample_k4_cat.sh
-```
-
-Run all four distributions sequentially (not recommended):
-
-```bash
-bash scripts/ablation/out_of_range/sunset/all.sh
-```
+The original five-rate/two-trial ablation configs, scripts, raw results,
+analysis outputs, and notebooks are preserved under matching `_old` names.
 
 ## Output Layout
 
 Runs write to:
 
 ```text
-results/<experiment_family>/sunset/[first4_|last3_]sample_<prior>/diffusion_backprop/<case>/cs/item_000/samp_<rate>/rep_<id>/
-results/ablation/<experiment_family>/sunset/sample_<prior>/diffusion_backprop/<case>/cs/item_000/samp_<rate>/rep_<id>/
+results/<experiment_family>/sunset/[first4_|last3_]sample_<prior>/<case>/cs/item_000/samp_<rate>/rep_<id>/
+results/ablation/<experiment_family>/sunset/[first4_|last3_]sample_<prior>/<case>/cs/item_000/samp_<rate>/rep_<id>/
 ```
 
 Each leaf run stores `run_config.json`, `dataset_item.json`, `run_data.npz`, `run_summary.txt`, `recon_cs.png`, `zero_filled_ifft.png`, and `z_rec.pt`.
 
-Each suite also writes `suite_manifest.json`, `suite_results.json`, and compact `results_cs.csv/.npz` tables. These raw and restartable experiment artifacts stay under `results/<experiment_family>/...` or `results/ablation/<experiment_family>/...`.
+Each suite also writes `experiment_manifest.json`, `resolved_suite_manifest.json`, `suite_results.json`, and compact `results_cs.csv/.npz` tables. These raw and restartable experiment artifacts stay under `results/<experiment_family>/...` or `results/ablation/<experiment_family>/...`.
 
 `results/analysis/...` is the separate derived-output layer. Analysis notebooks
 write paper figures and compact summaries there so they do not mix with the
@@ -433,6 +413,7 @@ top-level directories separate outputs by purpose:
 | `results/out_of_range/` | Raw reconstruction runs for the out-of-range experiment. |
 | `results/ablation/` | Raw CFG-ablation reconstruction runs, subdivided by the same experiment families. |
 | `results/prompt_matched_old/` | Archived raw prompt-matched runs from before the experiment correction. |
+| `results/ablation/*_old/` | Archived raw outputs from the original five-rate/two-trial CFG ablation. |
 | `results/analysis/` | Derived PDFs, compact summaries, and analysis-only traces produced from the raw runs. |
 
 Keeping `analysis/` separate prevents regenerated figures and summaries from
@@ -440,8 +421,9 @@ being mixed into the expensive, restartable reconstruction-run directories.
 The experiment-family directories remain separate because their datasets,
 prompt relationships, manifests, and paper comparisons are different.
 
-The pre-fix prompt-matched main and CFG-ablation artifacts are archived under
-the corresponding `prompt_matched_old` result and analysis directories.
+The pre-fix prompt-matched main artifacts and all original CFG-ablation
+artifacts are archived under corresponding `_old` result and analysis
+directories.
 
 K-tilde convergence runs write one compact `.convergence.npz` trace and one
 matching `.convergence.meta.json` file per prompt under

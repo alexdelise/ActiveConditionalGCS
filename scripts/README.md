@@ -6,7 +6,7 @@ and dataset live in the directory path, while the filename names the run variant
 ```text
 scripts/<experiment_family>/sunset/sample_<prior>.sh
 scripts/<experiment_family>/sunset/[first4_|last3_]sample_<prior>.sh
-scripts/ablation/<experiment_family>/sunset/sample_<prior>.sh
+scripts/ablation/<experiment_family>/sunset/[first4_|last3_]sample_<prior>.sh
 scripts/ktilde/main/build_<prior>.sh
 scripts/ktilde/cfg_ablation/build_<prior>_cfg<scale>.sh
 scripts/ktilde/convergence/[build_|measure_]<prior>.sh
@@ -16,7 +16,8 @@ All paper launch scripts run `cs`, meaning Christoffel/K-tilde sampling.
 
 ## Split Runs
 
-All three main experiments use the same seven-rate grid and split:
+All three main experiments and corrected CFG recovery ablations use the same
+seven-rate grid and split:
 
 - `first4`: sampling ratios `0.00015625`, `0.0003125`, `0.000625`, `0.00125`
 - `last3`: sampling ratios `0.0025`, `0.005`, `0.01`
@@ -56,10 +57,13 @@ validate existing artifacts by default, and forward arguments such as
 
 ## CFG Ablation
 
-CFG-ablation scripts first copy existing reference rows from the corresponding
-standard split or standard run, then launch the CFG 1, 3, and 5 cases. The
-updated prompt-matched ablation follows its seven-rate first4/last3 main sweep;
-the other ablations retain their existing five-rate grids.
+Corrected CFG-ablation split scripts delegate to `ablation/run_split.sh`. The
+shared launcher copies compatible unconditioned and CFG 7.5 rows from the
+corresponding main split, then launches recovery CFG 1, 1.5, 3, and 5 with
+five trials and the main experiment's optimizer settings.
+
+The original five-rate/two-trial launchers are archived under
+`ablation/<experiment_family>_old/sunset/`.
 
 The historical K-tilde commands under
 `ablation/ktilde/sunset/build_cfg*_conditioned_prompts.sh` remain as

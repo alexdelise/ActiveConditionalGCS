@@ -55,7 +55,7 @@ measured convergence metrics every 10 iterations.
 The independent build and measurement launchers for all four references live
 under `scripts/ktilde/convergence/`.
 
-The convergence section in `analyze_results/sd15_ktilde_lambda_comparison.ipynb`
+The convergence section in `analyze_results/ktilde_lambda_comparison.ipynb`
 saves one 2x2 grid per metric and all standalone plots under
 `results/analysis/ktilde_convergence/figures/`.
 

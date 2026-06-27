@@ -12,7 +12,6 @@ import numpy as np
 
 from .config import (
     RunConfig,
-    active_dc_method,
     enabled_sampling_method_ids,
     run_config_to_dict,
     sampling_method_folder,
@@ -393,8 +392,6 @@ def run_method(
                         f"PSNR {float(row['psnr_db']):6.2f} dB | "
                         f"SSIM {float(row['ssim']):.4f}"
                         f"{metric_log_fragment(row, 'pixel_mae', 'MAE')}"
-                        f" | "
-                        f"dc={active_dc_method(cfg)}"
                     )
 
         results_csv = run_root / f"results_{method_folder}.csv"

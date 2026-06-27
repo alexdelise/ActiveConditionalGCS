@@ -11,7 +11,7 @@ from typing import Any, Dict, Optional, Tuple
 import numpy as np
 import torch
 
-from .config import RunConfig, active_dc_method, run_config_to_dict, sampling_method_folder
+from .config import RunConfig, run_config_to_dict, sampling_method_folder
 from .diffusion import (
     decode_latents_to_unit_interval,
     encode_image_to_latents,
@@ -98,7 +98,7 @@ def diffusion_backprop_learning_rate(iteration: int, *, config) -> float:
         cosine_weight = 0.5 * (1.0 + math.cos(math.pi * progress))
         return min_lr + (base_lr - min_lr) * cosine_weight
 
-    raise ValueError(f"Unsupported diffusion_backprop.lr_schedule={schedule!r}.")
+    raise ValueError(f"Unsupported reconstruction_solver.lr_schedule={schedule!r}.")
 
 
 def measurement_loss(
@@ -382,7 +382,7 @@ def run_diffusion_backprop_reconstruction(
     traces = {
         # These arrays are saved into run_data.npz and later consumed by the
         # analysis notebooks for convergence diagnostics.
-        "recon_method": "diffusion_backprop",
+        "reconstruction_solver": "sd15_backprop",
         "sigma_y": float(config.sigma_y),
         "init_mode": init_mode,
         "init_timestep": float(init_timestep_value),
@@ -469,8 +469,7 @@ def run_single_reconstruction(
     # Measurements are generated directly from the saved ground-truth image.
     measurements = measurement_operator.A(image_true)
 
-    dc_method = active_dc_method(cfg)
-    sigma_y = float(cfg.dc_methods.diffusion_backprop.sigma_y)
+    sigma_y = float(cfg.reconstruction_solver.sigma_y)
     if sigma_y > 0.0:
         # Optional synthetic measurement noise follows the configured sigma_y.
         if torch.is_complex(measurements):
@@ -482,7 +481,7 @@ def run_single_reconstruction(
 
     start_time = time.time()
     print(
-        f"\n[recon start] method={dc_method} prompt={prompt_text or '<unprompted>'!r} "
+        f"\n[recon start] prompt={prompt_text or '<unprompted>'!r} "
         f"item={int(dataset_item['item_id']):03d} samp={float(samp_perc):.5f} "
         f"rep={int(repeat_id):02d} m={int(m_coeffs)}"
     )
@@ -492,7 +491,7 @@ def run_single_reconstruction(
         generation=cfg.gen_recon,
         measurement_operator=measurement_operator,
         measurements=measurements,
-        config=cfg.dc_methods.diffusion_backprop,
+        config=cfg.reconstruction_solver,
         optim_cfg=cfg.optim,
         weighted_ls=bool(cfg.sampling.weighted_ls),
         probabilities=prob_used,
@@ -623,7 +622,7 @@ def run_single_reconstruction(
     with open(run_dir / "run_summary.txt", "w", encoding="utf-8") as handle:
         handle.write("=== Reconstruction Run Summary ===\n\n")
         handle.write(f"method: {method_folder}\n")
-        handle.write(f"dc_method: {dc_method}\n")
+        handle.write("reconstruction_solver: sd15_backprop\n")
         handle.write(f"item_id: {item_id}\n")
         handle.write(f"conditioning_mode: {conditioning_mode}\n")
         handle.write(f"prompt_text: {prompt_text}\n")

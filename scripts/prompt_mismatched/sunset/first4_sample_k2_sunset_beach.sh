@@ -18,5 +18,4 @@ fi
 
 "${PYTHON_BIN}" run_conditioning_regression.py \
   --suite-config configs/prompt_mismatched/sunset/first4_sample_k2_sunset_beach_suite.json \
-  --dc-methods diffusion_backprop \
   --sampling-methods cs
