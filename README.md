@@ -164,7 +164,7 @@ relative `l2` error, relative `linf` error, the raw theory-facing statistic
 `max_i K_tilde_final_unitary(i) / mu_iteration(i)`, and the max absolute
 log-ratio between the final and current sampling distributions. The rerun saves
 only the compact error trace and metadata under
-`results/analysis/ktilde_convergence/`; it does not save intermediate k-tildes.
+`results/figures/ktilde_convergence/`; it does not save intermediate k-tildes.
 Each measurement job also streams all measured convergence metrics every 10
 iterations.
 
@@ -203,7 +203,7 @@ saved S10000 reference.
 After all four measurement jobs finish, run the early convergence section in
 `analyze_results/ktilde_lambda_comparison.ipynb`. It displays a 2x2
 panel for each metric and saves each panel plus its four individual PDFs under
-`results/analysis/ktilde_convergence/figures/`. The relative-`l2` panel keeps
+`results/figures/ktilde_convergence/figures/`. The relative-`l2` panel keeps
 the historical name `sd15_ktilde_convergence_grid.pdf`; the added metrics use
 explicit stems such as `sd15_ktilde_convergence_relative_linf_error_grid.pdf`.
 
@@ -397,7 +397,7 @@ Each leaf run stores `run_config.json`, `dataset_item.json`, `run_data.npz`, `ru
 
 Each suite also writes `experiment_manifest.json`, `resolved_suite_manifest.json`, `suite_results.json`, and compact `results_cs.csv/.npz` tables. These raw and restartable experiment artifacts stay under `results/<experiment_family>/...` or `results/ablation/<experiment_family>/...`.
 
-`results/analysis/...` is the separate derived-output layer. Analysis notebooks
+`results/figures/...` is the separate derived-output layer. Analysis notebooks
 write paper figures and compact summaries there so they do not mix with the
 raw per-run artifacts. Analysis-only measurements, such as the compact k-tilde
 convergence traces, also write directly into this layer.
@@ -414,9 +414,9 @@ top-level directories separate outputs by purpose:
 | `results/ablation/` | Raw CFG-ablation reconstruction runs, subdivided by the same experiment families. |
 | `results/prompt_matched_old/` | Archived raw prompt-matched runs from before the experiment correction. |
 | `results/ablation/*_old/` | Archived raw outputs from the original five-rate/two-trial CFG ablation. |
-| `results/analysis/` | Derived PDFs, compact summaries, and analysis-only traces produced from the raw runs. |
+| `results/figures/` | Derived PDFs, compact summaries, and analysis-only traces produced from the raw runs. |
 
-Keeping `analysis/` separate prevents regenerated figures and summaries from
+Keeping `figures/` separate prevents regenerated figures and summaries from
 being mixed into the expensive, restartable reconstruction-run directories.
 The experiment-family directories remain separate because their datasets,
 prompt relationships, manifests, and paper comparisons are different.
@@ -427,7 +427,7 @@ directories.
 
 K-tilde convergence runs write one compact `.convergence.npz` trace and one
 matching `.convergence.meta.json` file per prompt under
-`results/analysis/ktilde_convergence/`.
+`results/figures/ktilde_convergence/`.
 
 ## Citation
 

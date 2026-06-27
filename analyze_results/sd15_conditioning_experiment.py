@@ -360,7 +360,7 @@ def load_ktilde_convergence_traces(
     config_file = Path(config_path or "ktilde/config_convergence.json")
     if not config_file.is_absolute():
         config_file = root / config_file
-    trace_root = Path(results_dir or "results/analysis/ktilde_convergence")
+    trace_root = Path(results_dir or "results/figures/ktilde_convergence")
     if not trace_root.is_absolute():
         trace_root = root / trace_root
 
@@ -809,7 +809,7 @@ def plot_lambda_heatmap(
     import matplotlib.pyplot as plt
 
     lambda_table, _ = _ordered_heatmap_table(tables, "lambda_table")
-    cmap = _make_linear_cmap("sd15_lambda", SD15_LAMBDA_CMAP_COLORS)
+    cmap = _make_linear_cmap("lambda_heatmap", SD15_LAMBDA_CMAP_COLORS)
     label = r"$\widetilde{\Lambda}(c_r,c_r,c_s)$"
 
     with plt.rc_context(SD15_PRESENTATION_RC):
@@ -842,7 +842,7 @@ def plot_penalty_heatmap(
     import matplotlib.pyplot as plt
 
     penalty_table, _ = _ordered_heatmap_table(tables, "penalty_table")
-    cmap = _make_linear_cmap("sd15_penalty", SD15_PENALTY_CMAP_COLORS)
+    cmap = _make_linear_cmap("lambda_penalty", SD15_PENALTY_CMAP_COLORS)
 
     with plt.rc_context(SD15_PRESENTATION_RC):
         fig, ax = plt.subplots(figsize=(7.2, 6.8), constrained_layout=True)
@@ -974,7 +974,7 @@ def plot_sampling_distribution(
     vmin, vmax = limits or distribution_log_limits(tables, roles=[str(role)])
     norm_vmin = float(10 ** vmin)
     norm_vmax = float(10 ** vmax)
-    cmap = _make_linear_cmap("sd15_distribution", SD15_DISTRIBUTION_CMAP_COLORS)
+    cmap = _make_linear_cmap("sampling_distribution", SD15_DISTRIBUTION_CMAP_COLORS)
 
     with plt.rc_context(SD15_PRESENTATION_RC):
         fig, ax = plt.subplots(figsize=(5.8, 5.4), constrained_layout=True)
@@ -1031,7 +1031,7 @@ def plot_sampling_distribution_row(
             centered = _reshape_centered_distribution(info)
             image = ax.imshow(
                 centered,
-                cmap=_make_linear_cmap("sd15_distribution_row", SD15_DISTRIBUTION_CMAP_COLORS),
+                cmap=_make_linear_cmap("sampling_distribution_row", SD15_DISTRIBUTION_CMAP_COLORS),
                 norm=norm,
                 interpolation="nearest",
             )
@@ -1059,7 +1059,7 @@ def export_lambda_figure_set(
     file_format: str = "pdf",
     include_kappa: bool = True,
 ) -> Dict[str, Path]:
-    """Save standalone lambda and mu figures for the current SD1.5 bank."""
+    """Save standalone lambda and mu figures for the current prior bank."""
 
     root = Path(output_dir)
     root.mkdir(parents=True, exist_ok=True)
@@ -1067,18 +1067,18 @@ def export_lambda_figure_set(
     outputs: Dict[str, Path] = {}
     outputs["lambda_heatmap"] = plot_lambda_heatmap(
         tables,
-        output_path=root / f"sd15_lambda_heatmap.{suffix}",
+        output_path=root / f"lambda_heatmap.{suffix}",
         show=show,
     )
     outputs["penalty_heatmap"] = plot_penalty_heatmap(
         tables,
-        output_path=root / f"sd15_lambda_blowup_heatmap.{suffix}",
+        output_path=root / f"lambda_blowup_heatmap.{suffix}",
         show=show,
     )
     if include_kappa:
         outputs["kappa_bar"] = plot_kappa_bar(
             tables,
-            output_path=root / f"sd15_kappa_bar.{suffix}",
+            output_path=root / f"kappa_bar.{suffix}",
             show=show,
         )
 
@@ -1088,14 +1088,14 @@ def export_lambda_figure_set(
         outputs[f"distribution_{role}"] = plot_sampling_distribution(
             tables,
             role=role,
-            output_path=root / f"sd15_sampling_distribution_{role}.{suffix}",
+            output_path=root / f"sampling_distribution_{role}.{suffix}",
             show=show,
             limits=limits,
         )
     outputs["distribution_row_uc_sb_db_ca"] = plot_sampling_distribution_row(
         tables,
         roles=["k0", "k2_sunset_beach", "k1_daytime_beach", "k4_cat"],
-        output_path=root / f"sd15_sampling_distribution_row_uc_sb_db_ca.{suffix}",
+        output_path=root / f"sampling_distribution_row_uc_sb_db_ca.{suffix}",
         show=show,
         limits=limits,
     )
@@ -1258,7 +1258,7 @@ def plot_lambda_summary(
         _draw_publication_heatmap(
             axes[0],
             lambda_table,
-            cmap=_make_linear_cmap("sd15_lambda", SD15_LAMBDA_CMAP_COLORS),
+            cmap=_make_linear_cmap("lambda_heatmap", SD15_LAMBDA_CMAP_COLORS),
             colorbar_label=r"$\widetilde{\Lambda}(c_r,c_r,c_s)$",
             annotation_scale_power=lambda_scale_power,
             tick_labelsize=12.0,
@@ -1271,7 +1271,7 @@ def plot_lambda_summary(
         _draw_publication_heatmap(
             axes[1],
             penalty_table,
-            cmap=_make_linear_cmap("sd15_penalty", SD15_PENALTY_CMAP_COLORS),
+            cmap=_make_linear_cmap("lambda_penalty", SD15_PENALTY_CMAP_COLORS),
             colorbar_label=r"$\widetilde{\Lambda}'(c_r,c_s)=\widetilde{\lambda}(c_r,c_r,c_s)/\widetilde{\kappa}(c_r)$",
             annotation_scale_power=0,
             show_ylabels=False,

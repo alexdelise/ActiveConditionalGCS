@@ -13,7 +13,7 @@ This folder contains the analysis helpers and notebooks used to inspect reproduc
 - `out_of_range_cfg_ablation.ipynb`: out-of-range CFG ablation.
 - `old/`: archived pre-fix notebooks, using the same cleaned names inside the archive folder.
 
-The notebooks expect completed outputs under the nested `../results/<experiment_family>/sunset/` layout and write PDF figures under `../results/analysis/...`.
+The notebooks expect completed outputs under the nested `../results/<experiment_family>/sunset/` layout and write PDF figures under `../results/figures/...`.
 
 Current CFG-ablation notebooks merge first4/last3 outputs, synchronize
 compatible unconditioned and CFG 7.5 main-experiment references, and compare
@@ -23,12 +23,12 @@ only matching `_old` result paths.
 The early convergence section in `ktilde_lambda_comparison.ipynb` expects
 all four traces from `scripts/ktilde/convergence/measure_<prior>.sh`. It
 displays one shared 2x2 panel per convergence metric and saves each panel plus
-four standalone PDFs under `results/analysis/ktilde_convergence/figures/`. The
+four standalone PDFs under `results/figures/ktilde_convergence/figures/`. The
 relative-`l2` panel is `sd15_ktilde_convergence_grid.pdf`; added metrics use
 explicit stems such as `sd15_ktilde_convergence_relative_linf_error_grid.pdf`.
 
 The top-level experiment-family directories under `results/` contain raw,
-restartable run artifacts. `results/analysis/` contains derived figures,
+restartable run artifacts. `results/figures/` contains derived figures,
 compact summaries, and analysis-only traces generated from those runs.
 This separation keeps notebook-generated outputs out of the raw run trees;
 all of them remain under the Git-ignored `results/` root because they are

@@ -185,7 +185,7 @@ def load_recovery_analysis(
             loaded_tags = candidate_loaded_tags
             break
 
-    resolved_output_root = Path(output_root) if output_root is not None else root / "results" / "analysis"
+    resolved_output_root = Path(output_root) if output_root is not None else root / "results" / "figures"
     output_dir = resolved_output_root / active_tag
     output_dir.mkdir(parents=True, exist_ok=True)
 

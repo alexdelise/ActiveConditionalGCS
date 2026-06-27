@@ -116,7 +116,7 @@ def main() -> None:
     parser.add_argument(
         "--output-dir",
         type=str,
-        default="results/analysis/ktilde_convergence",
+        default="results/figures/ktilde_convergence",
         help="Directory for compact convergence traces.",
     )
     parser.add_argument("--force", action="store_true", help="Overwrite an existing convergence trace.")

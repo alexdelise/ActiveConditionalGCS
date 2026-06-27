@@ -77,7 +77,7 @@ the four paper prompts:
 
 - `build_<prior>.sh` creates the final 10,000-iteration reference in `ktilde/`.
 - `measure_<prior>.sh` reruns the estimator and writes compact scalar
-  convergence traces under `results/analysis/ktilde_convergence/`, while
+  convergence traces under `results/figures/ktilde_convergence/`, while
   streaming all measured convergence metrics every 10 iterations.
 - `build_all.sh` and `measure_all.sh` run their corresponding four jobs
   sequentially.
