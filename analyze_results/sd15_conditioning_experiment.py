@@ -47,23 +47,23 @@ SD15_PLOT_EXCLUDED_ROLES: set[str] = set()
 SD15_EXPORT_DPI = 800
 
 SD15_X_LABEL = r"Sampling Ratio $m/n$"
-KTILDE_CONVERGENCE_X_LABEL = "Iterations"
+KTILDE_CONVERGENCE_X_LABEL = r"Iterations ($M$)"
 KTILDE_CONVERGENCE_METRICS: Dict[str, Dict[str, str]] = {
     "relative_l2_error": {
         "label": r"Relative $\ell_2$ Error",
-        "filename": "convergence",
+        "filename": "relative_l2_error",
     },
     "relative_linf_error": {
         "label": r"Relative $\ell_\infty$ Error",
-        "filename": "convergence_relative_linf_error",
+        "filename": "relative_linf_error",
     },
     "lambda_ref_over_mu_m": {
         "label": r"$\max_i\, \widetilde{K}_{10000}(i) / \widetilde{\mu}_M(i)$",
-        "filename": "convergence_lambda_ref_over_mu_m",
+        "filename": "lambda_ref_over_mu_m",
     },
     "max_abs_log_mu_ratio": {
         "label": r"$\max_i\, |\log(\widetilde{\mu}_{10000}(i)/\widetilde{\mu}_M(i))|$",
-        "filename": "convergence_max_abs_log_mu_ratio",
+        "filename": "max_abs_log_mu_ratio",
     },
 }
 SD15_METRIC_LABELS = {
@@ -1067,18 +1067,18 @@ def export_lambda_figure_set(
     outputs: Dict[str, Path] = {}
     outputs["lambda_heatmap"] = plot_lambda_heatmap(
         tables,
-        output_path=root / f"lambda_heatmap.{suffix}",
+        output_path=root / f"ktilde_lambda_absolute_heatmap.{suffix}",
         show=show,
     )
     outputs["penalty_heatmap"] = plot_penalty_heatmap(
         tables,
-        output_path=root / f"lambda_blowup_heatmap.{suffix}",
+        output_path=root / f"ktilde_lambda_row_normalized_mismatch_heatmap.{suffix}",
         show=show,
     )
     if include_kappa:
         outputs["kappa_bar"] = plot_kappa_bar(
             tables,
-            output_path=root / f"kappa_bar.{suffix}",
+            output_path=root / f"ktilde_kappa_by_sampling_distribution_bar.{suffix}",
             show=show,
         )
 
@@ -1088,14 +1088,14 @@ def export_lambda_figure_set(
         outputs[f"distribution_{role}"] = plot_sampling_distribution(
             tables,
             role=role,
-            output_path=root / f"sampling_distribution_{role}.{suffix}",
+            output_path=root / f"ktilde_sampling_distribution_{role}.{suffix}",
             show=show,
             limits=limits,
         )
     outputs["distribution_row_uc_sb_db_ca"] = plot_sampling_distribution_row(
         tables,
         roles=["k0", "k2_sunset_beach", "k1_daytime_beach", "k4_cat"],
-        output_path=root / f"sampling_distribution_row_uc_sb_db_ca.{suffix}",
+        output_path=root / f"ktilde_sampling_distribution_row_uc_sb_db_ca.{suffix}",
         show=show,
         limits=limits,
     )
@@ -1216,7 +1216,7 @@ def export_ktilde_convergence_figure_set(
         outputs[f"{metric}_grid"] = plot_ktilde_convergence_grid(
             traces,
             metric=metric,
-            output_path=root / f"sd15_ktilde_{stem}_grid.{suffix}",
+            output_path=root / f"ktilde_convergence_{stem}_grid.{suffix}",
             show=show,
         )
         for role in traces:
@@ -1224,7 +1224,7 @@ def export_ktilde_convergence_figure_set(
                 traces,
                 role=str(role),
                 metric=metric,
-                output_path=root / f"sd15_ktilde_{stem}_{role}.{suffix}",
+                output_path=root / f"ktilde_convergence_{stem}_{role}.{suffix}",
                 show=show_individual,
             )
     return outputs

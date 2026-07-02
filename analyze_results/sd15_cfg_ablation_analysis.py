@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import shutil
 from pathlib import Path
 from statistics import NormalDist
@@ -835,6 +836,23 @@ def _save_figure(fig: Any, output_dir: str | Path | None, stem: str, *, show: bo
     return outputs
 
 
+def _figure_slug(value: object) -> str:
+    slug = re.sub(r"[^0-9A-Za-z]+", "_", str(value).strip().lower())
+    return slug.strip("_")
+
+
+def _ablation_context_slug(output_dir: str | Path | None) -> str:
+    if output_dir is None:
+        return "cfg_ablation"
+    parts = list(Path(output_dir).parts)
+    if "ablation" in parts:
+        parts = parts[parts.index("ablation") + 1 :]
+    else:
+        parts = parts[-2:]
+    slug_parts = [_figure_slug(part) for part in parts]
+    return "_".join(part for part in slug_parts if part) or "cfg_ablation"
+
+
 def plot_metric_curves(
     frame: pd.DataFrame,
     *,
@@ -944,8 +962,20 @@ def plot_metric_curves(
                     handles.append(handle)
                     labels.append(label)
         if handles:
-            fig.legend(handles, labels, loc="upper center", ncol=min(len(handles), 6), frameon=False, bbox_to_anchor=(0.5, SWEEP_LEGEND_Y))
-        return _save_figure(fig, output_dir, "sd15_cfg_ablation_metric_curves", show=show)
+            fig.legend(
+                handles,
+                labels,
+                loc="upper center",
+                ncol=len(handles),
+                frameon=False,
+                bbox_to_anchor=(0.5, SWEEP_LEGEND_Y),
+                columnspacing=0.9,
+                handletextpad=0.35,
+                borderaxespad=0.2,
+            )
+        context = _ablation_context_slug(output_dir)
+        stem = f"cfg_ablation_{context}_psnr_ssim_vs_sampling_ratio"
+        return _save_figure(fig, output_dir, stem, show=show)
 
 
 def _read_image(path: Path) -> np.ndarray:
@@ -1151,5 +1181,6 @@ def plot_reconstruction_panel(
                 if row_idx == 0:
                     ax.set_title(_panel_title_text(str(line["label"])), fontsize=22, pad=6, **PANEL_TITLE_FONT)
 
-    stem = f"sd15_cfg_ablation_reconstruction_panel_{_format_sampling_tag(float(samp_perc))}"
+    context = _ablation_context_slug(output_dir)
+    stem = f"cfg_ablation_{context}_reconstruction_panel_{_format_sampling_tag(float(samp_perc))}"
     return _save_figure(fig, output_dir, stem, show=show)

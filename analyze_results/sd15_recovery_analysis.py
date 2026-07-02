@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib
 import json
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from statistics import NormalDist
@@ -83,6 +84,26 @@ ZERO_FILLED_METRIC_COLUMNS = {
     "ssim": "zero_filled_ssim",
     "pixel_mae": "zero_filled_pixel_mae",
 }
+
+
+def _figure_slug(value: object) -> str:
+    slug = re.sub(r"[^0-9A-Za-z]+", "_", str(value).strip().lower())
+    return slug.strip("_")
+
+
+def _output_context_slug(output_dir: str | Path) -> str:
+    parts = list(Path(output_dir).parts)
+    if "figures" in parts:
+        parts = parts[parts.index("figures") + 1 :]
+    else:
+        parts = parts[-2:]
+    slug_parts = [_figure_slug(part) for part in parts]
+    return "_".join(part for part in slug_parts if part) or "recovery"
+
+
+def _figure_filename(output_dir: str | Path, *parts: object) -> str:
+    slug_parts = [_output_context_slug(output_dir), *(_figure_slug(part) for part in parts)]
+    return "_".join(part for part in slug_parts if part) + ".pdf"
 
 
 @dataclass(frozen=True)
@@ -654,7 +675,13 @@ def export_metric_figures(
             output = plot_metric_curves(
                 subset,
                 metric,
-                output_path=output_root / f"{sampling_method}_{metric}_by_recovery_prompt.pdf",
+                output_path=output_root
+                / _figure_filename(
+                    output_root,
+                    sampling_method,
+                    metric,
+                    "vs_sampling_ratio_by_recovery_prompt",
+                ),
                 show=show,
             )
             if output is not None:
@@ -662,7 +689,13 @@ def export_metric_figures(
         output = plot_combined_metric_curves(
             subset,
             combined_metrics,
-            output_path=output_root / f"{sampling_method}_combined_metrics_by_recovery_prompt.pdf",
+            output_path=output_root
+            / _figure_filename(
+                output_root,
+                sampling_method,
+                "_".join(str(metric) for metric in combined_metrics),
+                "vs_sampling_ratio_by_recovery_prompt",
+            ),
             show=show,
         )
         if output is not None:
@@ -939,7 +972,14 @@ def export_recovery_grids(
             panel_width_in=panel_width_in,
             panel_height_in=panel_height_in,
             selection_metrics=selection_metrics,
-            output_path=Path(output_dir) / f"recovery_image_grid_{sampling_condition}.pdf",
+            output_path=Path(output_dir)
+            / _figure_filename(
+                output_dir,
+                sampling_method,
+                "recovery_image_grid",
+                sample_tag(float(sampling_percentage)),
+                sampling_condition,
+            ),
             show=show,
         )
         if output is not None:
