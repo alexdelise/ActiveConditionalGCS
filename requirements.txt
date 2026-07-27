@@ -20,6 +20,7 @@ scikit-image==0.26.0
 pandas==2.3.3
 pillow==12.0.0
 matplotlib==3.10.8
+lpips==0.1.4
 
 # Notebook execution/display support for the checked-in analysis notebooks.
 ipykernel==7.1.0

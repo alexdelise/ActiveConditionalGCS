@@ -9,17 +9,37 @@ import platform
 import random as python_random
 import sys
 from pathlib import Path
-from typing import Any, Dict
+from typing import TYPE_CHECKING, Any, Dict
 
-import numpy as np
-import torch
-
-from .config import ReproConfig
-from .constants import DEVICE
+if TYPE_CHECKING:
+    from .config import ReproConfig
 
 
-def set_reproducibility(cfg: ReproConfig) -> Dict[str, Any]:
+def resolve_ktilde_npz_path(ktilde_dir: str | Path, ktilde_name: str) -> Path:
+    """Resolve one K-tilde from the supported artifact directories."""
+
+    root = Path(ktilde_dir)
+    filename = f"{str(ktilde_name).strip()}.npz"
+    candidates = (
+        root / "weighted" / "reference" / filename,
+        root / "unweighted" / filename,
+        root / filename,
+    )
+    matches = [path for path in candidates if path.is_file()]
+    if not matches:
+        searched = ", ".join(str(path) for path in candidates)
+        raise FileNotFoundError(f"K-tilde '{ktilde_name}' was not found; searched: {searched}.")
+    if len(matches) > 1:
+        locations = ", ".join(str(path) for path in matches)
+        raise RuntimeError(f"K-tilde '{ktilde_name}' is ambiguous across artifact directories: {locations}.")
+    return matches[0]
+
+
+def set_reproducibility(cfg: "ReproConfig") -> Dict[str, Any]:
     """Set all supported RNG sources from a run config and return the applied settings."""
+
+    import numpy as np
+    import torch
 
     python_random.seed(cfg.seed)
     np.random.seed(cfg.seed)
@@ -40,6 +60,9 @@ def set_reproducibility(cfg: ReproConfig) -> Dict[str, Any]:
 def set_seed_all(seed: int) -> None:
     """Seed Python, NumPy, and PyTorch for a single operation such as dataset-item generation."""
 
+    import numpy as np
+    import torch
+
     python_random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -49,6 +72,10 @@ def set_seed_all(seed: int) -> None:
 
 def collect_env_info() -> Dict[str, Any]:
     """Collect concise environment metadata to save alongside experiment artifacts."""
+
+    import torch
+
+    from .constants import DEVICE
 
     info: Dict[str, Any] = {
         "timestamp_utc": datetime.datetime.now(datetime.UTC).isoformat(),
@@ -97,6 +124,8 @@ def safe_empty_cuda_cache() -> None:
     """Clear the CUDA cache when available without failing on CPU-only environments."""
 
     try:
+        import torch
+
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
     except Exception:

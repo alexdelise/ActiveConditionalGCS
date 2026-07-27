@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "reference_config": "ktilde/weighted/config_convergence.json",
+  "reference_seed": 12345,
+  "max_samples": 10000,
+  "metric_every": 10,
+  "expected_trials": 5,
+  "probability_regularization_zeta": 0.5,
+  "artifact_root": "ktilde/weighted/convergence_trials",
+  "trace_root": "results/weighted/ktilde_convergence/traces",
+  "priors": {
+    "k0": {
+      "role": "k0",
+      "reference_name": "Ktilde_SD15__fft__k0_512x512_S10000_ns20"
+    },
+    "k1": {
+      "role": "k1_daytime_beach",
+      "reference_name": "Ktilde_SD15__fft__k1daytimebeach_512x512_S10000_ns20"
+    },
+    "k2": {
+      "role": "k2_sunset_beach",
+      "reference_name": "Ktilde_SD15__fft__k2sunsetbeach_512x512_S10000_ns20"
+    },
+    "k4": {
+      "role": "k4_cat",
+      "reference_name": "Ktilde_SD15__fft__k4cat_512x512_S10000_ns20"
+    }
+  },
+  "trials": [
+    {
+      "trial": 1,
+      "seed": 32345,
+      "computer": "class107"
+    },
+    {
+      "trial": 2,
+      "seed": 52345,
+      "computer": "class108"
+    },
+    {
+      "trial": 3,
+      "seed": 72345,
+      "computer": "class109"
+    },
+    {
+      "trial": 4,
+      "seed": 92345,
+      "computer": "class110"
+    },
+    {
+      "trial": 5,
+      "seed": 112345,
+      "computer": "class111"
+    }
+  ]
+}

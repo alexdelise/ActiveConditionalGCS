@@ -13,6 +13,8 @@ MODEL_ID = "stable-diffusion-v1-5/stable-diffusion-v1-5"
 SAMPLING_METHODS: Dict[int, str] = {
     1: "cs",
     2: "mcs",
+    6: "vdhh",
+    10: "inverse_square",
 }
 
 # Integer ids are persisted into result tables, while folder names are used on
@@ -20,6 +22,8 @@ SAMPLING_METHODS: Dict[int, str] = {
 METHOD_FOLDER_NAMES: Dict[int, str] = {
     1: "cs",
     2: "mcs",
+    6: "vdhh",
+    10: "inverse_square",
 }
 
 # Accept a few human-friendly aliases at config/CLI boundaries, then convert
@@ -30,7 +34,31 @@ METHOD_ALIASES: Dict[str, int] = {
     "christoffel": 1,
     "2": 2,
     "mcs": 2,
+    "uniform": 2,
+    "uniform_mcs": 2,
+    "6": 6,
+    "vdhh": 6,
+    "half_half_lowfreq": 6,
+    "10": 10,
+    "inverse_square": 10,
+    "pure_inverse_square": 10,
+    # Retain the old spelling as an input alias. The refactored implementation
+    # is deliberately pure inverse-square and does not mix with uniform draws.
+    "inverse_square_mixed": 10,
+    "vdis": 10,
 }
+
+
+def default_vd_params() -> Dict[str, Dict[str, Any]]:
+    """Return defaults for the two variable-density baseline samplers."""
+
+    return {
+        "vdhh": {
+            "lowfreq_scale": 2.0,
+            "max_disk_fraction": 0.5,
+        },
+        "inverse_square": {},
+    }
 
 
 def default_methods_enabled() -> Dict[str, bool]:
@@ -50,7 +78,10 @@ def sampling_method_id(method: int | str) -> int:
     token = str(method).strip().lower()
     if token in METHOD_ALIASES:
         return int(METHOD_ALIASES[token])
-    raise ValueError(f"Unknown sampling method '{method}'. Expected one of: cs, mcs.")
+    raise ValueError(
+        f"Unknown sampling method '{method}'. Expected one of: "
+        "cs, mcs, inverse_square, vdhh."
+    )
 
 
 def sampling_method_name(method: int | str) -> str:
@@ -80,6 +111,22 @@ def normalize_methods_enabled(raw: Mapping[str, Any] | None) -> Dict[str, bool]:
     return normalized
 
 
+def normalize_vd_params(raw: Mapping[str, Any] | None) -> Dict[str, Dict[str, Any]]:
+    """Merge optional variable-density parameters into stable defaults."""
+
+    merged = default_vd_params()
+    if raw is None:
+        return merged
+    for key, value in raw.items():
+        method_name = sampling_method_name(str(key))
+        if method_name not in merged or not isinstance(value, Mapping):
+            continue
+        updated = dict(merged[method_name])
+        updated.update({str(param): param_value for param, param_value in value.items()})
+        merged[method_name] = updated
+    return merged
+
+
 def enabled_sampling_method_ids(
     methods_enabled: Mapping[str, Any],
     *,
@@ -88,14 +135,20 @@ def enabled_sampling_method_ids(
     """Return the enabled sampling-method ids."""
 
     family_set = {str(item).strip().lower() for item in (families or [])}
-    # The older code had additional sampling families; the submission keeps the
-    # classic Fourier-mask family only.
-    if family_set.difference({"classic"}):
-        raise ValueError("This submission only exposes the classic cs/mcs sampling family.")
+    if family_set.difference({"classic", "baseline", "vd"}):
+        raise ValueError("Sampling families must be drawn from: classic, baseline, vd.")
 
     out: List[int] = []
     normalized = normalize_methods_enabled(methods_enabled)
     for method_id, method_name in SAMPLING_METHODS.items():
+        if family_set:
+            supported_families = (
+                {"classic"} if int(method_id) == 1
+                else {"classic", "baseline"} if int(method_id) == 2
+                else {"baseline", "vd"}
+            )
+            if not family_set.intersection(supported_families):
+                continue
         if bool(normalized.get(method_name, False)):
             out.append(int(method_id))
     return out
@@ -175,7 +228,10 @@ class SamplingConfig:
     """Sampling-method toggles used by experiment runners."""
 
     weighted_ls: bool
+    fft_normalization: str = "backward"
+    probability_regularization_zeta: float = 0.0
     methods_enabled: Dict[str, bool] = field(default_factory=default_methods_enabled)
+    vd_params: Dict[str, Dict[str, Any]] = field(default_factory=default_vd_params)
 
 
 @dataclass(frozen=True)
@@ -223,7 +279,7 @@ class OutputConfig:
 
 @dataclass(frozen=True)
 class RunConfig:
-    """Top-level experiment config used by the CS, MCS, and run-all runners."""
+    """Top-level experiment config shared by all reconstruction runners."""
 
     image: ImageConfig
     dataset: DatasetReference
@@ -307,7 +363,16 @@ def from_run_dict(payload: Dict[str, Any]) -> RunConfig:
     # configs can omit optional fields without changing runtime behavior.
     sampling_payload = dict(normalized.get("sampling", {}))
     sampling_payload.setdefault("weighted_ls", False)
+    fft_normalization = str(sampling_payload.get("fft_normalization", "backward")).strip().lower()
+    if fft_normalization not in {"backward", "ortho"}:
+        raise ValueError("sampling.fft_normalization must be 'backward' or 'ortho'.")
+    probability_regularization_zeta = float(sampling_payload.get("probability_regularization_zeta", 0.0))
+    if not 0.0 <= probability_regularization_zeta < 1.0:
+        raise ValueError("sampling.probability_regularization_zeta must lie in [0, 1).")
+    sampling_payload["fft_normalization"] = fft_normalization
+    sampling_payload["probability_regularization_zeta"] = probability_regularization_zeta
     sampling_payload["methods_enabled"] = normalize_methods_enabled(sampling_payload.get("methods_enabled"))
+    sampling_payload["vd_params"] = normalize_vd_params(sampling_payload.get("vd_params"))
     normalized["sampling"] = sampling_payload
 
     gen_recon_payload = dict(normalized.get("gen_recon", {}))

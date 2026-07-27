@@ -1,0 +1,6 @@
+sampling_ratio,comparison_scope
+0.00125,shared with original paper
+0.0025,shared with original paper
+0.005,shared with original paper
+0.01,shared with original paper
+0.025,weighted-only

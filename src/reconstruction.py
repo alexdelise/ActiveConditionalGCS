@@ -108,19 +108,20 @@ def measurement_loss(
     measurement_operator: MeasurementOperator,
     sigma_y: float,
     ls_weights: Optional[torch.Tensor],
-) -> Tuple[torch.Tensor, torch.Tensor]:
-    """Compute a weighted least-squares measurement loss and residual."""
+) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    """Compute weighted least squares and return raw and weighted residuals."""
 
     image_chw = image_bchw[0].to(dtype=torch.float32)
-    residual = measurement_operator.A(image_chw) - measurements
-    if ls_weights is not None:
-        # Optional importance weights correct for nonuniform sampling when a
-        # weighted least-squares objective is requested.
-        residual = residual * ls_weights
-    squared = torch.real(residual.conj() * residual) if torch.is_complex(residual) else residual.square()
+    raw_residual = measurement_operator.A(image_chw) - measurements
+    weighted_residual = raw_residual if ls_weights is None else raw_residual * ls_weights
+    squared = (
+        torch.real(weighted_residual.conj() * weighted_residual)
+        if torch.is_complex(weighted_residual)
+        else weighted_residual.square()
+    )
     if sigma_y > 0.0:
         squared = squared / float(sigma_y * sigma_y)
-    return 0.5 * torch.mean(squared), residual
+    return 0.5 * torch.mean(squared), raw_residual, weighted_residual
 
 
 def residual_l2_norm(residual: torch.Tensor) -> float:
@@ -143,14 +144,21 @@ def build_ls_weights(
     if not bool(weighted_ls):
         return None
     if probabilities is None:
-        prob_selected = np.ones(int(measurement_operator.m), dtype=np.float32)
-    else:
-        # Pull the probabilities only for the active Fourier coefficients and
-        # clamp them away from zero before forming inverse-probability weights.
-        prob_selected = np.maximum(
-            probabilities[measurement_operator.inds_t.detach().cpu().numpy()].astype(np.float32),
-            1e-18,
+        prob_selected = np.full(
+            int(measurement_operator.m),
+            1.0 / float(measurement_operator.N),
+            dtype=np.float64,
         )
+    else:
+        values = np.asarray(probabilities, dtype=np.float64).reshape(-1)
+        if values.shape != (int(measurement_operator.N),):
+            raise ValueError(
+                f"Sampling probability map has shape {values.shape}, "
+                f"expected {(int(measurement_operator.N),)}."
+            )
+        prob_selected = values[measurement_operator.inds_t.detach().cpu().numpy()]
+    if not np.all(np.isfinite(prob_selected)) or np.any(prob_selected <= 0.0):
+        raise ValueError("Weighted least squares requires finite, strictly positive selected probabilities.")
     weights = 1.0 / np.sqrt(prob_selected)
     weights_t = torch.from_numpy(np.tile(weights, measurement_operator.C).astype(np.float32))
     return weights_t.to(device=device)
@@ -224,7 +232,7 @@ def run_diffusion_backprop_reconstruction(
     if bool(config.init_from_meas_backproj):
         # A zero-filled inverse FFT can be mixed into the initial latent to warm
         # start optimization; paper configs can disable this for random starts.
-        backproj = (float(measurement_operator.m) / float(measurement_operator.N)) * measurement_operator.At(measurements)
+        backproj = measurement_operator.zero_filled(measurements)
         backproj = backproj.to(dtype=torch.float32).clamp(0.0, 1.0)
         backproj_latents = encode_image_to_latents(pipe, backproj)
         if len(timesteps_full) > 0:
@@ -257,6 +265,8 @@ def run_diffusion_backprop_reconstruction(
     reg_losses: list[float] = []
     grad_norms: list[float] = []
     residual_l2: list[float] = []
+    raw_residual_l2: list[float] = []
+    weighted_residual_l2: list[float] = []
     learning_rates: list[float] = []
 
     best_loss = math.inf
@@ -285,7 +295,7 @@ def run_diffusion_backprop_reconstruction(
             generation,
             use_checkpoint=bool(config.checkpoint_denoiser),
         )
-        data_loss, residual = measurement_loss(
+        data_loss, raw_residual, weighted_residual = measurement_loss(
             image_bchw,
             measurements=measurements,
             measurement_operator=measurement_operator,
@@ -315,7 +325,9 @@ def run_diffusion_backprop_reconstruction(
         total_loss_value = float(total_loss.item())
         data_loss_value = float(data_loss.item())
         reg_loss_value = float(reg_loss.item())
-        residual_value = residual_l2_norm(residual.detach())
+        raw_residual_value = residual_l2_norm(raw_residual.detach())
+        weighted_residual_value = residual_l2_norm(weighted_residual.detach())
+        residual_value = weighted_residual_value
 
         iter_ids.append(int(iteration))
         total_losses.append(total_loss_value)
@@ -323,6 +335,8 @@ def run_diffusion_backprop_reconstruction(
         reg_losses.append(reg_loss_value)
         grad_norms.append(float(grad_norm))
         residual_l2.append(float(residual_value))
+        raw_residual_l2.append(float(raw_residual_value))
+        weighted_residual_l2.append(float(weighted_residual_value))
         learning_rates.append(float(current_lr))
 
         min_improvement = 0.0 if not math.isfinite(best_loss) else abs(best_loss) * early_stop_min_rel_improvement
@@ -353,7 +367,7 @@ def run_diffusion_backprop_reconstruction(
                 f"{stale_text}"
             )
 
-        del image_bchw, residual, total_loss, data_loss, reg_loss
+        del image_bchw, raw_residual, weighted_residual, total_loss, data_loss, reg_loss
         if iteration % 5 == 0:
             gc.collect()
             safe_empty_cuda_cache()
@@ -378,6 +392,28 @@ def run_diffusion_backprop_reconstruction(
             use_checkpoint=False,
         )[0].to(dtype=torch.float32)
         latents = best_latents.detach()
+        final_data_loss, final_raw_residual, final_weighted_residual = measurement_loss(
+            image_rec.unsqueeze(0),
+            measurements=measurements,
+            measurement_operator=measurement_operator,
+            sigma_y=float(config.sigma_y),
+            ls_weights=ls_weights,
+        )
+
+    if ls_weights is None:
+        ls_weight_min = 1.0
+        ls_weight_max = 1.0
+        ls_weights_rgb = np.ones(
+            int(measurement_operator.C) * int(measurement_operator.m),
+            dtype=np.float32,
+        )
+    else:
+        ls_weight_min = float(ls_weights.min().item())
+        ls_weight_max = float(ls_weights.max().item())
+        ls_weights_rgb = ls_weights.detach().to(dtype=torch.float32, device="cpu").numpy()
+    operator_row_weights_rgb = ls_weights_rgb / math.sqrt(
+        float(measurement_operator.m)
+    )
 
     traces = {
         # These arrays are saved into run_data.npz and later consumed by the
@@ -400,6 +436,27 @@ def run_diffusion_backprop_reconstruction(
         "early_stop_reason": early_stop_reason,
         "checkpoint_denoiser": int(bool(config.checkpoint_denoiser)),
         "weighted_ls": int(bool(weighted_ls)),
+        "fft_normalization": str(measurement_operator.fft_normalization),
+        "ls_weight_min": float(ls_weight_min),
+        "ls_weight_max": float(ls_weight_max),
+        "ls_weights_selected": np.asarray(
+            ls_weights_rgb[: int(measurement_operator.m)],
+            dtype=np.float32,
+        ),
+        "ls_weights_rgb": np.asarray(ls_weights_rgb, dtype=np.float32),
+        "operator_row_weight_min": float(operator_row_weights_rgb.min()),
+        "operator_row_weight_max": float(operator_row_weights_rgb.max()),
+        "operator_row_weights_selected": np.asarray(
+            operator_row_weights_rgb[: int(measurement_operator.m)],
+            dtype=np.float32,
+        ),
+        "operator_row_weights_rgb": np.asarray(
+            operator_row_weights_rgb,
+            dtype=np.float32,
+        ),
+        "final_data_loss": float(final_data_loss.item()),
+        "final_raw_resid_l2": residual_l2_norm(final_raw_residual),
+        "final_weighted_resid_l2": residual_l2_norm(final_weighted_residual),
         "bp_iter": np.asarray(iter_ids, dtype=np.int64),
         "bp_loss": np.asarray(total_losses, dtype=np.float64),
         "bp_data_loss": np.asarray(data_losses, dtype=np.float64),
@@ -407,6 +464,8 @@ def run_diffusion_backprop_reconstruction(
         "bp_learning_rate": np.asarray(learning_rates, dtype=np.float64),
         "bp_grad_norm": np.asarray(grad_norms, dtype=np.float64),
         "bp_resid_l2": np.asarray(residual_l2, dtype=np.float64),
+        "bp_raw_resid_l2": np.asarray(raw_residual_l2, dtype=np.float64),
+        "bp_weighted_resid_l2": np.asarray(weighted_residual_l2, dtype=np.float64),
         "bp_completed_iterations": int(len(iter_ids)),
         "bp_best_iter": int(best_iter),
         "bp_best_loss": float(best_loss),
@@ -427,6 +486,7 @@ def run_single_reconstruction(
     prompt_text: str,
     prompt_embeddings,
     probabilities: Optional[np.ndarray],
+    ktilde_metadata: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Run a single diffusion-backprop reconstruction."""
 
@@ -457,15 +517,24 @@ def run_single_reconstruction(
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(repeat_seed)
 
-    indices_np, _, prob_used = build_sampling_pattern(
+    indices_np, _, prob_used, sampling_metadata = build_sampling_pattern(
         N=num_pixels,
         m=m_coeffs,
         samp_method=int(samp_method),
         prob=probabilities,
         H=height,
         W=width,
+        vd_params=cfg.sampling.vd_params,
+        return_metadata=True,
     )
-    measurement_operator = MeasurementOperator(inds_np=indices_np, N=num_pixels, C=channels, H=height, W=width)
+    measurement_operator = MeasurementOperator(
+        inds_np=indices_np,
+        N=num_pixels,
+        C=channels,
+        H=height,
+        W=width,
+        fft_normalization=str(cfg.sampling.fft_normalization),
+    )
     # Measurements are generated directly from the saved ground-truth image.
     measurements = measurement_operator.A(image_true)
 
@@ -526,7 +595,7 @@ def run_single_reconstruction(
 
     # The zero-filled reconstruction is not optimized; it is saved as a simple
     # Fourier-adjoint baseline for each exact mask.
-    zero_filled_t = (float(measurement_operator.m) / float(measurement_operator.N)) * measurement_operator.At(measurements)
+    zero_filled_t = measurement_operator.zero_filled(measurements)
     zero_filled_display = chw_to_hwc_for_display(
         np.nan_to_num(
             zero_filled_t.detach().to(dtype=torch.float32, device="cpu").numpy(),
@@ -558,6 +627,15 @@ def run_single_reconstruction(
         "samp_perc": float(samp_perc),
         "samp_method": int(samp_method),
         "m_coeffs": int(m_coeffs),
+        "sampled_indices": indices_np.astype(np.int64),
+        "sampled_probabilities": np.asarray(prob_used, dtype=np.float64)[indices_np],
+        "sampling_probability_min": float(np.min(prob_used)),
+        "sampling_probability_max": float(np.max(prob_used)),
+        "sampling_probability_sum": float(np.sum(prob_used)),
+        "probability_regularization_zeta": float(cfg.sampling.probability_regularization_zeta),
+        "fft_normalization": str(cfg.sampling.fft_normalization),
+        "ktilde_name": str(cfg.ktilde.name),
+        "ktilde_max_samples": int((ktilde_metadata or {}).get("max_samples", 0)),
         "repeat_id": int(repeat_id),
         "rep_seed": int(repeat_seed),
         "runtime_sec": float(runtime),
@@ -572,11 +650,15 @@ def run_single_reconstruction(
         "recon_num_steps": int(cfg.gen_recon.num_steps),
         "method": method_folder,
     }
+    for key, value in sampling_metadata.items():
+        if isinstance(value, (np.number, float, int, str, bool)):
+            run_data[f"sampling_design_{key}"] = value
     run_data.update(traces)
 
     if bool(cfg.output.save_json) and bool(cfg.sweep.save_per_run_artifacts):
         json_dump(run_dir / "run_config.json", run_config_to_dict(cfg))
         json_dump(run_dir / "dataset_item.json", dataset_item)
+        json_dump(run_dir / "sampling_pattern.json", sampling_metadata)
 
     torch.save(latents_rec.detach().cpu(), str(run_dir / "z_rec.pt"))
     if bool(cfg.output.save_npz) and bool(cfg.sweep.save_per_run_artifacts):
@@ -628,6 +710,34 @@ def run_single_reconstruction(
         handle.write(f"prompt_text: {prompt_text}\n")
         handle.write(f"samp_perc: {float(samp_perc)}\n")
         handle.write(f"repeat_id: {int(repeat_id)}\n")
+        handle.write(f"ktilde_name: {cfg.ktilde.name}\n")
+        handle.write(f"ktilde_max_samples: {int((ktilde_metadata or {}).get('max_samples', 0))}\n")
+        handle.write(f"fft_normalization: {cfg.sampling.fft_normalization}\n")
+        handle.write(f"weighted_ls: {bool(cfg.sampling.weighted_ls)}\n")
+        handle.write(f"probability_regularization_zeta: {float(cfg.sampling.probability_regularization_zeta)}\n")
+        handle.write(f"sampling_probability_min: {float(np.min(prob_used)):.12e}\n")
+        handle.write(f"sampling_probability_max: {float(np.max(prob_used)):.12e}\n")
+        handle.write(f"sampling_law: {sampling_metadata.get('sampling_law', '')}\n")
+        for key in (
+            "disk_target_count",
+            "disk_count",
+            "outside_count",
+            "disk_radius_pixels",
+            "inverse_square_count",
+            "uniform_count",
+        ):
+            if key in sampling_metadata:
+                handle.write(f"{key}: {sampling_metadata[key]}\n")
+        handle.write(f"ls_weight_min: {float(run_data['ls_weight_min']):.12e}\n")
+        handle.write(f"ls_weight_max: {float(run_data['ls_weight_max']):.12e}\n")
+        handle.write(
+            "operator_row_weight_min: "
+            f"{float(run_data['operator_row_weight_min']):.12e}\n"
+        )
+        handle.write(
+            "operator_row_weight_max: "
+            f"{float(run_data['operator_row_weight_max']):.12e}\n"
+        )
         handle.write(f"runtime_sec: {runtime:.4f}\n")
         handle.write(f"psnr_db: {psnr_value:.4f}\n")
         handle.write(f"ssim: {ssim_value:.6f}\n")
@@ -635,6 +745,8 @@ def run_single_reconstruction(
         handle.write(f"zero_filled_psnr_db: {zf_psnr_value:.4f}\n")
         handle.write(f"zero_filled_ssim: {zf_ssim_value:.6f}\n")
         handle.write(f"zero_filled_pixel_mae: {zf_pixel_mae_value:.6f}\n")
+        handle.write(f"final_raw_resid_l2: {float(run_data['final_raw_resid_l2']):.12e}\n")
+        handle.write(f"final_weighted_resid_l2: {float(run_data['final_weighted_resid_l2']):.12e}\n")
 
     del latents_rec, measurements, measurement_operator, image_true, image_rec_t
     gc.collect()

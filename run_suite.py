@@ -62,7 +62,12 @@ def case_tag(base_tag: str, case_name: str) -> str:
 def ktilde_artifact_path(project_root: Path, ktilde_name: str) -> Path:
     """Return the expected artifact path for one named k-tilde."""
 
-    return project_root / "ktilde" / f"{str(ktilde_name).strip()}.npz"
+    from src.utils import resolve_ktilde_npz_path
+
+    try:
+        return resolve_ktilde_npz_path(project_root / "ktilde", ktilde_name)
+    except FileNotFoundError:
+        return project_root / "ktilde" / f"{str(ktilde_name).strip()}.npz"
 
 
 def json_dump(path: Path, payload: Any) -> None:
@@ -84,7 +89,7 @@ def main() -> None:
     parser.add_argument(
         "--config",
         type=str,
-        default="configs/prompt_matched/sunset/sample_k0_unconditioned_suite.json",
+        default="configs/unweighted/prompt_matched/sunset/sample_k0_unconditioned_suite.json",
         help="Path to the suite manifest JSON.",
     )
     parser.add_argument("--tag", type=str, default=None, help="Optional override for the manifest results tag.")

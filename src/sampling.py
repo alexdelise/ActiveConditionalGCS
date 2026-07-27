@@ -1,16 +1,16 @@
-"""CS and MCS FFT sampling-pattern builders plus the measurement operator."""
+"""FFT sampling-pattern builders plus the measurement operator."""
 
 from __future__ import annotations
 
 import math
-from typing import Optional, Tuple
+from typing import Any, Mapping, Optional
 
 import numpy as np
 import torch
 
-from .config import SAMPLING_METHODS
+from .config import SAMPLING_METHODS, default_vd_params, sampling_method_name
 from .constants import DEVICE
-from .fft import partial_fourier_2d
+from .fft import partial_fourier_2d, validate_fft_normalization
 
 
 def dc_index(height: int, width: int) -> int:
@@ -21,6 +21,99 @@ def dc_index(height: int, width: int) -> int:
     return (int(height) // 2) * int(width) + (int(width) // 2)
 
 
+def centered_coordinates(height: int, width: int) -> tuple[np.ndarray, np.ndarray]:
+    """Return centered integer-valued coordinates for a shifted FFT grid."""
+
+    yy = np.arange(int(height), dtype=np.float64) - float(int(height) // 2)
+    xx = np.arange(int(width), dtype=np.float64) - float(int(width) // 2)
+    return np.meshgrid(yy, xx, indexing="ij")
+
+
+def normalize_probabilities(weights: np.ndarray) -> np.ndarray:
+    """Normalize a finite, nonnegative vector without applying a floor."""
+
+    values = np.asarray(weights, dtype=np.float64).reshape(-1).copy()
+    if not np.all(np.isfinite(values)) or np.any(values < 0.0):
+        raise ValueError("Sampling weights must be finite and nonnegative.")
+    total = float(values.sum())
+    if total <= 0.0:
+        raise ValueError("Sampling weights must have positive total mass.")
+    values /= total
+    return values
+
+
+def inverse_square_probabilities(height: int, width: int) -> np.ndarray:
+    """Return the normalized pure inverse-square Fourier sampling law."""
+
+    yy, xx = centered_coordinates(height, width)
+    weights = 1.0 / (1.0 + yy**2 + xx**2)
+    return normalize_probabilities(weights)
+
+
+def method_vd_params(method_name: str, vd_params: Optional[Mapping[str, Any]]) -> dict[str, Any]:
+    """Return normalized parameters for one variable-density method."""
+
+    params = dict(default_vd_params().get(str(method_name), {}))
+    if not isinstance(vd_params, Mapping):
+        return params
+    nested = vd_params.get(str(method_name))
+    if nested is None and str(method_name) == "vdhh":
+        nested = vd_params.get("half_half_lowfreq")
+    if isinstance(nested, Mapping):
+        params.update({str(key): value for key, value in nested.items()})
+    return params
+
+
+def complete_low_frequency_disk(
+    height: int,
+    width: int,
+    count: int,
+    *,
+    lowfreq_scale: float,
+    max_disk_fraction: float,
+) -> tuple[np.ndarray, float, int]:
+    """Return the largest complete centered radius shell within the VDHH cap."""
+
+    if not 0.0 < float(max_disk_fraction) < 1.0:
+        raise ValueError("vdhh max_disk_fraction must lie in (0, 1).")
+    if float(lowfreq_scale) <= 0.0:
+        raise ValueError("vdhh lowfreq_scale must be positive.")
+
+    count_i = int(count)
+    fraction_cap = int(math.floor(float(max_disk_fraction) * float(count_i)))
+    # The old lowfreq_scale=2 construction has area approximately m/2 on a
+    # square grid. Preserve that interpretation while capping complete shells.
+    scale_cap = int(math.floor(float(lowfreq_scale) * float(count_i) / 4.0))
+    target = max(1, min(fraction_cap, scale_cap))
+
+    yy, xx = centered_coordinates(height, width)
+    radius_squared = (yy**2 + xx**2).reshape(-1)
+    shell_radii, shell_counts = np.unique(radius_squared, return_counts=True)
+    cumulative = np.cumsum(shell_counts)
+    eligible = np.flatnonzero(cumulative <= target)
+    if eligible.size == 0:
+        threshold = 0.0
+    else:
+        threshold = float(shell_radii[int(eligible[-1])])
+    indices = np.flatnonzero(radius_squared <= threshold).astype(np.int64)
+    return indices, math.sqrt(threshold), target
+
+
+def _sampling_return(
+    indices: np.ndarray,
+    mask: np.ndarray,
+    probabilities: np.ndarray,
+    metadata: dict[str, Any],
+    *,
+    return_metadata: bool,
+):
+    """Keep the legacy three-value API unless metadata is explicitly requested."""
+
+    if return_metadata:
+        return indices, mask, probabilities, metadata
+    return indices, mask, probabilities
+
+
 def build_sampling_pattern(
     N: int,
     m: int,
@@ -29,15 +122,20 @@ def build_sampling_pattern(
     *,
     H: int,
     W: int,
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Build a CS or MCS sampling pattern for a single sweep point.
+    vd_params: Optional[Mapping[str, Any]] = None,
+    return_metadata: bool = False,
+):
+    """Build a sampling pattern for a single sweep point.
 
     ``samp_method=1`` is Christoffel/K-tilde sampling and requires the
     precomputed probability map. ``samp_method=2`` is the uniform MCS baseline.
-    Both always include the DC Fourier coefficient.
+    ``samp_method=6`` is design-weighted VDHH, and ``samp_method=10`` is pure
+    inverse-square sampling. Every method includes the DC Fourier coefficient.
     """
 
     num_items = int(N)
+    if int(H) * int(W) != num_items:
+        raise ValueError(f"Expected N=H*W, got N={num_items}, H={H}, W={W}.")
     count = max(1, min(int(m), num_items))
     dc_idx = dc_index(H, W)
 
@@ -66,11 +164,22 @@ def build_sampling_pattern(
             indices = np.concatenate(([dc_idx], rest)).astype(np.int64)
         mask = np.zeros(num_items, dtype=np.int8)
         mask[indices] = 1
-        return indices, mask, prob_used
+        return _sampling_return(
+            indices,
+            mask,
+            prob_used,
+            {
+                "sampling_law": "ktilde_probability",
+                "sampling_method": sampling_method_name(samp_method),
+                "forced_dc": True,
+                "without_replacement": True,
+            },
+            return_metadata=return_metadata,
+        )
 
     if int(samp_method) == 2:
-        # Uniform fallback branch retained for internal comparison/debugging.
-        # The public paper scripts launch the Christoffel/K-tilde branch above.
+        # Canonical uniform MCS baseline. DC is forced exactly as in the CS
+        # experiment, while the recovery law remains the original uniform law.
         mask = np.zeros(num_items, dtype=np.int8)
         if count == 1:
             sampled = np.array([dc_idx], dtype=np.int64)
@@ -82,7 +191,115 @@ def build_sampling_pattern(
         mask[sampled] = 1
         indices = np.nonzero(mask)[0].astype(np.int64)
         prob_used = np.ones(num_items, dtype=np.float64) / float(num_items)
-        return indices, mask, prob_used
+        return _sampling_return(
+            indices,
+            mask,
+            prob_used,
+            {
+                "sampling_law": "uniform",
+                "sampling_method": sampling_method_name(samp_method),
+                "forced_dc": True,
+                "without_replacement": True,
+                "uniform_count": int(count),
+            },
+            return_metadata=return_metadata,
+        )
+
+    if int(samp_method) == 10:
+        prob_used = inverse_square_probabilities(H, W)
+        if count == 1:
+            indices = np.asarray([dc_idx], dtype=np.int64)
+        else:
+            draw_probabilities = prob_used.copy()
+            draw_probabilities[dc_idx] = 0.0
+            draw_probabilities /= draw_probabilities.sum()
+            remaining = np.random.choice(
+                num_items,
+                size=count - 1,
+                replace=False,
+                p=draw_probabilities,
+            ).astype(np.int64)
+            indices = np.concatenate(([dc_idx], remaining)).astype(np.int64)
+        mask = np.zeros(num_items, dtype=np.int8)
+        mask[indices] = 1
+        return _sampling_return(
+            indices,
+            mask,
+            prob_used,
+            {
+                "sampling_law": "pure_inverse_square",
+                "sampling_method": sampling_method_name(samp_method),
+                "forced_dc": True,
+                "without_replacement": True,
+                "inverse_square_count": int(count),
+                "uniform_count": 0,
+                "inverse_square_formula": "1 / (1 + u^2 + v^2)",
+            },
+            return_metadata=return_metadata,
+        )
+
+    if int(samp_method) == 6:
+        params = method_vd_params("vdhh", vd_params)
+        low_indices, disk_radius, disk_target = complete_low_frequency_disk(
+            H,
+            W,
+            count,
+            lowfreq_scale=float(params.get("lowfreq_scale", 2.0)),
+            max_disk_fraction=float(params.get("max_disk_fraction", 0.5)),
+        )
+        disk_count = int(low_indices.size)
+        outside_count = int(count - disk_count)
+        if outside_count <= 0:
+            raise ValueError(
+                f"VDHH disk has {disk_count} points for m={count}; at least one outside point is required."
+            )
+        outside_pool = np.setdiff1d(
+            np.arange(num_items, dtype=np.int64),
+            low_indices,
+            assume_unique=True,
+        )
+        if outside_count > int(outside_pool.size):
+            raise ValueError("VDHH requested more outside samples than the complement contains.")
+        outside_indices = np.random.choice(
+            outside_pool,
+            size=outside_count,
+            replace=False,
+        ).astype(np.int64)
+        indices = np.concatenate((low_indices, outside_indices)).astype(np.int64)
+        if dc_idx not in set(low_indices.tolist()):
+            raise AssertionError("The complete VDHH low-frequency disk must contain DC.")
+
+        # Let pi_i denote the first-order inclusion probability of the exact
+        # two-stratum design. Supplying mu_i=pi_i/m to the shared operator makes
+        # 1/sqrt(m*mu_i) exactly the inverse-inclusion row weight.
+        prob_used = np.full(
+            num_items,
+            float(outside_count) / (float(count) * float(num_items - disk_count)),
+            dtype=np.float64,
+        )
+        prob_used[low_indices] = 1.0 / float(count)
+        if not np.isclose(float(prob_used.sum()), 1.0, rtol=0.0, atol=1e-12):
+            raise AssertionError("VDHH design probabilities must sum to one.")
+        mask = np.zeros(num_items, dtype=np.int8)
+        mask[indices] = 1
+        return _sampling_return(
+            indices,
+            mask,
+            prob_used,
+            {
+                "sampling_law": "vdhh_inclusion_probability_over_m",
+                "sampling_method": sampling_method_name(samp_method),
+                "forced_dc": True,
+                "without_replacement": True,
+                "lowfreq_scale": float(params.get("lowfreq_scale", 2.0)),
+                "max_disk_fraction": float(params.get("max_disk_fraction", 0.5)),
+                "disk_target_count": int(disk_target),
+                "disk_count": int(disk_count),
+                "outside_count": int(outside_count),
+                "disk_radius_pixels": float(disk_radius),
+            },
+            return_metadata=return_metadata,
+        )
 
     raise ValueError(f"samp_method must be one of {sorted(SAMPLING_METHODS)}, got {samp_method}.")
 
@@ -90,13 +307,23 @@ def build_sampling_pattern(
 class MeasurementOperator:
     """Linear FFT measurement operator for a fixed sampling mask."""
 
-    def __init__(self, inds_np: np.ndarray, N: int, C: int, H: int, W: int):
+    def __init__(
+        self,
+        inds_np: np.ndarray,
+        N: int,
+        C: int,
+        H: int,
+        W: int,
+        *,
+        fft_normalization: str = "backward",
+    ):
         """Store the mask geometry and derived scaling constants."""
 
         self.N = int(N)
         self.C = int(C)
         self.H = int(H)
         self.W = int(W)
+        self.fft_normalization = validate_fft_normalization(fft_normalization)
         self.inds_t = torch.from_numpy(inds_np).long().to(DEVICE)
         self.m = int(len(inds_np))
         # The forward operator is A = (1 / sqrt(m)) P_Omega F. The adjoint uses
@@ -117,7 +344,14 @@ class MeasurementOperator:
         # Flatten only the spatial dimensions; color channels are measured with
         # the same Fourier mask and concatenated afterward.
         image_vec = image_chw.view(self.C, -1)
-        sampled = partial_fourier_2d(self.inds_t, self.H, self.W, image_vec, mode=1)
+        sampled = partial_fourier_2d(
+            self.inds_t,
+            self.H,
+            self.W,
+            image_vec,
+            mode=1,
+            normalization=self.fft_normalization,
+        )
         sampled = self.scale_fwd * sampled
         return sampled.reshape(-1)
 
@@ -129,5 +363,18 @@ class MeasurementOperator:
         measurements_chm = self.scale_adj * measurements_chm
         # The adjoint places sampled coefficients back into a centered Fourier
         # grid before applying the inverse transform.
-        image_vec = partial_fourier_2d(self.inds_t, self.H, self.W, measurements_chm, mode=2).real
+        image_vec = partial_fourier_2d(
+            self.inds_t,
+            self.H,
+            self.W,
+            measurements_chm,
+            mode=2,
+            normalization=self.fft_normalization,
+        ).real
         return image_vec.view(self.C, self.H, self.W)
+
+    def zero_filled(self, measurements_flat: torch.Tensor) -> torch.Tensor:
+        """Return the convention-correct zero-filled inverse Fourier image."""
+
+        gram_scale = float(self.N) if self.fft_normalization == "backward" else 1.0
+        return (float(self.m) / gram_scale) * self.At(measurements_flat)

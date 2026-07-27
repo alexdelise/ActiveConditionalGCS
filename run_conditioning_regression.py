@@ -82,10 +82,18 @@ def json_dump(path: Path, payload: Any) -> None:
         json.dump(payload, handle, indent=2, sort_keys=True)
 
 
-def ktilde_artifact_path(project_root: Path, ktilde_name: str) -> Path:
-    """Return the expected artifact path for one named k-tilde."""
+def ktilde_artifact_path(project_root: Path, ktilde_name: str) -> Path | None:
+    """Return the expected artifact path, or None for a non-CS run."""
 
-    return project_root / "ktilde" / f"{str(ktilde_name).strip()}.npz"
+    name = str(ktilde_name).strip()
+    if not name:
+        return None
+    from src.utils import resolve_ktilde_npz_path
+
+    try:
+        return resolve_ktilde_npz_path(project_root / "ktilde", name)
+    except FileNotFoundError:
+        return project_root / "ktilde" / f"{name}.npz"
 
 
 def main() -> None:
@@ -99,7 +107,7 @@ def main() -> None:
     parser.add_argument(
         "--suite-config",
         type=str,
-        default="configs/prompt_mismatched/sunset/sample_k0_unconditioned_suite.json",
+        default="configs/unweighted/prompt_mismatched/sunset/sample_k0_unconditioned_suite.json",
         help="Path to the suite manifest JSON.",
     )
     parser.add_argument(
@@ -118,13 +126,16 @@ def main() -> None:
         "--sampling-families",
         type=str,
         default=None,
-        help="Optional comma-separated sampling families. Only classic is supported.",
+        help="Optional comma-separated sampling families: classic, baseline, or vd.",
     )
     parser.add_argument(
         "--sampling-methods",
         type=str,
         default=None,
-        help="Optional comma-separated exact sampling methods to run, e.g. 'cs' or 'cs,mcs'.",
+        help=(
+            "Optional comma-separated exact sampling methods, e.g. "
+            "'cs', 'mcs', 'inverse_square', or 'vdhh'."
+        ),
     )
     parser.add_argument(
         "--list-cases",
@@ -135,6 +146,21 @@ def main() -> None:
         "--skip-missing-ktilde",
         action="store_true",
         help="Skip cases whose named k-tilde artifact has not been built yet.",
+    )
+    parser.add_argument(
+        "--sampling-percentages",
+        type=str,
+        default=None,
+        help=(
+            "Optional comma-separated execution shard. The saved canonical "
+            "configuration retains its complete sampling sweep."
+        ),
+    )
+    parser.add_argument(
+        "--repeats-per-setting",
+        type=int,
+        default=None,
+        help="Optional positive repeat-count override, intended for isolated smoke tests.",
     )
     args = parser.parse_args()
 
@@ -160,6 +186,24 @@ def main() -> None:
         # both would make the output grid ambiguous.
         raise ValueError("--sampling-families and --sampling-methods are mutually exclusive.")
 
+    execution_sampling_percentages = None
+    if args.sampling_percentages is not None:
+        execution_sampling_percentages = [
+            float(value) for value in parse_names_csv(args.sampling_percentages)
+        ]
+        if not execution_sampling_percentages or any(
+            value <= 0.0 or value > 1.0
+            for value in execution_sampling_percentages
+        ):
+            raise ValueError("--sampling-percentages must contain values in (0, 1].")
+
+    execution_repeats_per_setting = args.repeats_per_setting
+    if (
+        execution_repeats_per_setting is not None
+        and int(execution_repeats_per_setting) <= 0
+    ):
+        raise ValueError("--repeats-per-setting must be positive.")
+
     top_level_root = root / "results" / suite_tag
 
     resolved_cases: List[Dict[str, Any]] = []
@@ -171,7 +215,39 @@ def main() -> None:
         overrides = dict(case.get("overrides", {}))
         merged_payload = deep_merge(base_payload, overrides)
         cfg = from_run_dict(merged_payload)
+        if execution_sampling_percentages is not None:
+            missing_rates = [
+                requested
+                for requested in execution_sampling_percentages
+                if not any(
+                    abs(requested - configured) <= 1e-12
+                    for configured in cfg.sweep.sampling_perc_list
+                )
+            ]
+            if missing_rates:
+                raise ValueError(
+                    "Execution sampling percentages must be present in the "
+                    f"canonical sweep; missing {missing_rates} for case {name!r}."
+                )
+        if (
+            execution_repeats_per_setting is not None
+            and int(execution_repeats_per_setting)
+            > int(cfg.sweep.repeats_per_setting)
+        ):
+            raise ValueError(
+                "--repeats-per-setting cannot exceed the canonical repeat count "
+                f"({cfg.sweep.repeats_per_setting}) for case {name!r}."
+            )
+        from src.config import enabled_sampling_method_ids
+
+        case_method_ids = (
+            [int(value) for value in method_ids]
+            if method_ids
+            else enabled_sampling_method_ids(cfg.sampling.methods_enabled, families=families or None)
+        )
+        ktilde_required = 1 in case_method_ids
         artifact_path = ktilde_artifact_path(root, cfg.ktilde.name)
+        ktilde_exists = bool(artifact_path is not None and artifact_path.is_file())
         # Resolve each case up front so --list-cases and manifests show the exact
         # merged config and whether its k-tilde artifact is available.
         resolved_cases.append(
@@ -187,15 +263,20 @@ def main() -> None:
                 "tag": case_tag(suite_tag, name),
                 "reconstruction_solver": RECONSTRUCTION_SOLVER,
                 "ktilde_name": cfg.ktilde.name,
-                "ktilde_artifact_path": str(artifact_path),
-                "ktilde_exists": bool(artifact_path.is_file()),
+                "ktilde_required": bool(ktilde_required),
+                "ktilde_artifact_path": "" if artifact_path is None else str(artifact_path),
+                "ktilde_exists": bool(ktilde_exists),
                 "run_config": run_config_to_dict(cfg),
             }
         )
 
     if args.list_cases:
         for case in resolved_cases:
-            status = "ready" if bool(case["ktilde_exists"]) else "missing-ktilde"
+            status = (
+                "ready"
+                if not bool(case["ktilde_required"]) or bool(case["ktilde_exists"])
+                else "missing-ktilde"
+            )
             print(
                 f"{case['name']} [{status}] | "
                 f"sampling={case['sampling_condition']} | recon={case['reconstruction_condition']} | "
@@ -215,6 +296,8 @@ def main() -> None:
             "base_config": base_config_rel,
             "sampling_families": families,
             "sampling_method_ids": method_ids,
+            "execution_sampling_percentages": execution_sampling_percentages,
+            "execution_repeats_per_setting": execution_repeats_per_setting,
             "cases": resolved_cases,
         },
     )
@@ -223,7 +306,11 @@ def main() -> None:
 
     suite_results: List[Dict[str, Any]] = []
     for case in resolved_cases:
-        if args.skip_missing_ktilde and not bool(case["ktilde_exists"]):
+        if (
+            args.skip_missing_ktilde
+            and bool(case["ktilde_required"])
+            and not bool(case["ktilde_exists"])
+        ):
             print(f"[skip] {case['name']} missing k-tilde: {case['ktilde_name']}")
             suite_results.append(
                 {
@@ -236,6 +323,10 @@ def main() -> None:
                 }
             )
             continue
+        if bool(case["ktilde_required"]) and not bool(case["ktilde_exists"]):
+            raise FileNotFoundError(
+                f"{case['name']} requires missing k-tilde: {case['ktilde_artifact_path']}"
+            )
 
         cfg = from_run_dict(dict(case["run_config"]))
         print(
@@ -245,9 +336,23 @@ def main() -> None:
         if method_ids:
             # Per-script paper launches pass --sampling-methods cs, which keeps
             # one sampling distribution per cluster job.
-            outputs = run_methods(root, cfg, tag=str(case["tag"]), method_ids=method_ids)
+            outputs = run_methods(
+                root,
+                cfg,
+                tag=str(case["tag"]),
+                method_ids=method_ids,
+                sampling_percentages=execution_sampling_percentages,
+                repeats_per_setting=execution_repeats_per_setting,
+            )
         else:
-            outputs = run_enabled_methods(root, cfg, tag=str(case["tag"]), families=families or None)
+            outputs = run_enabled_methods(
+                root,
+                cfg,
+                tag=str(case["tag"]),
+                families=families or None,
+                sampling_percentages=execution_sampling_percentages,
+                repeats_per_setting=execution_repeats_per_setting,
+            )
         suite_results.append(
             {
                 "name": case["name"],
@@ -271,6 +376,8 @@ def main() -> None:
             "reconstruction_solver": RECONSTRUCTION_SOLVER,
             "sampling_families": families,
             "sampling_method_ids": method_ids,
+            "execution_sampling_percentages": execution_sampling_percentages,
+            "execution_repeats_per_setting": execution_repeats_per_setting,
             "resolved_suite_manifest_path": str((top_level_root / RESOLVED_SUITE_MANIFEST_FILENAME).resolve()),
             "cases": resolved_cases,
         },

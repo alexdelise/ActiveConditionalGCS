@@ -6,8 +6,10 @@ This package uses Stable Diffusion v1.5 through Hugging Face Diffusers. The
 model weights are not included in this repository; they are downloaded or loaded
 from a local Hugging Face cache at runtime.
 
-- Model ID used by the code: `stable-diffusion-v1-5/stable-diffusion-v1-5`
-- Model page: https://huggingface.co/stable-diffusion-v1-5/stable-diffusion-v1-5
+- Model ID used by the code:
+  [stable-diffusion-v1-5/stable-diffusion-v1-5](https://huggingface.co/stable-diffusion-v1-5/stable-diffusion-v1-5)
+- Model page:
+  [Hugging Face model card](https://huggingface.co/stable-diffusion-v1-5/stable-diffusion-v1-5)
 - Developed by: Robin Rombach, Patrick Esser, and contributors
 - Copyright: Copyright (c) 2022 Robin Rombach and Patrick Esser and contributors
 - License: CreativeML Open RAIL-M, dated August 22, 2022
@@ -22,10 +24,12 @@ these experiments are responsible for complying with that license.
 
 Portions of the K-tilde/Christoffel sampling implementation are adapted from:
 
-- Repository: `JMcardenas/CS4ML`
-- Folder: `MRI-Generative-Models`
-- Upstream file of interest: `MRI-Generative-Models/generative_cs_example.py`
-- URL: https://github.com/JMcardenas/CS4ML
+- Repository: [JMcardenas/CS4ML](https://github.com/JMcardenas/CS4ML)
+- Folder:
+  [MRI-Generative-Models](https://github.com/JMcardenas/CS4ML/tree/main/MRI-Generative-Models)
+- Upstream file of interest:
+  [generative_cs_example.py](https://github.com/JMcardenas/CS4ML/blob/main/MRI-Generative-Models/generative_cs_example.py)
+- URL: [GitHub repository](https://github.com/JMcardenas/CS4ML)
 - License: MIT License
 
 The adapted pieces include the Christoffel/K-tilde Monte Carlo estimator, the
@@ -35,7 +39,7 @@ needed to evaluate those sampling distributions in the SD1.5/PyTorch setting.
 Academic reference: Juan M. Cardenas, Ben Adcock, and Nick Dexter,
 "CS4ML: A general framework for active learning with arbitrary data based on
 Christoffel functions," NeurIPS 2023.
-https://openreview.net/forum?id=aINqoP32cb
+[OpenReview](https://openreview.net/forum?id=aINqoP32cb)
 
 MIT License
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 from pathlib import Path
 from statistics import NormalDist
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence
@@ -66,9 +67,21 @@ KTILDE_CONVERGENCE_METRICS: Dict[str, Dict[str, str]] = {
         "filename": "max_abs_log_mu_ratio",
     },
 }
+KTILDE_TRIAL_CONVERGENCE_METRICS: Dict[str, Dict[str, str]] = {
+    **KTILDE_CONVERGENCE_METRICS,
+    "lambda_ref_over_mu_m": {
+        "label": r"$\max_i\, \widetilde{K}_{10000,\mathrm{u}}(i) / \widetilde{\mu}_{M,1/2}(i)$",
+        "filename": "lambda_ref_over_mu_m",
+    },
+    "max_abs_log_mu_ratio": {
+        "label": r"$\max_i\, |\log(\widetilde{\mu}_{10000,1/2}(i)/\widetilde{\mu}_{M,1/2}(i))|$",
+        "filename": "max_abs_log_mu_ratio",
+    },
+}
 SD15_METRIC_LABELS = {
     "psnr_db": r"$\mathrm{PSNR\ (dB)}$",
     "ssim": r"$\mathrm{SSIM}$",
+    "lpips": r"$\mathrm{LPIPS}$",
     "pixel_mae": r"$\mathrm{Per\!-\!Pixel\ MAE}$",
     "grain": r"$\mathrm{Grain}$",
     "runtime_sec": r"$\mathrm{Runtime\ (s)}$",
@@ -82,12 +95,13 @@ SD15_PRIOR_COLORS = {
     "k4_cat": "#6A3D9A",
 }
 SD15_LAMBDA_CMAP_COLORS = ["#16324F", "#3A7CA5", "#8DC7B4", "#DDEBD6", "#FCFBF7"]
-SD15_PENALTY_CMAP_COLORS = ["#FFF7ED", "#F8D19A", "#EE8F63", "#C8556D", "#5B1746"]
 SD15_DISTRIBUTION_CMAP_COLORS = ["#16324F", "#3A7CA5", "#8DC7B4", "#DDEBD6", "#FCFBF7"]
 SD15_LAMBDA_STYLE_RECON_COLORS = ["#16324F", "#3A7CA5", "#6DB7AD", "#9CCB8B", "#CDBE7A"]
 SAMPLING_METHOD_LABELS = {
     "cs": "CS (Christoffel)",
     "mcs": "MCS",
+    "inverse_square": "Inverse-Square",
+    "vdhh": "VDHH",
 }
 REGRESSION_ROW_COLUMNS = [
     "sampling_method",
@@ -107,6 +121,7 @@ REGRESSION_ROW_COLUMNS = [
     "samp_perc",
     "psnr_db",
     "ssim",
+    "lpips",
     "pixel_mae",
     "grain",
     "runtime_sec",
@@ -124,11 +139,12 @@ MEAN_METRIC_COLUMNS = [
     "samp_perc",
     "psnr_db",
     "ssim",
+    "lpips",
     "pixel_mae",
     "grain",
     "runtime_sec",
 ]
-SUMMARY_METRICS = ["psnr_db", "ssim", "pixel_mae", "grain", "runtime_sec"]
+SUMMARY_METRICS = ["psnr_db", "ssim", "lpips", "pixel_mae", "grain", "runtime_sec"]
 DEFAULT_CONFIDENCE_LEVEL = 0.95
 UNPROMPTED_DISPLAY_LABEL = "Unconditioned"
 RESOLVED_SUITE_MANIFEST_FILENAME = "resolved_suite_manifest.json"
@@ -145,7 +161,7 @@ def find_sd15_root(start: str | Path | None = None) -> Path:
 
     begin = Path.cwd() if start is None else Path(start)
     for candidate in _candidate_roots(begin.resolve()):
-        if (candidate / "ktilde" / "config.json").is_file() and (candidate / "src").is_dir():
+        if (candidate / "ktilde" / "unweighted" / "config.json").is_file() and (candidate / "src").is_dir():
             return candidate
     raise FileNotFoundError("Could not resolve the sd1.5 project root from the current working directory.")
 
@@ -273,11 +289,22 @@ def _attach_regression_metadata(
     return frame
 
 
-def load_ktilde_catalog(sd15_root: str | Path) -> Dict[str, Dict[str, Any]]:
+def load_ktilde_catalog(
+    sd15_root: str | Path,
+    *,
+    config_path: Optional[str | Path] = None,
+) -> Dict[str, Dict[str, Any]]:
     """Load the raw k-tilde config JSON so analysis can access labels and roles."""
 
     root = find_sd15_root(sd15_root)
-    payload = load_json(root / "ktilde" / "config.json")
+    catalog_path = (
+        Path(config_path)
+        if config_path is not None
+        else root / "ktilde" / "unweighted" / "config.json"
+    )
+    if not catalog_path.is_absolute():
+        catalog_path = root / catalog_path
+    payload = load_json(catalog_path)
     return {str(name): dict(entry) for name, entry in dict(payload.get("ktilde", {})).items()}
 
 
@@ -305,25 +332,49 @@ def load_ktilde_bank(
     sd15_root: str | Path,
     *,
     names: Optional[Sequence[str]] = None,
+    config_path: Optional[str | Path] = None,
+    probability_regularization_zeta: float = 0.0,
     skip_missing: bool = False,
 ) -> Dict[str, Dict[str, Any]]:
     """Load configured k-tilde artifacts plus their analysis metadata."""
 
     root = find_sd15_root(sd15_root)
-    catalog = load_ktilde_catalog(root)
+    catalog = load_ktilde_catalog(root, config_path=config_path)
     ordered_names = [str(name) for name in (names or catalog.keys())]
+    zeta = float(probability_regularization_zeta)
+    if not 0.0 <= zeta < 1.0:
+        raise ValueError("probability_regularization_zeta must lie in [0, 1).")
 
     bank: Dict[str, Dict[str, Any]] = {}
     for name in ordered_names:
         if name not in catalog:
             raise KeyError(f"Unknown k-tilde '{name}'.")
-        artifact_path = root / "ktilde" / f"{name}.npz"
-        if not artifact_path.is_file():
+        artifact_candidates = (
+            root / "ktilde" / "unweighted" / f"{name}.npz",
+            root / "ktilde" / "weighted" / "reference" / f"{name}.npz",
+        )
+        artifact_matches = [path for path in artifact_candidates if path.is_file()]
+        if len(artifact_matches) > 1:
+            locations = ", ".join(str(path) for path in artifact_matches)
+            raise RuntimeError(f"K-tilde '{name}' is ambiguous across artifact namespaces: {locations}.")
+        if not artifact_matches:
             if skip_missing:
                 continue
-            raise FileNotFoundError(f"K-tilde artifact not found: {artifact_path}")
+            searched = ", ".join(str(path) for path in artifact_candidates)
+            raise FileNotFoundError(f"K-tilde artifact not found; searched: {searched}.")
+        artifact_path = artifact_matches[0]
         k_tilde, probabilities, metadata = load_ktilde_npz_for_analysis(artifact_path)
-        probabilities_np = np.asarray(probabilities, dtype=np.float64)
+        raw_probabilities_np = np.asarray(probabilities, dtype=np.float64)
+        raw_total = float(raw_probabilities_np.sum())
+        if raw_total <= 0.0 or not np.all(np.isfinite(raw_probabilities_np)) or np.any(raw_probabilities_np < 0.0):
+            raise ValueError(f"Invalid probability vector in {artifact_path}.")
+        if not np.isclose(raw_total, 1.0, rtol=0.0, atol=1e-12):
+            raise ValueError(f"Probability vector in {artifact_path} must sum to one, got {raw_total:.16g}.")
+        probabilities_np = (
+            raw_probabilities_np.copy()
+            if zeta == 0.0
+            else (1.0 - zeta) * raw_probabilities_np + zeta / float(raw_probabilities_np.size)
+        )
         k_tilde_raw = np.asarray(k_tilde, dtype=np.float64)
         fft_energy_scale = ktilde_unitary_energy_scale(metadata, probabilities_np)
         raw_entry = catalog[name]
@@ -343,6 +394,9 @@ def load_ktilde_bank(
             "fft_energy_scale": fft_energy_scale,
             "fft_energy_convention": "unitary",
             "probabilities": probabilities_np,
+            "raw_probabilities": raw_probabilities_np,
+            "probability_regularization_zeta": zeta,
+            "probability_floor": zeta / float(probabilities_np.size),
         }
     return dict(sorted(bank.items(), key=lambda item: int(item[1]["sampling_rank"])))
 
@@ -357,10 +411,10 @@ def load_ktilde_convergence_traces(
     """Load and validate the four Algorithm 1 convergence traces."""
 
     root = find_sd15_root(sd15_root)
-    config_file = Path(config_path or "ktilde/config_convergence.json")
+    config_file = Path(config_path or "ktilde/weighted/config_convergence.json")
     if not config_file.is_absolute():
         config_file = root / config_file
-    trace_root = Path(results_dir or "results/figures/ktilde_convergence")
+    trace_root = Path(results_dir or "results/unweighted/ktilde_convergence/traces")
     if not trace_root.is_absolute():
         trace_root = root / trace_root
 
@@ -380,7 +434,7 @@ def load_ktilde_convergence_traces(
                 missing_text = ", ".join(missing_metrics)
                 raise ValueError(
                     f"Convergence trace is missing metric arrays ({missing_text}): {trace_path}. "
-                    "Rerun scripts/ktilde/convergence/measure_<prior>.sh with --force."
+                    "Rerun scripts/weighted/ktilde_convergence/reference/measure_<prior>.sh with --force."
                 )
             metric_arrays = {
                 metric: np.asarray(payload[metric], dtype=np.float64)
@@ -423,10 +477,301 @@ def load_ktilde_convergence_traces(
         missing_block = "\n".join(f"  - {path}" for path in missing_paths)
         raise FileNotFoundError(
             "Missing k-tilde convergence traces. Run the matching "
-            "scripts/ktilde/convergence/measure_<prior>.sh launchers first:\n"
+            "scripts/weighted/ktilde_convergence/reference/measure_<prior>.sh launchers first:\n"
             f"{missing_block}"
         )
     return dict(sorted(traces.items(), key=lambda item: int(item[1].get("sampling_rank", 0))))
+
+
+def _sha256_path(path: Path) -> str:
+    """Return a streaming SHA-256 digest for one analysis input."""
+
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _ktilde_trial_manifest(
+    sd15_root: str | Path,
+    manifest_path: Optional[str | Path] = None,
+) -> tuple[Path, Dict[str, Any]]:
+    """Load the checked-in weighted convergence-trial manifest."""
+
+    root = find_sd15_root(sd15_root)
+    path = Path(manifest_path or "ktilde/weighted/config_convergence_trials.json")
+    if not path.is_absolute():
+        path = root / path
+    manifest = load_json(path)
+    if int(manifest.get("schema_version", -1)) != 1:
+        raise ValueError(f"Unsupported K-tilde convergence-trial manifest: {path}")
+    if int(manifest.get("expected_trials", 0)) != len(list(manifest.get("trials", []))):
+        raise ValueError(f"Trial-count mismatch in {path}.")
+    return path, manifest
+
+
+def _ktilde_trial_paths(
+    root: Path,
+    manifest: Mapping[str, Any],
+    prior: Mapping[str, Any],
+    trial: Mapping[str, Any],
+) -> tuple[Path, Path]:
+    """Return the final K-tilde and scalar-trace paths for one trial."""
+
+    reference_name = str(prior["reference_name"])
+    role = str(prior["role"])
+    trial_id = int(trial["trial"])
+    seed = int(trial["seed"])
+    trial_label = f"trial_{trial_id:02d}"
+    artifact_name = f"{reference_name}__trial{trial_id:02d}_seed{seed}"
+    artifact_path = (
+        root
+        / str(manifest["artifact_root"])
+        / role
+        / trial_label
+        / f"{artifact_name}.npz"
+    )
+    trace_path = (
+        root
+        / str(manifest["trace_root"])
+        / role
+        / f"{trial_label}.convergence.npz"
+    )
+    return artifact_path, trace_path
+
+
+def ktilde_convergence_trial_completion_table(
+    sd15_root: str | Path,
+    *,
+    manifest_path: Optional[str | Path] = None,
+) -> pd.DataFrame:
+    """Audit all 20 expected convergence-trial outputs without requiring completion."""
+
+    root = find_sd15_root(sd15_root)
+    _, manifest = _ktilde_trial_manifest(root, manifest_path)
+    max_samples = int(manifest["max_samples"])
+    metric_every = int(manifest["metric_every"])
+    expected_iterations = np.arange(metric_every, max_samples + 1, metric_every, dtype=np.int64)
+    rows: List[Dict[str, Any]] = []
+    for alias, raw_prior in dict(manifest["priors"]).items():
+        prior = dict(raw_prior)
+        reference_path = root / "ktilde" / f"{prior['reference_name']}.npz"
+        reference_sha256 = _sha256_path(reference_path) if reference_path.is_file() else ""
+        for raw_trial in list(manifest["trials"]):
+            trial = dict(raw_trial)
+            artifact_path, trace_path = _ktilde_trial_paths(root, manifest, prior, trial)
+            trace_complete = False
+            trace_compatible = False
+            recorded_points = 0
+            status = "missing"
+            detail = ""
+            if trace_path.is_file():
+                status = "incomplete"
+                try:
+                    with np.load(str(trace_path), allow_pickle=False) as payload:
+                        iterations = np.asarray(payload["iteration"], dtype=np.int64)
+                        metadata = json.loads(str(payload["meta"]))
+                        recorded_points = int(iterations.size)
+                        metrics_present = all(
+                            metric in payload.files
+                            and np.asarray(payload[metric]).shape == iterations.shape
+                            for metric in KTILDE_CONVERGENCE_METRICS
+                        )
+                    trace_complete = bool(metadata.get("complete"))
+                    trace_compatible = bool(
+                        int(metadata.get("schema_version", -1)) == 3
+                        and int(metadata.get("trial", -1)) == int(trial["trial"])
+                        and int(metadata.get("seed", -1)) == int(trial["seed"])
+                        and str(metadata.get("role", "")) == str(prior["role"])
+                        and np.isclose(
+                            float(metadata.get("probability_regularization_zeta", -1.0)),
+                            float(manifest["probability_regularization_zeta"]),
+                            rtol=0.0,
+                            atol=0.0,
+                        )
+                        and str(metadata.get("reference_sha256", "")) == reference_sha256
+                        and metrics_present
+                        and np.array_equal(iterations, expected_iterations)
+                    )
+                    if trace_complete and trace_compatible and artifact_path.is_file():
+                        expected_artifact_sha256 = str(metadata.get("final_artifact_sha256", ""))
+                        trace_compatible = bool(
+                            expected_artifact_sha256
+                            and _sha256_path(artifact_path) == expected_artifact_sha256
+                        )
+                    status = (
+                        "complete"
+                        if trace_complete and trace_compatible and artifact_path.is_file()
+                        else "incompatible"
+                        if trace_complete
+                        else "incomplete"
+                    )
+                except Exception as exc:
+                    status = "invalid"
+                    detail = repr(exc)
+            elif artifact_path.is_file():
+                status = "artifact_without_trace"
+            rows.append(
+                {
+                    "prior_alias": str(alias),
+                    "role": str(prior["role"]),
+                    "trial": int(trial["trial"]),
+                    "computer": str(trial.get("computer", "")),
+                    "seed": int(trial["seed"]),
+                    "latent_seed_start": int(trial["seed"]),
+                    "latent_seed_end": int(trial["seed"]) + 2 * max_samples - 1,
+                    "reference_exists": bool(reference_path.is_file()),
+                    "artifact_exists": bool(artifact_path.is_file()),
+                    "trace_exists": bool(trace_path.is_file()),
+                    "trace_complete": trace_complete,
+                    "compatible": trace_compatible,
+                    "recorded_points": recorded_points,
+                    "expected_points": int(expected_iterations.size),
+                    "status": status,
+                    "detail": detail,
+                    "artifact_path": str(artifact_path),
+                    "trace_path": str(trace_path),
+                }
+            )
+    return pd.DataFrame(rows)
+
+
+def load_ktilde_convergence_trial_traces(
+    sd15_root: str | Path,
+    *,
+    manifest_path: Optional[str | Path] = None,
+) -> Dict[str, Dict[str, Any]]:
+    """Load exactly five complete, compatible trial traces for each paper prior."""
+
+    root = find_sd15_root(sd15_root)
+    manifest_file, manifest = _ktilde_trial_manifest(root, manifest_path)
+    completion = ktilde_convergence_trial_completion_table(
+        root,
+        manifest_path=manifest_file,
+    )
+    bad = completion[completion["status"] != "complete"]
+    if not bad.empty:
+        status_counts = bad["status"].value_counts().to_dict()
+        raise FileNotFoundError(
+            "The five-trial K-tilde convergence study is incomplete or incompatible: "
+            f"{status_counts}. See ktilde_convergence_trial_completion_table()."
+        )
+
+    reference_config = Path(str(manifest["reference_config"]))
+    if not reference_config.is_absolute():
+        reference_config = root / reference_config
+    catalog_payload = load_json(reference_config)
+    catalog = {
+        str(name): dict(entry)
+        for name, entry in dict(catalog_payload.get("ktilde", {})).items()
+    }
+    max_samples = int(manifest["max_samples"])
+    metric_every = int(manifest["metric_every"])
+    expected_iterations = np.arange(metric_every, max_samples + 1, metric_every, dtype=np.int64)
+    expected_trials = int(manifest["expected_trials"])
+    bank: Dict[str, Dict[str, Any]] = {}
+
+    for alias, raw_prior in dict(manifest["priors"]).items():
+        prior = dict(raw_prior)
+        reference_name = str(prior["reference_name"])
+        if reference_name not in catalog:
+            raise KeyError(f"Reference '{reference_name}' is missing from {reference_config}.")
+        trial_rows: List[Dict[str, Any]] = []
+        for raw_trial in list(manifest["trials"]):
+            trial = dict(raw_trial)
+            artifact_path, trace_path = _ktilde_trial_paths(root, manifest, prior, trial)
+            with np.load(str(trace_path), allow_pickle=False) as payload:
+                iterations = np.asarray(payload["iteration"], dtype=np.int64)
+                metadata = json.loads(str(payload["meta"]))
+                metric_arrays = {
+                    metric: np.asarray(payload[metric], dtype=np.float64)
+                    for metric in KTILDE_CONVERGENCE_METRICS
+                }
+            if not np.array_equal(iterations, expected_iterations):
+                raise ValueError(f"Unexpected iteration grid: {trace_path}")
+            for metric, values in metric_arrays.items():
+                if values.shape != iterations.shape or np.any(~np.isfinite(values)) or np.any(values < 0.0):
+                    raise ValueError(f"Invalid '{metric}' values: {trace_path}")
+            trial_rows.append(
+                {
+                    "trial": int(trial["trial"]),
+                    "computer": str(trial.get("computer", "")),
+                    "seed": int(trial["seed"]),
+                    "artifact_path": artifact_path,
+                    "trace_path": trace_path,
+                    "metadata": metadata,
+                    **metric_arrays,
+                }
+            )
+        if len(trial_rows) != expected_trials:
+            raise ValueError(f"Expected {expected_trials} traces for {prior['role']}.")
+        raw_entry = catalog[reference_name]
+        role = str(prior["role"])
+        bank[role] = {
+            **raw_entry,
+            "name": reference_name,
+            "role": role,
+            "prior_alias": str(alias),
+            "iteration": expected_iterations.copy(),
+            "trials": trial_rows,
+            "trial_count": len(trial_rows),
+            "probability_regularization_zeta": float(
+                manifest["probability_regularization_zeta"]
+            ),
+            "metric_every": metric_every,
+            "manifest_path": manifest_file,
+        }
+    return dict(sorted(bank.items(), key=lambda item: int(item[1].get("sampling_rank", 0))))
+
+
+def summarize_ktilde_convergence_trials(
+    traces: Mapping[str, Mapping[str, Any]],
+    *,
+    confidence_level: float = 0.95,
+) -> Dict[str, Dict[str, Any]]:
+    """Compute arithmetic means and Student-t confidence intervals across trials."""
+
+    from scipy.stats import t as student_t
+
+    level = float(confidence_level)
+    if not 0.0 < level < 1.0:
+        raise ValueError("confidence_level must lie in (0, 1).")
+    summaries: Dict[str, Dict[str, Any]] = {}
+    for role, raw_info in traces.items():
+        info = dict(raw_info)
+        trial_rows = [dict(trial) for trial in list(info["trials"])]
+        count = len(trial_rows)
+        if count < 2:
+            raise ValueError(f"At least two trials are required for a confidence interval: {role}")
+        critical = float(student_t.ppf(0.5 + 0.5 * level, df=count - 1))
+        metric_summaries: Dict[str, Dict[str, np.ndarray | float | int]] = {}
+        for metric in KTILDE_CONVERGENCE_METRICS:
+            values = np.stack(
+                [np.asarray(trial[metric], dtype=np.float64) for trial in trial_rows],
+                axis=0,
+            )
+            mean = values.mean(axis=0)
+            std = values.std(axis=0, ddof=1)
+            sem = std / np.sqrt(float(count))
+            halfwidth = critical * sem
+            metric_summaries[metric] = {
+                "values": values,
+                "mean": mean,
+                "std": std,
+                "sem": sem,
+                "ci_lower": mean - halfwidth,
+                "ci_upper": mean + halfwidth,
+                "count": count,
+                "confidence_level": level,
+                "critical_value": critical,
+            }
+        summaries[str(role)] = {
+            **info,
+            "summary": metric_summaries,
+            "confidence_level": level,
+        }
+    return summaries
 
 
 def empirical_lambda_self(k_tilde_num: np.ndarray, mu_sampling: np.ndarray) -> float:
@@ -452,14 +797,22 @@ def build_lambda_tables(
     sd15_root: str | Path,
     *,
     names: Optional[Sequence[str]] = None,
+    config_path: Optional[str | Path] = None,
+    probability_regularization_zeta: float = 0.0,
     skip_missing: bool = False,
 ) -> Dict[str, Any]:
     """Build unitary-FFT lambda/kappa tables for the configured SD1.5 k-tilde bank."""
 
     root = find_sd15_root(sd15_root)
-    catalog = load_ktilde_catalog(root)
+    catalog = load_ktilde_catalog(root, config_path=config_path)
     requested_names = [str(name) for name in (names or catalog.keys())]
-    bank = load_ktilde_bank(root, names=requested_names, skip_missing=skip_missing)
+    bank = load_ktilde_bank(
+        root,
+        names=requested_names,
+        config_path=config_path,
+        probability_regularization_zeta=probability_regularization_zeta,
+        skip_missing=skip_missing,
+    )
     loaded_names = {str(info["name"]) for info in bank.values()}
     missing_names = [name for name in requested_names if name not in loaded_names]
     if not bank:
@@ -503,6 +856,7 @@ def build_lambda_tables(
         "requested_names": requested_names,
         "missing_names": missing_names,
         "fft_energy_convention": "unitary",
+        "probability_regularization_zeta": float(probability_regularization_zeta),
         "fft_energy_scale": {role: float(info["fft_energy_scale"]) for role, info in bank.items()},
         "kappa_df": kappa_df,
         "lambda_df": lambda_df,
@@ -831,94 +1185,6 @@ def plot_lambda_heatmap(
         return _save_plot(fig, output_path, show=show)
 
 
-def plot_penalty_heatmap(
-    tables: Mapping[str, Any],
-    *,
-    output_path: Optional[str | Path] = None,
-    show: bool = False,
-) -> Optional[Path]:
-    """Plot the relative lambda blow-up as a standalone figure."""
-
-    import matplotlib.pyplot as plt
-
-    penalty_table, _ = _ordered_heatmap_table(tables, "penalty_table")
-    cmap = _make_linear_cmap("lambda_penalty", SD15_PENALTY_CMAP_COLORS)
-
-    with plt.rc_context(SD15_PRESENTATION_RC):
-        fig, ax = plt.subplots(figsize=(7.2, 6.8), constrained_layout=True)
-        fig.set_constrained_layout_pads(w_pad=0.04, h_pad=0.04, wspace=0.02, hspace=0.02)
-        _draw_publication_heatmap(
-            ax,
-            penalty_table,
-            cmap=cmap,
-            colorbar_label=r"$\widetilde{\Lambda}'(c_r,c_s)=\widetilde{\lambda}(c_r,c_r,c_s)/\widetilde{\kappa}(c_r)$",
-            annotation_scale_power=0,
-            show_ylabels=True,
-            x_rotation=0.0,
-        )
-        ax.set_xlabel("")
-        ax.set_ylabel("")
-        return _save_plot(fig, output_path, show=show)
-
-
-def plot_kappa_bar(
-    tables: Mapping[str, Any],
-    *,
-    output_path: Optional[str | Path] = None,
-    show: bool = False,
-) -> Optional[Path]:
-    """Plot the empirical kappa surrogate as a standalone bar chart."""
-
-    import matplotlib.pyplot as plt
-
-    ordered_infos = _ordered_prior_infos(tables)
-    ordered_roles = [str(info["role"]) for info in ordered_infos]
-    kappa_df = pd.DataFrame(tables["kappa_df"]).set_index("numerator_class").loc[ordered_roles].reset_index()
-    kappa_df["display_label"] = [_self_numerator_label(info, multiline=False) for info in ordered_infos]
-    bar_colors = [
-        SD15_PRIOR_COLORS.get(str(info["role"]), SD15_RECON_COLORS[idx % len(SD15_RECON_COLORS)])
-        for idx, info in enumerate(ordered_infos)
-    ]
-
-    with plt.rc_context(SD15_PRESENTATION_RC):
-        fig, ax = plt.subplots(figsize=(8.4, 5.4), constrained_layout=True)
-        fig.set_constrained_layout_pads(w_pad=0.05, h_pad=0.05, wspace=0.02, hspace=0.02)
-        scale_power = _annotation_scale_power(kappa_df["kappa_hat"].to_numpy(dtype=float))
-        scale_factor = float(10 ** scale_power)
-        scaled_values = kappa_df["kappa_hat"].to_numpy(dtype=float) / scale_factor
-        bars = ax.bar(
-            np.arange(len(kappa_df)),
-            scaled_values,
-            color=bar_colors,
-            edgecolor="#1F2937",
-            linewidth=1.0,
-            width=0.72,
-        )
-        ax.set_xticks(np.arange(len(kappa_df)), labels=list(kappa_df["display_label"]))
-        ax.margins(x=0.12)
-        ax.tick_params(axis="x", rotation=0, length=0, pad=10, labelsize=11)
-        for label in ax.get_xticklabels():
-            label.set_horizontalalignment("center")
-            label.set_rotation_mode("default")
-        ax.set_ylabel(_scaled_quantity_label(r"Baseline Complexity $\widetilde{\kappa}(c)$", scale_power))
-        ax.set_xlabel("Christoffel Function")
-        ax.grid(True, axis="y", alpha=0.24, linestyle=(0, (3, 3)))
-        ax.set_axisbelow(True)
-        ymax = float(scaled_values.max()) if scaled_values.size else 1.0
-        ax.set_ylim(0.0, ymax * 1.18 if ymax > 0.0 else 1.0)
-        for bar, value in zip(bars, scaled_values):
-            ax.text(
-                bar.get_x() + bar.get_width() / 2.0,
-                bar.get_height() + ymax * 0.03,
-                _format_heatmap_number(float(value)),
-                ha="center",
-                va="bottom",
-                fontsize=17.0,
-                color="#111827",
-            )
-        return _save_plot(fig, output_path, show=show)
-
-
 def _reshape_centered_distribution(info: Mapping[str, Any]) -> np.ndarray:
     """Return the 2D centered probability image for one prior."""
 
@@ -1057,7 +1323,6 @@ def export_lambda_figure_set(
     output_dir: str | Path,
     show: bool = False,
     file_format: str = "pdf",
-    include_kappa: bool = True,
 ) -> Dict[str, Path]:
     """Save standalone lambda and mu figures for the current prior bank."""
 
@@ -1070,18 +1335,6 @@ def export_lambda_figure_set(
         output_path=root / f"ktilde_lambda_absolute_heatmap.{suffix}",
         show=show,
     )
-    outputs["penalty_heatmap"] = plot_penalty_heatmap(
-        tables,
-        output_path=root / f"ktilde_lambda_row_normalized_mismatch_heatmap.{suffix}",
-        show=show,
-    )
-    if include_kappa:
-        outputs["kappa_bar"] = plot_kappa_bar(
-            tables,
-            output_path=root / f"ktilde_kappa_by_sampling_distribution_bar.{suffix}",
-            show=show,
-        )
-
     limits = distribution_log_limits(tables)
     for info in _ordered_prior_infos(tables):
         role = str(info["role"])
@@ -1230,90 +1483,181 @@ def export_ktilde_convergence_figure_set(
     return outputs
 
 
-def plot_lambda_summary(
-    tables: Mapping[str, Any],
+def _ktilde_trial_metric_info(metric: str) -> Dict[str, str]:
+    """Return plotting metadata for one five-trial convergence metric."""
+
+    metric_key = str(metric)
+    if metric_key not in KTILDE_TRIAL_CONVERGENCE_METRICS:
+        raise KeyError(f"Unknown K-tilde trial convergence metric '{metric_key}'.")
+    return dict(KTILDE_TRIAL_CONVERGENCE_METRICS[metric_key])
+
+
+def _style_ktilde_trial_convergence_axis(
+    ax,
+    info: Mapping[str, Any],
     *,
+    metric: str,
+) -> None:
+    """Plot an arithmetic mean and original-scale Student-t confidence band."""
+
+    iterations = np.asarray(info["iteration"], dtype=np.int64)
+    summary = dict(dict(info["summary"])[str(metric)])
+    mean = np.asarray(summary["mean"], dtype=np.float64)
+    lower = np.asarray(summary["ci_lower"], dtype=np.float64)
+    upper = np.asarray(summary["ci_upper"], dtype=np.float64)
+    if not (
+        iterations.shape == mean.shape == lower.shape == upper.shape
+        and np.all(np.isfinite(mean))
+        and np.all(np.isfinite(lower))
+        and np.all(np.isfinite(upper))
+    ):
+        raise ValueError(f"Malformed five-trial convergence summary for '{metric}'.")
+    if np.any(mean <= 0.0) or np.any(lower <= 0.0) or np.any(upper <= 0.0):
+        raise ValueError(
+            f"The arithmetic-mean confidence band for '{metric}' contains a nonpositive "
+            "value and cannot be displayed honestly on a logarithmic axis."
+        )
+    role = str(info.get("role", ""))
+    color = SD15_PRIOR_COLORS.get(role, "#16324F")
+    ax.fill_between(iterations, lower, upper, color=color, alpha=0.22, linewidth=0.0)
+    ax.plot(iterations, mean, color=color, linewidth=2.8)
+    ax.set_yscale("log")
+    ax.set_xlim(0, int(iterations.max()))
+    ax.set_title(_sampling_distribution_label(role))
+    ax.grid(True, which="both", linestyle=":", alpha=0.48)
+    ax.margins(x=0.0)
+
+
+def plot_ktilde_trial_convergence_trace(
+    summaries: Mapping[str, Mapping[str, Any]],
+    *,
+    role: str,
+    metric: str = "relative_l2_error",
     output_path: Optional[str | Path] = None,
     show: bool = False,
 ) -> Optional[Path]:
-    """Backwards-compatible composite summary plot."""
+    """Plot one five-trial arithmetic-mean convergence trace and 95% CI."""
 
     import matplotlib.pyplot as plt
 
-    lambda_table, ordered_infos = _ordered_heatmap_table(tables, "lambda_table")
-    penalty_table, _ = _ordered_heatmap_table(tables, "penalty_table")
-    ordered_roles = [str(info["role"]) for info in ordered_infos]
-    kappa_df = pd.DataFrame(tables["kappa_df"]).set_index("numerator_class").loc[ordered_roles].reset_index()
-    kappa_df["display_label"] = [_self_numerator_label(info, multiline=False) for info in ordered_infos]
-    bar_colors = [
-        SD15_PRIOR_COLORS.get(str(info["role"]), SD15_RECON_COLORS[idx % len(SD15_RECON_COLORS)])
-        for idx, info in enumerate(ordered_infos)
-    ]
+    metric_info = _ktilde_trial_metric_info(metric)
+    info = dict(summaries[str(role)])
     with plt.rc_context(SD15_PRESENTATION_RC):
-        fig = plt.figure(figsize=(18.0, 6.4), constrained_layout=True)
-        fig.set_constrained_layout_pads(w_pad=0.05, h_pad=0.04, wspace=0.04, hspace=0.02)
-        grid = fig.add_gridspec(1, 3, width_ratios=[1.1, 1.1, 0.95])
-        axes = [fig.add_subplot(grid[0, idx]) for idx in range(3)]
-        lambda_scale_power = _annotation_scale_power(lambda_table.to_numpy(dtype=float))
-        _draw_publication_heatmap(
-            axes[0],
-            lambda_table,
-            cmap=_make_linear_cmap("lambda_heatmap", SD15_LAMBDA_CMAP_COLORS),
-            colorbar_label=r"$\widetilde{\Lambda}(c_r,c_r,c_s)$",
-            annotation_scale_power=lambda_scale_power,
-            tick_labelsize=12.0,
-            show_ylabels=True,
-            x_rotation=0.0,
-        )
-        axes[0].set_xlabel("")
-        axes[0].set_ylabel("")
-
-        _draw_publication_heatmap(
-            axes[1],
-            penalty_table,
-            cmap=_make_linear_cmap("lambda_penalty", SD15_PENALTY_CMAP_COLORS),
-            colorbar_label=r"$\widetilde{\Lambda}'(c_r,c_s)=\widetilde{\lambda}(c_r,c_r,c_s)/\widetilde{\kappa}(c_r)$",
-            annotation_scale_power=0,
-            show_ylabels=False,
-            x_rotation=0.0,
-        )
-        axes[1].set_xlabel("")
-        axes[1].set_ylabel("")
-
-        kappa_scale_power = _annotation_scale_power(kappa_df["kappa_hat"].to_numpy(dtype=float))
-        kappa_scale_factor = float(10 ** kappa_scale_power)
-        scaled_kappa_values = kappa_df["kappa_hat"].to_numpy(dtype=float) / kappa_scale_factor
-        bars = axes[2].bar(
-            np.arange(len(kappa_df)),
-            scaled_kappa_values,
-            color=bar_colors,
-            edgecolor="#1F2937",
-            linewidth=1.0,
-            width=0.72,
-        )
-        axes[2].set_xticks(np.arange(len(kappa_df)), labels=list(kappa_df["display_label"]))
-        axes[2].margins(x=0.12)
-        axes[2].tick_params(axis="x", rotation=0, length=0, pad=10, labelsize=11)
-        for label in axes[2].get_xticklabels():
-            label.set_horizontalalignment("center")
-            label.set_rotation_mode("default")
-        axes[2].set_ylabel(_scaled_quantity_label(r"Baseline Complexity $\widetilde{\kappa}(c)$", kappa_scale_power))
-        axes[2].set_xlabel("Christoffel Function")
-        axes[2].grid(True, axis="y", alpha=0.24, linestyle=(0, (3, 3)))
-        axes[2].set_axisbelow(True)
-        ymax = float(scaled_kappa_values.max()) if scaled_kappa_values.size else 1.0
-        axes[2].set_ylim(0.0, ymax * 1.18 if ymax > 0.0 else 1.0)
-        for bar, value in zip(bars, scaled_kappa_values):
-            axes[2].text(
-                bar.get_x() + bar.get_width() / 2.0,
-                bar.get_height() + ymax * 0.03,
-                _format_heatmap_number(float(value)),
-                ha="center",
-                va="bottom",
-                fontsize=17.0,
-                color="#111827",
-            )
+        fig, ax = plt.subplots(figsize=(7.4, 5.8), constrained_layout=True)
+        fig.set_constrained_layout_pads(w_pad=0.04, h_pad=0.04, wspace=0.02, hspace=0.02)
+        _style_ktilde_trial_convergence_axis(ax, info, metric=metric)
+        ax.set_xlabel(KTILDE_CONVERGENCE_X_LABEL)
+        ax.set_ylabel(metric_info["label"])
         return _save_plot(fig, output_path, show=show)
+
+
+def plot_ktilde_trial_convergence_grid(
+    summaries: Mapping[str, Mapping[str, Any]],
+    *,
+    roles: Optional[Sequence[str]] = None,
+    metric: str = "relative_l2_error",
+    output_path: Optional[str | Path] = None,
+    show: bool = False,
+) -> Optional[Path]:
+    """Plot the four trial-mean convergence curves as a shared 2x2 panel."""
+
+    import matplotlib.pyplot as plt
+
+    metric_info = _ktilde_trial_metric_info(metric)
+    ordered_roles = [str(role) for role in (roles or summaries.keys())]
+    infos = [dict(summaries[role]) for role in ordered_roles]
+    if len(infos) > 4:
+        raise ValueError("The K-tilde convergence grid supports at most four priors.")
+    with plt.rc_context(SD15_PRESENTATION_RC):
+        fig, axes = plt.subplots(
+            2,
+            2,
+            figsize=(13.2, 10.0),
+            constrained_layout=True,
+            sharex=True,
+            sharey=True,
+        )
+        axes_flat = np.asarray(axes, dtype=object).reshape(-1)
+        fig.set_constrained_layout_pads(w_pad=0.04, h_pad=0.04, wspace=0.04, hspace=0.04)
+        for ax, info in zip(axes_flat, infos):
+            _style_ktilde_trial_convergence_axis(ax, info, metric=metric)
+        for ax in axes_flat[len(infos) :]:
+            ax.set_visible(False)
+        fig.supxlabel(KTILDE_CONVERGENCE_X_LABEL, fontsize=SD15_PRESENTATION_RC["axes.labelsize"])
+        fig.supylabel(metric_info["label"], fontsize=SD15_PRESENTATION_RC["axes.labelsize"])
+        return _save_plot(fig, output_path, show=show)
+
+
+def ktilde_convergence_summary_frame(
+    summaries: Mapping[str, Mapping[str, Any]],
+) -> pd.DataFrame:
+    """Return a tidy table containing every arithmetic convergence summary."""
+
+    rows: List[Dict[str, Any]] = []
+    for role, raw_info in summaries.items():
+        info = dict(raw_info)
+        iterations = np.asarray(info["iteration"], dtype=np.int64)
+        for metric in KTILDE_TRIAL_CONVERGENCE_METRICS:
+            summary = dict(dict(info["summary"])[metric])
+            for index, iteration in enumerate(iterations):
+                rows.append(
+                    {
+                        "role": str(role),
+                        "prior_alias": str(info.get("prior_alias", "")),
+                        "iteration": int(iteration),
+                        "metric": str(metric),
+                        "mean": float(np.asarray(summary["mean"])[index]),
+                        "std": float(np.asarray(summary["std"])[index]),
+                        "sem": float(np.asarray(summary["sem"])[index]),
+                        "ci_lower": float(np.asarray(summary["ci_lower"])[index]),
+                        "ci_upper": float(np.asarray(summary["ci_upper"])[index]),
+                        "trial_count": int(summary["count"]),
+                        "confidence_level": float(summary["confidence_level"]),
+                        "critical_value": float(summary["critical_value"]),
+                    }
+                )
+    return pd.DataFrame(rows)
+
+
+def export_ktilde_convergence_trial_figure_set(
+    summaries: Mapping[str, Mapping[str, Any]],
+    *,
+    output_dir: str | Path,
+    show: bool = False,
+    show_individual: bool = False,
+    file_format: str = "pdf",
+    metrics: Optional[Sequence[str]] = None,
+) -> Dict[str, Path]:
+    """Export all five-trial convergence grids, individual plots, and summary data."""
+
+    root = Path(output_dir)
+    root.mkdir(parents=True, exist_ok=True)
+    suffix = str(file_format).lstrip(".")
+    outputs: Dict[str, Path] = {}
+    summary_path = root / "ktilde_convergence_five_trial_summary.csv"
+    ktilde_convergence_summary_frame(summaries).to_csv(summary_path, index=False)
+    outputs["summary_csv"] = summary_path
+    requested_metrics = [
+        str(metric) for metric in (metrics or KTILDE_TRIAL_CONVERGENCE_METRICS.keys())
+    ]
+    for metric in requested_metrics:
+        metric_info = _ktilde_trial_metric_info(metric)
+        stem = str(metric_info["filename"])
+        outputs[f"{metric}_grid"] = plot_ktilde_trial_convergence_grid(
+            summaries,
+            metric=metric,
+            output_path=root / f"ktilde_convergence_five_trial_{stem}_grid.{suffix}",
+            show=show,
+        )
+        for role in summaries:
+            outputs[f"{metric}_{role}"] = plot_ktilde_trial_convergence_trace(
+                summaries,
+                role=str(role),
+                metric=metric,
+                output_path=root / f"ktilde_convergence_five_trial_{stem}_{role}.{suffix}",
+                show=show_individual,
+            )
+    return outputs
 
 
 def load_regression_rows(
@@ -1399,10 +1743,12 @@ def load_regression_rows(
         "samp_perc",
         "psnr_db",
         "ssim",
+        "lpips",
         "pixel_mae",
         "grain",
         "zero_filled_psnr_db",
         "zero_filled_ssim",
+        "zero_filled_lpips",
         "zero_filled_pixel_mae",
         "zero_filled_grain",
         "runtime_sec",
@@ -1427,11 +1773,13 @@ def sweep_rows_to_dataframe(rows: Sequence[Mapping[str, Any]] | pd.DataFrame) ->
     for column in [
         "psnr_db",
         "ssim",
+        "lpips",
         "pixel_mae",
         "grain",
         "runtime_sec",
         "zero_filled_psnr_db",
         "zero_filled_ssim",
+        "zero_filled_lpips",
         "zero_filled_pixel_mae",
         "zero_filled_grain",
     ]:

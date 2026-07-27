@@ -17,7 +17,7 @@ import torch
 from .config import GenerationConfig, KtildeBuildConfig, MODEL_ID, RuntimeConfig
 from .constants import DEVICE
 from .fft import partial_fourier_2d
-from .utils import json_dump, set_seed_all
+from .utils import json_dump, resolve_ktilde_npz_path, set_seed_all
 
 
 def ktilde_npz_path(ktilde_dir: str | Path, ktilde_name: str) -> Path:
@@ -261,11 +261,30 @@ def validate_ktilde_metadata(metadata: Dict[str, Any], definition: KtildeBuildCo
 def load_ktilde_probabilities(ktilde_dir: str | Path, ktilde_name: str) -> Tuple[np.ndarray, Dict[str, Any], Path]:
     """Load the exact named k-tilde artifact referenced by a run config."""
 
-    file_path = ktilde_npz_path(ktilde_dir, ktilde_name)
-    if not file_path.exists():
-        raise FileNotFoundError(f"K-tilde '{ktilde_name}' was not found at {file_path}.")
+    file_path = resolve_ktilde_npz_path(ktilde_dir, ktilde_name)
     _, probabilities, metadata = load_ktilde_npz(file_path)
     return probabilities, metadata, file_path
+
+
+def regularize_sampling_probabilities(probabilities: np.ndarray, zeta: float) -> np.ndarray:
+    """Mix a saved empirical sampling law with the uniform law."""
+
+    values = np.asarray(probabilities, dtype=np.float64).reshape(-1)
+    if values.size == 0:
+        raise ValueError("Sampling probability arrays must be nonempty.")
+    if not np.all(np.isfinite(values)) or np.any(values < 0.0):
+        raise ValueError("Sampling probabilities must be finite and nonnegative.")
+    total = float(values.sum())
+    if total <= 0.0:
+        raise ValueError("Sampling probabilities must have positive total mass.")
+    if not np.isclose(total, 1.0, rtol=0.0, atol=1e-12):
+        raise ValueError(f"Sampling probabilities must sum to one before regularization, got {total:.16g}.")
+    mixture = float(zeta)
+    if not 0.0 <= mixture < 1.0:
+        raise ValueError("zeta must lie in [0, 1).")
+    if mixture == 0.0:
+        return values.copy()
+    return (1.0 - mixture) * values + mixture / float(values.size)
 
 
 def build_ktilde(

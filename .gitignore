@@ -1,6 +1,23 @@
-/results/
+/results/*
+!/results/unweighted/
+!/results/weighted/
+/results/unweighted/*
+!/results/unweighted/figures/
+!/results/unweighted/figures/**
+/results/weighted/*
+!/results/weighted/figures/
+!/results/weighted/figures/**
+/results/blog_visuals/
 /notestoself/
-
+/notestoself/blog_visuals/
+/tests/
+/ktilde/*.npz
+/ktilde/*.meta.json
+/ktilde/weighted/convergence_trials/
+/old/
+/Old/
+**/old/
+**/*_old/
 
 __pycache__/
 *.py[cod]

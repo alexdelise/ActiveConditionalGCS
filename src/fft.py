@@ -5,11 +5,11 @@ The partial Fourier helper adapts the CS4ML MRI-Generative-Models
 is copyright Juan Manuel Cardenas Cardenas and licensed under MIT; see
 ``THIRD_PARTY_NOTICES.md``.
 
-The measurement code uses the standard unnormalized DFT convention so the sampling
-operator can be written as ``A = (1 / sqrt(m)) P_\Omega F``. Concretely:
+Legacy measurements use the standard unnormalized DFT convention. Weighted
+experiments may instead request the unitary convention used in the theory:
 
-- the forward transform uses the usual unnormalized FFT, and
-- the adjoint uses the unnormalized inverse transform.
+- ``backward`` uses the usual unnormalized FFT and its true adjoint, and
+- ``ortho`` uses the unitary FFT, whose inverse is also its adjoint.
 """
 
 from __future__ import annotations
@@ -17,19 +17,41 @@ from __future__ import annotations
 import torch
 
 
-def fft2_dft(x: torch.Tensor) -> torch.Tensor:
-    """Apply the standard unnormalized 2D DFT along the last two dimensions."""
-
-    return torch.fft.fftn(x, dim=(-2, -1), norm="backward")
+FFT_NORMALIZATIONS = {"backward", "ortho"}
 
 
-def ifft2_dft_adjoint(x: torch.Tensor) -> torch.Tensor:
+def validate_fft_normalization(normalization: str) -> str:
+    """Return a supported PyTorch FFT normalization token."""
+
+    token = str(normalization).strip().lower()
+    if token not in FFT_NORMALIZATIONS:
+        raise ValueError(f"FFT normalization must be one of {sorted(FFT_NORMALIZATIONS)}, got {normalization!r}.")
+    return token
+
+
+def fft2_dft(x: torch.Tensor, normalization: str = "backward") -> torch.Tensor:
+    """Apply a 2D DFT along the last two dimensions."""
+
+    return torch.fft.fftn(x, dim=(-2, -1), norm=validate_fft_normalization(normalization))
+
+
+def ifft2_dft_adjoint(x: torch.Tensor, normalization: str = "backward") -> torch.Tensor:
     """Apply the adjoint of :func:`fft2_dft` along the last two dimensions."""
 
-    return torch.fft.ifftn(x, dim=(-2, -1), norm="forward")
+    token = validate_fft_normalization(normalization)
+    inverse_norm = "forward" if token == "backward" else "ortho"
+    return torch.fft.ifftn(x, dim=(-2, -1), norm=inverse_norm)
 
 
-def partial_fourier_2d(inds: torch.Tensor, height: int, width: int, x: torch.Tensor, mode: int) -> torch.Tensor:
+def partial_fourier_2d(
+    inds: torch.Tensor,
+    height: int,
+    width: int,
+    x: torch.Tensor,
+    mode: int,
+    *,
+    normalization: str = "backward",
+) -> torch.Tensor:
     """Apply a partial centered 2D Fourier transform or its adjoint.
 
     Args:
@@ -48,7 +70,7 @@ def partial_fourier_2d(inds: torch.Tensor, height: int, width: int, x: torch.Ten
     num_pixels = int(height) * int(width)
     if mode == 1:
         x = x.view(-1, height, width)
-        transformed = fft2_dft(x)
+        transformed = fft2_dft(x, normalization=normalization)
         # Sampling indices are defined on the centered spectrum, matching the
         # k-tilde artifacts and mask visualizations.
         transformed = torch.fft.fftshift(transformed, dim=(-2, -1))
@@ -64,7 +86,7 @@ def partial_fourier_2d(inds: torch.Tensor, height: int, width: int, x: torch.Ten
         transformed[..., inds] = x.view(-1, num_coefficients).to(dtype)
         transformed = transformed.view(-1, height, width)
         transformed = torch.fft.ifftshift(transformed, dim=(-2, -1))
-        spatial = ifft2_dft_adjoint(transformed)
+        spatial = ifft2_dft_adjoint(transformed, normalization=normalization)
         return spatial.view(-1, num_pixels)
 
     raise ValueError(f"mode must be 1 or 2, got {mode}.")

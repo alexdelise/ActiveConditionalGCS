@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import gc
 import csv
+import hashlib
 import json
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -17,7 +18,7 @@ from .config import (
     sampling_method_folder,
 )
 from .datasets import load_dataset_index
-from .ktilde import load_ktilde_probabilities
+from .ktilde import load_ktilde_probabilities, regularize_sampling_probabilities
 from .utils import collect_env_info, json_dump, safe_empty_cuda_cache, set_reproducibility
 
 
@@ -250,7 +251,7 @@ def resolve_dataset_for_run(project_root: str | Path, cfg: RunConfig) -> Dict[st
 def resolve_ktilde_for_run(project_root: str | Path, cfg: RunConfig) -> Dict[str, Any]:
     """Load the exact k-tilde artifact referenced by a run config and validate its shape."""
 
-    probabilities, metadata, file_path = load_ktilde_probabilities(Path(project_root) / "ktilde", cfg.ktilde.name)
+    raw_probabilities, metadata, file_path = load_ktilde_probabilities(Path(project_root) / "ktilde", cfg.ktilde.name)
     if int(metadata["height"]) != int(cfg.image.height) or int(metadata["width"]) != int(cfg.image.width):
         # K-tilde maps are resolution-specific because they index flattened FFT
         # coordinates.
@@ -258,10 +259,35 @@ def resolve_ktilde_for_run(project_root: str | Path, cfg: RunConfig) -> Dict[str
             f"K-tilde '{cfg.ktilde.name}' has shape {(metadata['height'], metadata['width'])}, "
             f"expected {(cfg.image.height, cfg.image.width)}."
         )
+    probabilities = regularize_sampling_probabilities(
+        raw_probabilities,
+        float(cfg.sampling.probability_regularization_zeta),
+    )
+
+    def probability_summary(values: np.ndarray) -> Dict[str, Any]:
+        array = np.asarray(values, dtype="<f8").reshape(-1)
+        return {
+            "count": int(array.size),
+            "sum": float(array.sum()),
+            "min": float(array.min()),
+            "max": float(array.max()),
+            "sha256_float64_le": hashlib.sha256(array.tobytes()).hexdigest(),
+        }
+
+    artifact_hasher = hashlib.sha256()
+    with Path(file_path).open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            artifact_hasher.update(chunk)
+
     return {
         "probabilities": probabilities,
+        "raw_probabilities": raw_probabilities,
+        "raw_probability_summary": probability_summary(raw_probabilities),
+        "effective_probability_summary": probability_summary(probabilities),
+        "probability_regularization_zeta": float(cfg.sampling.probability_regularization_zeta),
         "metadata": metadata,
         "path": str(file_path),
+        "artifact_sha256": artifact_hasher.hexdigest(),
     }
 
 
@@ -288,7 +314,13 @@ def save_run_metadata(run_root: Path, cfg: RunConfig, dataset: Dict[str, Any], k
             {
                 "name": cfg.ktilde.name,
                 "path": ktilde_info["path"],
+                "artifact_sha256": ktilde_info["artifact_sha256"],
                 "metadata": ktilde_info["metadata"],
+                "raw_probability_summary": ktilde_info["raw_probability_summary"],
+                "effective_probability_summary": ktilde_info["effective_probability_summary"],
+                "probability_regularization_zeta": ktilde_info["probability_regularization_zeta"],
+                "fft_normalization": cfg.sampling.fft_normalization,
+                "weighted_ls": bool(cfg.sampling.weighted_ls),
             },
         )
 
@@ -299,6 +331,8 @@ def run_method(
     *,
     tag: str,
     samp_method: int,
+    sampling_percentages: Optional[List[float]] = None,
+    repeats_per_setting: Optional[int] = None,
 ) -> Dict[str, Any]:
     """Run one sampling method over the configured sweep grid.
 
@@ -328,6 +362,38 @@ def run_method(
     method_root = run_root / method_folder
     method_root.mkdir(parents=True, exist_ok=True)
 
+    execution_sampling_percentages = (
+        [float(value) for value in sampling_percentages]
+        if sampling_percentages is not None
+        else [float(value) for value in cfg.sweep.sampling_perc_list]
+    )
+    missing_rates = [
+        requested
+        for requested in execution_sampling_percentages
+        if not any(
+            abs(requested - configured) <= 1e-12
+            for configured in cfg.sweep.sampling_perc_list
+        )
+    ]
+    if missing_rates:
+        raise ValueError(
+            "Execution sampling percentages must be present in the canonical "
+            f"sweep; missing {missing_rates}."
+        )
+    execution_repeats_per_setting = (
+        int(repeats_per_setting)
+        if repeats_per_setting is not None
+        else int(cfg.sweep.repeats_per_setting)
+    )
+    if (
+        execution_repeats_per_setting <= 0
+        or execution_repeats_per_setting > int(cfg.sweep.repeats_per_setting)
+    ):
+        raise ValueError(
+            "Execution repeats must be positive and no greater than the canonical "
+            f"repeat count ({cfg.sweep.repeats_per_setting})."
+        )
+
     pipe = load_sd15_pipeline(cfg.runtime)
     all_rows: List[Dict[str, Any]] = []
     prompt_cache: Dict[str, Any] = {}
@@ -346,8 +412,8 @@ def run_method(
                 )
             prompt_embeddings = prompt_cache[prompt_text]
 
-            for samp_perc in cfg.sweep.sampling_perc_list:
-                for repeat_id in range(int(cfg.sweep.repeats_per_setting)):
+            for samp_perc in execution_sampling_percentages:
+                for repeat_id in range(execution_repeats_per_setting):
                     run_dir = sample_run_dir(
                         method_root,
                         item_id=item_id,
@@ -384,6 +450,7 @@ def run_method(
                         prompt_text=prompt_text,
                         prompt_embeddings=prompt_embeddings,
                         probabilities=None if ktilde_info is None else ktilde_info["probabilities"],
+                        ktilde_metadata=None if ktilde_info is None else ktilde_info["metadata"],
                     )
                     all_rows.append(row)
                     print(
@@ -393,6 +460,29 @@ def run_method(
                         f"SSIM {float(row['ssim']):.4f}"
                         f"{metric_log_fragment(row, 'pixel_mae', 'MAE')}"
                     )
+
+        # Rebuild the aggregate from all completed canonical leaves. Disjoint
+        # rate shards therefore compose into one table without changing the
+        # canonical five-rate run configuration.
+        all_rows = []
+        for item in dataset["items"]:
+            for samp_perc in cfg.sweep.sampling_perc_list:
+                for repeat_id in range(int(cfg.sweep.repeats_per_setting)):
+                    run_dir = sample_run_dir(
+                        method_root,
+                        item_id=int(item["item_id"]),
+                        samp_perc=float(samp_perc),
+                        repeat_id=int(repeat_id),
+                    )
+                    existing_row = load_completed_run_row(
+                        run_dir,
+                        dataset_item=item,
+                        image_height=int(cfg.image.height),
+                        image_width=int(cfg.image.width),
+                        method_folder=method_folder,
+                    )
+                    if existing_row is not None:
+                        all_rows.append(existing_row)
 
         results_csv = run_root / f"results_{method_folder}.csv"
         write_results_csv(results_csv, all_rows)
@@ -409,6 +499,8 @@ def run_method(
             "zero_filled_psnr_db": column_array(all_rows, "zero_filled_psnr_db", np.float64),
             "zero_filled_ssim": column_array(all_rows, "zero_filled_ssim", np.float64),
             "zero_filled_pixel_mae": optional_column_array(all_rows, "zero_filled_pixel_mae", np.float64),
+            "final_raw_resid_l2": optional_column_array(all_rows, "final_raw_resid_l2", np.float64),
+            "final_weighted_resid_l2": optional_column_array(all_rows, "final_weighted_resid_l2", np.float64),
         }
         np.savez_compressed(str(run_root / f"results_{method_folder}.npz"), **compact_payload)
         return {
@@ -429,6 +521,8 @@ def run_methods(
     *,
     tag: str,
     method_ids: List[int],
+    sampling_percentages: Optional[List[float]] = None,
+    repeats_per_setting: Optional[int] = None,
 ) -> List[Dict[str, Any]]:
     """Run a list of sampling methods under a shared tagged results root."""
 
@@ -439,7 +533,16 @@ def run_methods(
         if int(method_id) in seen:
             continue
         seen.add(int(method_id))
-        outputs.append(run_method(project_root, cfg, tag=tag, samp_method=int(method_id)))
+        outputs.append(
+            run_method(
+                project_root,
+                cfg,
+                tag=tag,
+                samp_method=int(method_id),
+                sampling_percentages=sampling_percentages,
+                repeats_per_setting=repeats_per_setting,
+            )
+        )
     return outputs
 
 
@@ -449,6 +552,8 @@ def run_enabled_methods(
     *,
     tag: str,
     families: Optional[List[str]] = None,
+    sampling_percentages: Optional[List[float]] = None,
+    repeats_per_setting: Optional[int] = None,
 ) -> List[Dict[str, Any]]:
     """Run the sampling methods enabled in the config, optionally filtered by family."""
 
@@ -456,4 +561,11 @@ def run_enabled_methods(
     if not method_ids:
         family_text = ",".join(families or [])
         raise ValueError(f"No sampling methods are enabled for families={family_text!r}.")
-    return run_methods(project_root, cfg, tag=tag, method_ids=method_ids)
+    return run_methods(
+        project_root,
+        cfg,
+        tag=tag,
+        method_ids=method_ids,
+        sampling_percentages=sampling_percentages,
+        repeats_per_setting=repeats_per_setting,
+    )

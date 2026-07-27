@@ -58,6 +58,7 @@ ABLATION_SAMPLING_PERCENTAGES: tuple[float, ...] = (
     0.01,
 )
 OLD_ABLATION_SAMPLING_PERCENTAGES: tuple[float, ...] = (0.00125, 0.0025, 0.005, 0.01, 0.025)
+WEIGHTED_SAMPLING_PERCENTAGES: tuple[float, ...] = (0.00125, 0.0025, 0.005, 0.01, 0.025)
 PANEL_TITLE_FONT = {"fontfamily": "serif", "fontname": "Computer Modern Roman"}
 
 
@@ -94,46 +95,52 @@ BASE_DISTRIBUTIONS: List[Dict[str, Any]] = [
 
 EXPERIMENT_SPECS: Dict[str, Dict[str, Any]] = {
     "prompt_matched_in_range": {
-        "ablation_root": "ablation/prompt_matched/sunset",
-        "result_root": "prompt_matched/sunset",
+        "ablation_root": "unweighted/ablation/prompt_matched/sunset",
+        "result_root": "unweighted/prompt_matched/sunset",
         "dataset_name": "sunset_beach_signal_sd15_512x512",
         "split": True,
         "archived": False,
     },
     "prompt_mismatched_in_range": {
-        "ablation_root": "ablation/prompt_mismatched/sunset",
-        "result_root": "prompt_mismatched/sunset",
+        "ablation_root": "unweighted/ablation/prompt_mismatched/sunset",
+        "result_root": "unweighted/prompt_mismatched/sunset",
         "dataset_name": "sunset_sandy_coast_signal_sd15_512x512",
         "split": True,
         "archived": False,
     },
     "out_of_range": {
-        "ablation_root": "ablation/out_of_range/sunset",
-        "result_root": "out_of_range/sunset",
+        "ablation_root": "unweighted/ablation/out_of_range/sunset",
+        "result_root": "unweighted/out_of_range/sunset",
         "dataset_name": "out_of_range_512x512",
         "split": True,
         "archived": False,
     },
-    "prompt_matched_in_range_old": {
-        "ablation_root": "ablation/prompt_matched_old/sunset",
-        "result_root": "prompt_matched_old/sunset",
+    "weighted_prompt_matched_in_range": {
+        "ablation_root": "weighted/ablation/prompt_matched/sunset",
+        "result_root": "weighted/prompt_matched/sunset",
         "dataset_name": "sunset_beach_signal_sd15_512x512",
-        "split": False,
-        "archived": True,
+        "split": True,
+        "split_names": ("first3", "last2"),
+        "archived": False,
+        "sampling_percentages": WEIGHTED_SAMPLING_PERCENTAGES,
     },
-    "prompt_mismatched_in_range_old": {
-        "ablation_root": "ablation/prompt_mismatched_old/sunset",
-        "result_root": "prompt_mismatched/sunset",
+    "weighted_prompt_mismatched_in_range": {
+        "ablation_root": "weighted/ablation/prompt_mismatched/sunset",
+        "result_root": "weighted/prompt_mismatched/sunset",
         "dataset_name": "sunset_sandy_coast_signal_sd15_512x512",
-        "split": False,
-        "archived": True,
+        "split": True,
+        "split_names": ("first3", "last2"),
+        "archived": False,
+        "sampling_percentages": WEIGHTED_SAMPLING_PERCENTAGES,
     },
-    "out_of_range_old": {
-        "ablation_root": "ablation/out_of_range_old/sunset",
-        "result_root": "out_of_range/sunset",
+    "weighted_out_of_range": {
+        "ablation_root": "weighted/ablation/out_of_range/sunset",
+        "result_root": "weighted/out_of_range/sunset",
         "dataset_name": "out_of_range_512x512",
-        "split": False,
-        "archived": True,
+        "split": True,
+        "split_names": ("first3", "last2"),
+        "archived": False,
+        "sampling_percentages": WEIGHTED_SAMPLING_PERCENTAGES,
     },
 }
 
@@ -144,7 +151,10 @@ def experiment_sampling_percentages(experiment: str) -> tuple[float, ...]:
     key = str(experiment)
     if key not in EXPERIMENT_SPECS:
         raise KeyError(f"Unknown CFG-ablation experiment {experiment!r}; expected one of {sorted(EXPERIMENT_SPECS)}.")
-    if bool(EXPERIMENT_SPECS[key].get("archived", False)):
+    spec = EXPERIMENT_SPECS[key]
+    if "sampling_percentages" in spec:
+        return tuple(float(value) for value in spec["sampling_percentages"])
+    if bool(spec.get("archived", False)):
         return OLD_ABLATION_SAMPLING_PERCENTAGES
     return ABLATION_SAMPLING_PERCENTAGES
 
@@ -163,14 +173,15 @@ def experiment_distributions(experiment: str = "prompt_matched_in_range") -> Lis
         item["experiment"] = key
         item["dataset_name"] = str(spec["dataset_name"])
         item["new_tag"] = f"{spec['ablation_root']}/{prefix}"
+        split_names = tuple(spec.get("split_names", ("first4", "last3")))
         item["new_tags"] = (
-            [f"{spec['ablation_root']}/first4_{prefix}", f"{spec['ablation_root']}/last3_{prefix}"]
+            [f"{spec['ablation_root']}/{split_name}_{prefix}" for split_name in split_names]
             if bool(spec.get("split", False))
             else [item["new_tag"]]
         )
         item["old_tag"] = f"{spec['result_root']}/{prefix}"
         item["old_tags"] = (
-            [f"{spec['result_root']}/first4_{prefix}", f"{spec['result_root']}/last3_{prefix}"]
+            [f"{spec['result_root']}/{split_name}_{prefix}" for split_name in split_names]
             if bool(spec.get("split", False))
             else [item["old_tag"]]
         )
@@ -258,7 +269,7 @@ def find_sd15_root(start: str | Path | None = None) -> Path:
 
     begin = Path.cwd() if start is None else Path(start)
     for candidate in _candidate_roots(begin.resolve()):
-        if (candidate / "ktilde" / "config.json").is_file() and (candidate / "src").is_dir():
+        if (candidate / "ktilde" / "unweighted" / "config.json").is_file() and (candidate / "src").is_dir():
             return candidate
     raise FileNotFoundError("Could not resolve the sd1.5 project root.")
 
@@ -392,8 +403,11 @@ def sync_main_references(
 ) -> pd.DataFrame:
     """Refresh compatible unconditioned and CFG 7.5 references from main runs.
 
-    Current ablations use first4/last3 result tags matching the main experiments.
-    Archived ablations are never modified.
+    Current legacy ablations use first4/last3 result tags matching the main
+    experiments. Weighted ablations use first3/last2 tags. Archived ablations
+    are never modified. The weighted launch scripts perform the stricter
+    full-config compatibility check before copying; this helper supports
+    notebook dry-runs.
     """
 
     root = find_sd15_root(sd15_root)
@@ -432,17 +446,33 @@ def sync_main_references(
         prefix = str(distribution["prefix"])
         copied_any = False
 
-        for split_name in ("first4", "last3"):
-            source_root = root / "results" / str(spec["result_root"]) / f"{split_name}_{prefix}"
-            target_root = root / "results" / str(spec["ablation_root"]) / f"{split_name}_{prefix}"
+        if bool(spec.get("split", False)):
+            tag_roots = [
+                (
+                    split_name,
+                    root / "results" / str(spec["result_root"]) / f"{split_name}_{prefix}",
+                    root / "results" / str(spec["ablation_root"]) / f"{split_name}_{prefix}",
+                )
+                for split_name in tuple(spec.get("split_names", ("first4", "last3")))
+            ]
+        else:
+            tag_roots = [
+                (
+                    "unsplit",
+                    root / "results" / str(spec["result_root"]) / prefix,
+                    root / "results" / str(spec["ablation_root"]) / prefix,
+                )
+            ]
+
+        for source_kind, source_root, target_root in tag_roots:
             for reference, source_suffix, target_name in references:
-                split_case = source_root / f"{prefix}__{source_suffix}"
+                source_case = source_root / f"{prefix}__{source_suffix}"
                 dest_case = target_root / target_name
-                if not split_case.is_dir():
+                if not source_case.is_dir():
                     continue
                 for sample_value in sample_values:
                     sampling_dir = _sampling_dir_name(sample_value)
-                    src = split_case / "cs" / "item_000" / sampling_dir
+                    src = source_case / "cs" / "item_000" / sampling_dir
                     if not src.is_dir():
                         continue
                     dst = dest_case / "cs" / "item_000" / sampling_dir
@@ -453,7 +483,7 @@ def sync_main_references(
                             "experiment": key,
                             "distribution_key": str(distribution["key"]),
                             "reference": reference,
-                            "source_kind": split_name,
+                            "source_kind": source_kind,
                             "sampling_dir": sampling_dir,
                             "status": "would_copy" if dry_run else "copied",
                             "copied_files": int(copied_files),

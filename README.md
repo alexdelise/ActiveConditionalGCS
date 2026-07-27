@@ -1,9 +1,10 @@
-# Active Learning for Conditional Generative Compressed Sensing Code Repository
+# Active Learning for Conditional Generative Compressed Sensing
 
 ## Setup
 
-Use Python 3.11 or 3.12 with a CUDA-capable PyTorch install.
-`requirements.txt` lists the direct Python dependencies needed for the code and analysis notebooks.
+Use Python 3.11 or 3.12 with a CUDA-capable PyTorch installation. Direct
+dependencies are listed in [requirements.txt](requirements.txt).
+
 ```bash
 cd ActiveConditionalGCS
 python3.12 -m venv .venv
@@ -12,426 +13,148 @@ pip install -r requirements.txt
 export PYTHON_BIN="$(pwd)/.venv/bin/python"
 ```
 
-All shell launchers honor `PYTHON_BIN`; set it to the interpreter for the
-environment that has these requirements installed.
+All launchers use the active environment's `python` by default and honor
+`PYTHON_BIN`. Stable Diffusion 1.5 is downloaded through Hugging Face
+Diffusers or loaded from the local Hugging Face cache. Paper-style PDF figures
+require a TeX installation.
 
-The SD1.5 weights are not vendored in this folder. The first dataset, K-tilde,
-or reconstruction command downloads `stable-diffusion-v1-5/stable-diffusion-v1-5`
-through Hugging Face Diffusers, so the machine must be allowed to download the
-model or have it available in the Hugging Face cache. The model page lists the
-Stable Diffusion v1.5 weights under the CreativeML Open RAIL-M license; see
-`THIRD_PARTY_NOTICES.md` for the model notice. If needed, authenticate with
-`huggingface-cli login` and set `HF_HOME` or `HF_HUB_CACHE` to a persistent
-cache directory.
+## Repository Layout
 
-The analysis helpers use Matplotlib with `text.usetex=True` for paper-style
-figures. Install a TeX distribution before running the notebooks that export
-PDF figures.
+- [configs/unweighted/](configs/unweighted/) contains backward-normalized,
+  unweighted experiment configurations.
+- [configs/weighted/](configs/weighted/) contains unitary, weighted
+  least-squares experiment configurations.
+- [scripts/unweighted/](scripts/unweighted/) and
+  [scripts/weighted/](scripts/weighted/) contain the corresponding launchers.
+- [results/unweighted/](results/unweighted/) and
+  [results/weighted/](results/weighted/) contain raw runs and their respective
+  [unweighted figures](results/unweighted/figures/) and
+  [weighted figures](results/weighted/figures/).
+- [analyze_results/unweighted/](analyze_results/unweighted/) and
+  [analyze_results/weighted/](analyze_results/weighted/) contain analysis
+  notebooks.
+- [ktilde/unweighted/](ktilde/unweighted/) contains the S500 artifacts, while
+  [ktilde/weighted/](ktilde/weighted/) contains the S10000 reference and
+  convergence-study artifacts.
 
-## File Tree
+## Experiment Families
 
-```text
-📦 ActiveConditionalGCS/
-│
-├── 📄 README.md                         ← This guide: setup, naming, output layout, and complete run commands
-├── 📄 requirements.txt                  ← Direct Python dependencies for the paper runs
-├── 📄 THIRD_PARTY_NOTICES.md            ← Third-party attribution notes
-├── 📄 build_dataset.py                  ← Builds/validates dataset artifacts from `datasets/config.json`
-├── 📄 build_ktilde.py                   ← Builds/validates Christoffel/K-tilde artifacts
-├── 📄 run_ktilde_convergence.py         ← Reruns Algorithm 1 and records scalar convergence diagnostics
-├── 📄 run_conditioning_regression.py    ← Suite runner used by all experiment scripts
-├── 📄 run_cs.py                         ← Single-config Christoffel/K-tilde sampler runner
-├── 📄 run_mcs.py                        ← Optional MCS baseline runner, not used by paper scripts
-├── 📄 run_all.py                        ← Single-config runner for enabled samplers
-├── 📄 run_suite.py                      ← Generic suite runner retained for compatibility
-│
-├── 📁 src/                              ← Core reconstruction package
-│   ├── config.py                        ← Config dataclasses, loaders, and sampler aliases
-│   ├── constants.py                     ← Device/constants shared by the codebase
-│   ├── datasets.py                      ← Dataset artifact loading helpers
-│   ├── diffusion.py                     ← SD1.5 pipeline loading, prompt encoding, denoising, VAE helpers
-│   ├── fft.py                           ← Partial Fourier operators
-│   ├── ktilde.py                        ← K-tilde probability loading/build helpers
-│   ├── metrics.py                       ← PSNR/SSIM/image formatting utilities
-│   ├── reconstruction.py                ← Diffusion backpropagation reconstruction loop
-│   ├── runner.py                        ← Sweep execution, artifact writing, resume/skip behavior
-│   ├── sampling.py                      ← Christoffel/K-tilde sampling masks plus measurement operator
-│   ├── utils.py                         ← JSON, reproducibility, environment, and CUDA cleanup helpers
-│   └── README.md
-│
-├── 📁 configs/                          ← Base configs and suite manifests
-│   ├── prompt_matched/sunset/
-│   ├── prompt_mismatched/sunset/
-│   ├── out_of_range/sunset/
-│   ├── ablation/<experiment>/sunset/
-│   ├── *_suite.json                     ← Per-prior suite manifests launched by scripts
-│   └── README.md
-│
-├── 📁 datasets/                         ← Dataset artifacts and index files
-│   ├── config.json
-│   ├── sunset_beach_signal_sd15_512x512/
-│   ├── sunset_sandy_coast_signal_sd15_512x512/
-│   ├── out_of_range_512x512/
-│   └── README.md
-│
-├── 📁 ktilde/                           ← Precomputed Christoffel/K-tilde artifacts
-│   ├── config.json
-│   ├── config_cfg_ablation.json
-│   ├── config_convergence.json
-│   ├── Ktilde_SD15__fft__*.npz
-│   └── README.md
-│
-├── 📁 scripts/                          ← Parallel launch scripts and aggregate wrappers
-│   ├── prompt_matched/sunset/            ← Full, first4, last3, and aggregate prompt-matched runs
-│   ├── prompt_mismatched/sunset/         ← Full, first4, last3, and aggregate mismatched runs
-│   ├── out_of_range/sunset/              ← Full, first4, last3, and aggregate OOD runs
-│   ├── ablation/<experiment>/sunset/     ← CFG-ablation launch scripts
-│   ├── ablation/ktilde/sunset/           ← Compatibility aliases for older CFG K-tilde commands
-│   ├── ktilde/main/                       ← Four primary S500 paper-prior builders
-│   ├── ktilde/cfg_ablation/               ← Nine CFG-ablation S500 prior builders
-│   ├── ktilde/convergence/                ← Independent S10000 build and convergence launchers
-│   └── README.md
-│
-├── 📁 analyze_results/                  ← Analysis helpers and notebooks for paper figures
-│   ├── sd15_conditioning_experiment.py
-│   ├── sd15_cfg_ablation_analysis.py
-│   ├── *_results.ipynb
-│   ├── *_cfg_ablation.ipynb
-│   ├── ktilde_lambda_comparison.ipynb
-│   ├── old/                              ← Archived pre-fix notebooks
-│   └── README.md
-│
-├── 📁 readmepics/                       ← Expected-output figures copied from completed original runs
-└── 📁 results/                          ← Ignored local outputs, organized by experiment family
-    ├── prompt_matched/sunset/
-    ├── prompt_matched_old/sunset/         ← Archived pre-fix prompt-matched outputs
-    ├── prompt_mismatched/sunset/
-    ├── out_of_range/sunset/
-    ├── ablation/<experiment>/sunset/
-    └── analysis/<experiment>/sunset/
-```
+| Family | Dataset | Meaning |
+| --- | --- | --- |
+| `prompt_matched` | `sunset_beach_signal_sd15_512x512` | In-range signal and matched recovery prompt. |
+| `prompt_mismatched` | `sunset_sandy_coast_signal_sd15_512x512` | In-range signal with mismatched recovery prompt. |
+| `out_of_range` | `out_of_range_512x512` | External out-of-range sunset image. |
 
-## Naming
+The four K-tilde sampling priors are `k0_unconditioned`,
+`k1_daytime_beach`, `k2_sunset_beach`, and `k4_cat`.
 
-| Family Path | Manuscript Name | Dataset | Meaning |
-| --- | --- | --- | --- |
-| `prompt_matched` | Prompt matched in range | `sunset_beach_signal_sd15_512x512` | Signal and recovery prompt match in range. |
-| `prompt_mismatched` | Prompt mismatched in range | `sunset_sandy_coast_signal_sd15_512x512` | Signal is in range but the recovery prompt is mismatched. |
-| `out_of_range` | Out of range | `out_of_range_512x512` | External out-of-range sunset image. |
+## Unweighted Experiments
 
-| Prior | Meaning |
-| --- | --- |
-| `k0_unconditioned` | Unconditioned K-tilde prior. |
-| `k1_daytime_beach` | Daytime beach prompt prior. |
-| `k2_sunset_beach` | Sunset beach prompt prior. |
-| `k4_cat` | Cat prompt prior. |
-
-## K-Tilde Rebuild Commands
-
-Every checked-in k-tilde used by the paper has a corresponding independent
-launcher under `scripts/ktilde/`. All launchers reuse an existing artifact
-after validating its metadata; pass `--force` to regenerate it.
-
-Rebuild or validate the four primary CFG 7.5, S500 paper priors:
+Use [scripts/unweighted/run_split.sh](scripts/unweighted/run_split.sh):
 
 ```bash
-bash scripts/ktilde/main/build_all.sh
+./scripts/unweighted/run_split.sh \
+  <main|ablation> \
+  <prompt_matched|prompt_mismatched|out_of_range> \
+  <first4|last3> \
+  <unprompted|daytime_beach|sunset_beach|cat>
 ```
 
-Rebuild or validate all nine conditioned CFG 1, 3, and 5 S500 ablation priors:
+`first4` runs sampling ratios
+`0.00015625, 0.0003125, 0.000625, 0.00125`; `last3` runs
+`0.0025, 0.005, 0.01`.
 
 ```bash
-bash scripts/ktilde/cfg_ablation/build_all.sh
+./scripts/unweighted/run_split.sh main prompt_matched first4 sunset_beach
+./scripts/unweighted/run_split.sh main prompt_matched last3 sunset_beach
+./scripts/unweighted/run_split.sh ablation prompt_matched first4 sunset_beach
+./scripts/unweighted/run_split.sh ablation prompt_matched last3 sunset_beach
 ```
 
-Rebuild or validate all 13 checked-in paper priors sequentially:
+Use [scripts/unweighted/run_suite.sh](scripts/unweighted/run_suite.sh) to run
+both splits sequentially:
 
 ```bash
-bash scripts/ktilde/build_all_paper.sh
+./scripts/unweighted/run_suite.sh main prompt_matched sunset_beach
 ```
 
-Each aggregate is composed of per-artifact launchers in the same directory, so
-the jobs can also be scheduled independently. The historical
-`scripts/ablation/ktilde/sunset/build_cfg*_conditioned_prompts.sh` commands
-remain as compatibility aliases for the canonical CFG aggregate launchers.
-
-## K-Tilde Convergence Commands
-
-The convergence experiment has two phases for each of the four paper prompts.
-First, build the final 10,000-iteration reference under `ktilde/`. Then rerun
-the same deterministic estimator and record scalar convergence metrics:
-relative `l2` error, relative `linf` error, the raw theory-facing statistic
-`max_i K_tilde_final_unitary(i) / mu_iteration(i)`, and the max absolute
-log-ratio between the final and current sampling distributions. The rerun saves
-only the compact error trace and metadata under
-`results/figures/ktilde_convergence/`; it does not save intermediate k-tildes.
-Each measurement job also streams all measured convergence metrics every 10
-iterations.
-
-Each command below is an independent job. A measurement job requires only its
-matching reference build to have completed.
-
-Build the four final references:
+Validate every split manifest without loading SD1.5:
 
 ```bash
-bash scripts/ktilde/convergence/build_k0_unconditioned.sh
-bash scripts/ktilde/convergence/build_k1_daytime_beach.sh
-bash scripts/ktilde/convergence/build_k2_sunset_beach.sh
-bash scripts/ktilde/convergence/build_k4_cat.sh
+python scripts/unweighted/validate_suite.py
 ```
 
-Measure the four convergence traces:
+The S500 K-tilde builders are
+[scripts/unweighted/ktilde/main/build_all.sh](scripts/unweighted/ktilde/main/build_all.sh),
+[scripts/unweighted/ktilde/cfg_ablation/build_all.sh](scripts/unweighted/ktilde/cfg_ablation/build_all.sh),
+and
+[scripts/unweighted/ktilde/build_all_paper.sh](scripts/unweighted/ktilde/build_all_paper.sh).
+
+## Weighted Experiments
+
+Use [scripts/weighted/run_split.sh](scripts/weighted/run_split.sh):
 
 ```bash
-bash scripts/ktilde/convergence/measure_k0_unconditioned.sh --force
-bash scripts/ktilde/convergence/measure_k1_daytime_beach.sh --force
-bash scripts/ktilde/convergence/measure_k2_sunset_beach.sh --force
-bash scripts/ktilde/convergence/measure_k4_cat.sh --force
+./scripts/weighted/run_split.sh \
+  <main|ablation> \
+  <prompt_matched|prompt_mismatched|out_of_range> \
+  <first3|last2> \
+  <sampling-prior>
 ```
 
-Sequential aggregate wrappers are also available:
+Uniform MCS, inverse-square, and VDHH launchers are under
+[scripts/weighted/baselines/](scripts/weighted/baselines/).
+
+### K-Tilde Convergence
+
+Run one trial/prior pair with
+[scripts/weighted/ktilde_convergence/run_trial.sh](scripts/weighted/ktilde_convergence/run_trial.sh):
 
 ```bash
-bash scripts/ktilde/convergence/build_all.sh
-bash scripts/ktilde/convergence/measure_all.sh
+./scripts/weighted/ktilde_convergence/run_trial.sh k0 1
 ```
 
-Pass `--force` to a build or measurement launcher to replace its existing
-artifact. The convergence runner validates that the final rerun matches its
-saved S10000 reference.
-
-After all four measurement jobs finish, run the early convergence section in
-`analyze_results/ktilde_lambda_comparison.ipynb`. It displays a 2x2
-panel for each metric and saves each panel plus its four individual PDFs under
-`results/figures/ktilde_convergence/figures/`. The relative-`l2` panel keeps
-the historical name `sd15_ktilde_convergence_grid.pdf`; the added metrics use
-explicit stems such as `sd15_ktilde_convergence_relative_linf_error_grid.pdf`.
-
-## Main Experiment Commands
-We provide commands to perform runs split by sampling distribution for parallel efficiency. Each program launched by one of the command belows requires about 5GB VRAM, so all four runs, corresponding to each sampling distribution, can fit on a 24GB VRAM GPU like the NVIDIA RTX A5000 GPUs we use in the paper. 
-
-### Prompt Matched In Range
-
-This experiment uses the same seven sampling percentages and optimizer settings
-as the other main experiments. The complete sweep can be split into the first
-four and last three sampling percentages for parallel scheduling.
-
-Split by sampling distribution for the complete first4+last3 sweep:
+Validate the complete job grid with
+[scripts/weighted/ktilde_convergence/list_all.sh](scripts/weighted/ktilde_convergence/list_all.sh):
 
 ```bash
-bash scripts/prompt_matched/sunset/first4_last3_sample_k0_unconditioned.sh
-bash scripts/prompt_matched/sunset/first4_last3_sample_k1_daytime_beach.sh
-bash scripts/prompt_matched/sunset/first4_last3_sample_k2_sunset_beach.sh
-bash scripts/prompt_matched/sunset/first4_last3_sample_k4_cat.sh
+./scripts/weighted/ktilde_convergence/list_all.sh
 ```
 
-Run all four distributions for the complete first4+last3 sweep (not recommended):
+Trial artifacts are stored under
+[ktilde/weighted/convergence_trials/](ktilde/weighted/convergence_trials/),
+scalar traces under
+[results/weighted/ktilde_convergence/traces/](results/weighted/ktilde_convergence/traces/),
+and convergence figures under
+[results/weighted/figures/ktilde_convergence/](results/weighted/figures/ktilde_convergence/).
 
-```bash
-bash scripts/prompt_matched/sunset/first4_last3_all.sh
-```
-
-Schedule the first four sampling rates separately:
-
-```bash
-bash scripts/prompt_matched/sunset/first4_sample_k0_unconditioned.sh
-bash scripts/prompt_matched/sunset/first4_sample_k1_daytime_beach.sh
-bash scripts/prompt_matched/sunset/first4_sample_k2_sunset_beach.sh
-bash scripts/prompt_matched/sunset/first4_sample_k4_cat.sh
-```
-
-Schedule the last three sampling rates separately:
-
-```bash
-bash scripts/prompt_matched/sunset/last3_sample_k0_unconditioned.sh
-bash scripts/prompt_matched/sunset/last3_sample_k1_daytime_beach.sh
-bash scripts/prompt_matched/sunset/last3_sample_k2_sunset_beach.sh
-bash scripts/prompt_matched/sunset/last3_sample_k4_cat.sh
-```
-
-Run an unsplit seven-rate sweep by sampling distribution:
-
-```bash
-bash scripts/prompt_matched/sunset/sample_k0_unconditioned.sh
-bash scripts/prompt_matched/sunset/sample_k1_daytime_beach.sh
-bash scripts/prompt_matched/sunset/sample_k2_sunset_beach.sh
-bash scripts/prompt_matched/sunset/sample_k4_cat.sh
-```
-
-Run all four unsplit distributions sequentially (not recommended):
-
-```bash
-bash scripts/prompt_matched/sunset/all.sh
-```
-
-### Prompt Mismatched In Range
-For this experiment we recover over seven different sampling percentages. This can take a long time, thus we split up the optimization across the first four and last three sampling percentages to run in parallel. The first set of commands below aggregates optimization over all seven sampling percentages at once, whereas the ones below it, which we used, split up the jobs. 
-
-
-Split by sampling distribution for the complete first4+last3 sweep:
-
-```bash
-bash scripts/prompt_mismatched/sunset/first4_last3_sample_k0_unconditioned.sh
-bash scripts/prompt_mismatched/sunset/first4_last3_sample_k1_daytime_beach.sh
-bash scripts/prompt_mismatched/sunset/first4_last3_sample_k2_sunset_beach.sh
-bash scripts/prompt_mismatched/sunset/first4_last3_sample_k4_cat.sh
-```
-
-Run all four distributions for the complete first4+last3 sweep (not recommended):
-
-```bash
-bash scripts/prompt_mismatched/sunset/first4_last3_all.sh
-```
-
-Schedule the first four sampling rates separately:
-
-```bash
-bash scripts/prompt_mismatched/sunset/first4_sample_k0_unconditioned.sh
-bash scripts/prompt_mismatched/sunset/first4_sample_k1_daytime_beach.sh
-bash scripts/prompt_mismatched/sunset/first4_sample_k2_sunset_beach.sh
-bash scripts/prompt_mismatched/sunset/first4_sample_k4_cat.sh
-```
-
-Schedule the last three sampling rates separately:
-
-```bash
-bash scripts/prompt_mismatched/sunset/last3_sample_k0_unconditioned.sh
-bash scripts/prompt_mismatched/sunset/last3_sample_k1_daytime_beach.sh
-bash scripts/prompt_mismatched/sunset/last3_sample_k2_sunset_beach.sh
-bash scripts/prompt_mismatched/sunset/last3_sample_k4_cat.sh
-```
-
-This command runs all optimization for this experiment sequentially (not recommended):
-
-```bash
-bash scripts/prompt_mismatched/sunset/all.sh
-```
-
-### Out Of Range
-For this experiment we recover over seven different sampling percentages. This can take a long time, thus we split up the optimization across the first four and last three sampling percentages to run in parallel. The first set of commands below aggregates optimization over all seven sampling percentages at once, whereas the ones below it, which we used, split up the jobs. 
-
-Split by sampling distribution for the complete first4+last3 sweep:
-
-```bash
-bash scripts/out_of_range/sunset/first4_last3_sample_k0_unconditioned.sh
-bash scripts/out_of_range/sunset/first4_last3_sample_k1_daytime_beach.sh
-bash scripts/out_of_range/sunset/first4_last3_sample_k2_sunset_beach.sh
-bash scripts/out_of_range/sunset/first4_last3_sample_k4_cat.sh
-```
-
-Run all four distributions for the complete first4+last3 sweep:
-
-```bash
-bash scripts/out_of_range/sunset/first4_last3_all.sh
-```
-
-Schedule the first four sampling rates separately:
-
-```bash
-bash scripts/out_of_range/sunset/first4_sample_k0_unconditioned.sh
-bash scripts/out_of_range/sunset/first4_sample_k1_daytime_beach.sh
-bash scripts/out_of_range/sunset/first4_sample_k2_sunset_beach.sh
-bash scripts/out_of_range/sunset/first4_sample_k4_cat.sh
-```
-
-Schedule the last three sampling rates separately:
-
-```bash
-bash scripts/out_of_range/sunset/last3_sample_k0_unconditioned.sh
-bash scripts/out_of_range/sunset/last3_sample_k1_daytime_beach.sh
-bash scripts/out_of_range/sunset/last3_sample_k2_sunset_beach.sh
-bash scripts/out_of_range/sunset/last3_sample_k4_cat.sh
-```
-
-This command runs all optimization for this experiment sequentially (not recommended):
-
-```bash
-bash scripts/out_of_range/sunset/all.sh
-```
-
-## CFG Ablation Commands
-
-The corrected recovery-only CFG ablation covers CFG 1, 1.5, 3, and 5 using
-the same seven sampling ratios, five trials, and optimization settings as each
-corresponding main experiment. Compatible unconditioned and CFG 7.5 rows are
-copied from the main first4/last3 results before each split runs.
-
-For any `<experiment>` in `prompt_matched`, `prompt_mismatched`, or
-`out_of_range`, schedule one sampling distribution's first four and last three
-rates independently:
-
-```bash
-bash scripts/ablation/<experiment>/sunset/first4_sample_k0_unconditioned.sh
-bash scripts/ablation/<experiment>/sunset/last3_sample_k0_unconditioned.sh
-```
-
-Replace `sample_k0_unconditioned` with `sample_k1_daytime_beach`,
-`sample_k2_sunset_beach`, or `sample_k4_cat` for the other sampling
-distributions. Convenience wrappers run both splits for one distribution:
-
-```bash
-bash scripts/ablation/<experiment>/sunset/first4_last3_sample_k2_sunset_beach.sh
-```
-
-Aggregate split launchers are also available, though running all four
-distributions sequentially is not recommended:
-
-```bash
-bash scripts/ablation/<experiment>/sunset/first4_all.sh
-bash scripts/ablation/<experiment>/sunset/last3_all.sh
-```
-
-The original five-rate/two-trial ablation configs, scripts, raw results,
-analysis outputs, and notebooks are preserved under matching `_old` names.
+Reference builders and single-reference convergence measurements are under
+[scripts/weighted/ktilde_convergence/reference/](scripts/weighted/ktilde_convergence/reference/).
 
 ## Output Layout
 
-Runs write to:
+Raw unweighted runs are stored below
+[results/unweighted/](results/unweighted/), and raw weighted runs are stored
+below [results/weighted/](results/weighted/). Every leaf contains its resolved
+configuration, measurements, reconstruction, scalar metrics, and recovered
+latent.
 
-```text
-results/<experiment_family>/sunset/[first4_|last3_]sample_<prior>/<case>/cs/item_000/samp_<rate>/rep_<id>/
-results/ablation/<experiment_family>/sunset/[first4_|last3_]sample_<prior>/<case>/cs/item_000/samp_<rate>/rep_<id>/
-```
+Analysis outputs are stored beside their experiment family:
 
-Each leaf run stores `run_config.json`, `dataset_item.json`, `run_data.npz`, `run_summary.txt`, `recon_cs.png`, `zero_filled_ifft.png`, and `z_rec.pt`.
+- [results/unweighted/figures/](results/unweighted/figures/)
+- [results/weighted/figures/](results/weighted/figures/)
 
-Each suite also writes `experiment_manifest.json`, `resolved_suite_manifest.json`, `suite_results.json`, and compact `results_cs.csv/.npz` tables. These raw and restartable experiment artifacts stay under `results/<experiment_family>/...` or `results/ablation/<experiment_family>/...`.
+## Analysis
 
-`results/figures/...` is the separate derived-output layer. Analysis notebooks
-write paper figures and compact summaries there so they do not mix with the
-raw per-run artifacts. Analysis-only measurements, such as the compact k-tilde
-convergence traces, also write directly into this layer.
+Shared Python analysis helpers are in
+[analyze_results/](analyze_results/). Notebook groups are:
 
-All generated outputs live under `results/` because that entire directory is
-ignored by Git and can be reproduced from the checked-in code and configs. Its
-top-level directories separate outputs by purpose:
-
-| Directory | Purpose |
-| --- | --- |
-| `results/prompt_matched/` | Raw reconstruction runs for the prompt-matched in-range experiment. |
-| `results/prompt_mismatched/` | Raw reconstruction runs for the prompt-mismatched in-range experiment. |
-| `results/out_of_range/` | Raw reconstruction runs for the out-of-range experiment. |
-| `results/ablation/` | Raw CFG-ablation reconstruction runs, subdivided by the same experiment families. |
-| `results/prompt_matched_old/` | Archived raw prompt-matched runs from before the experiment correction. |
-| `results/ablation/*_old/` | Archived raw outputs from the original five-rate/two-trial CFG ablation. |
-| `results/figures/` | Derived PDFs, compact summaries, and analysis-only traces produced from the raw runs. |
-
-Keeping `figures/` separate prevents regenerated figures and summaries from
-being mixed into the expensive, restartable reconstruction-run directories.
-The experiment-family directories remain separate because their datasets,
-prompt relationships, manifests, and paper comparisons are different.
-
-The pre-fix prompt-matched main artifacts and all original CFG-ablation
-artifacts are archived under corresponding `_old` result and analysis
-directories.
-
-K-tilde convergence runs write one compact `.convergence.npz` trace and one
-matching `.convergence.meta.json` file per prompt under
-`results/figures/ktilde_convergence/`.
+- [analyze_results/unweighted/main/](analyze_results/unweighted/main/)
+- [analyze_results/unweighted/ablation/](analyze_results/unweighted/ablation/)
+- [analyze_results/weighted/main/](analyze_results/weighted/main/)
+- [analyze_results/weighted/ablation/](analyze_results/weighted/ablation/)
 
 ## Citation
-
-If you use this code in your research, please cite:
 
 ```bibtex
 @article{delise2026active,
