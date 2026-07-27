@@ -210,9 +210,7 @@ class $\mathbb{F}_{c_s}-\mathbb{F}_{c_s}$. Its normalized empirical
 Christoffel sampling law is
 
 $$
-\widetilde{\mu}_{c_s}(i)
-=
-\frac{\widetilde{K}_{c_s}(i)}{\sum_{\ell=1}^{n}\widetilde{K}_{c_s}(\ell)}, \qquad i\in D.
+\widetilde{\mu}_{c_s}(i)=\frac{\widetilde{K}_{c_s}(i)}{\sum_{\ell=1}^{n}\widetilde{K}_{c_s}(\ell)}, \qquad i\in D.
 $$
 
 The unweighted experiment suite uses the checked-in S500 estimates in
