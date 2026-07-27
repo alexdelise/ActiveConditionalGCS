@@ -29,9 +29,12 @@ def resolve_ktilde_npz_path(ktilde_dir: str | Path, ktilde_name: str) -> Path:
     if not matches:
         searched = ", ".join(str(path) for path in candidates)
         raise FileNotFoundError(f"K-tilde '{ktilde_name}' was not found; searched: {searched}.")
-    if len(matches) > 1:
+    physical_matches = {path.resolve() for path in matches}
+    if len(physical_matches) > 1:
         locations = ", ".join(str(path) for path in matches)
         raise RuntimeError(f"K-tilde '{ktilde_name}' is ambiguous across artifact directories: {locations}.")
+    # Prefer the namespaced path when a local compatibility symlink points to
+    # the same physical artifact.
     return matches[0]
 
 
