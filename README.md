@@ -212,12 +212,7 @@ Christoffel sampling law is
 $$
 \widetilde{\mu}_{c_s}(i)
 =
-\frac{
-  \widetilde{K}_{c_s}(i)
-}{
-  \displaystyle\sum_{\ell=1}^{n}\widetilde{K}_{c_s}(\ell)
-},
-\qquad i\in D.
+\frac{\widetilde{K}_{c_s}(i)}{\sum_{\ell=1}^{n}\widetilde{K}_{c_s}(\ell)}, \qquad i\in D.
 $$
 
 The unweighted experiment suite uses the checked-in S500 estimates in
@@ -227,11 +222,7 @@ uses the S10000 references in
 $\zeta=1/2$ uniform mixture
 
 $$
-\widetilde{\mu}_{c_s,1/2}(i)
-=
-\frac{1}{2}\widetilde{\mu}_{c_s}(i)
-+
-\frac{1}{2n}.
+\widetilde{\mu}_{c_s,1/2}(i)=\frac{1}{2}\widetilde{\mu}_{c_s}(i)+\frac{1}{2n}.
 $$
 
 Regularization is applied after normalizing $\widetilde{K}$, so the saved
@@ -249,15 +240,8 @@ $\mathbf{F}_{\mathrm{u}}$ independently in each color channel. For sampled frequ
 $\Omega=(I_1,\ldots,I_m)$, its block-RGB operator is
 
 $$
-\left(\mathbf{A}^{\mathrm{w}}_{\Omega,c_s}\mathbf{f}\right)_{j,q}
-=
-\frac{
-  \left(\mathbf{F}_{\mathrm{u}}\mathbf{f}_q\right)_{I_j}
-}{
-  \sqrt{m\,\widetilde{\mu}_{c_s,1/2}(I_j)}
-},
-\qquad
-j=1,\ldots,m,\quad q=1,2,3.
+\left(\mathbf{A}^{\mathrm{w}}_{\Omega,c_s}\mathbf{f}\right)_{j,q}=
+\frac{\left(\mathbf{F}_{\mathrm{u}}\mathbf{f}_q\right)_{I_j}}{\sqrt{m\,\widetilde{\mu}_{c_s,1/2}(I_j)}}, \qquad j=1,\ldots,m,\quad q=1,2,3.
 $$
 
 The corresponding latent reconstruction minimizes the weighted measurement

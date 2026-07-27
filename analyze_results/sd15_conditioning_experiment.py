@@ -59,7 +59,7 @@ KTILDE_CONVERGENCE_METRICS: Dict[str, Dict[str, str]] = {
         "filename": "relative_linf_error",
     },
     "lambda_ref_over_mu_m": {
-        "label": r"$\max_i\, \widetilde{K}_{10000}(i) / \widetilde{\mu}_M(i)$",
+        "label": r"$\widetilde{\Lambda}(M)$",
         "filename": "lambda_ref_over_mu_m",
     },
     "max_abs_log_mu_ratio": {
@@ -70,7 +70,7 @@ KTILDE_CONVERGENCE_METRICS: Dict[str, Dict[str, str]] = {
 KTILDE_TRIAL_CONVERGENCE_METRICS: Dict[str, Dict[str, str]] = {
     **KTILDE_CONVERGENCE_METRICS,
     "lambda_ref_over_mu_m": {
-        "label": r"$\max_i\, \widetilde{K}_{10000,\mathrm{u}}(i) / \widetilde{\mu}_{M,1/2}(i)$",
+        "label": r"$\widetilde{\Lambda}(M)$",
         "filename": "lambda_ref_over_mu_m",
     },
     "max_abs_log_mu_ratio": {

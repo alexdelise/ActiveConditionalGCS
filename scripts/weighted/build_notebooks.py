@@ -460,7 +460,9 @@ Only the four shared rates enter this comparison. The `0.025` ablation rows rema
 
 
 def build_lambda_notebook() -> None:
-    notebook = clean_notebook(read_notebook(ANALYSIS_ROOT / "ktilde_lambda_comparison.ipynb"))
+    notebook = clean_notebook(
+        read_notebook(ANALYSIS_ROOT / "unweighted" / "main" / "ktilde_lambda_comparison.ipynb")
+    )
     set_source(
         notebook["cells"][0],
         """# Weighted S10000 K-Tilde / Lambda Comparison
@@ -475,7 +477,7 @@ The five-trial convergence study keeps raw K-tilde errors while applying $\\zeta
     setup = source_text(notebook["cells"][1])
     setup = setup.replace(
         "CATALOG = exp.load_ktilde_catalog(SD15_ROOT)",
-        "S10000_CONFIG = SD15_ROOT / 'ktilde' / 'config_convergence.json'\n"
+        "S10000_CONFIG = SD15_ROOT / 'ktilde' / 'weighted' / 'config_convergence.json'\n"
         "ZETA = 0.5\n"
         "CATALOG = exp.load_ktilde_catalog(SD15_ROOT, config_path=S10000_CONFIG)",
     )
@@ -487,6 +489,10 @@ The five-trial convergence study keeps raw K-tilde errors while applying $\\zeta
         "    probability_regularization_zeta=ZETA,\n"
         "    skip_missing=True,\n"
         ")",
+    )
+    setup = setup.replace(
+        "SD15_ROOT / 'ktilde' / 'unweighted' / f'{name}.npz'",
+        "SD15_ROOT / 'ktilde' / 'weighted' / 'reference' / f'{name}.npz'",
     )
     setup = setup.replace(
         "**FFT normalization.** ",
@@ -513,6 +519,10 @@ The five-trial convergence study keeps raw K-tilde errors while applying $\\zeta
         )
         text = text.replace(
             "results' / 'figures' / 'lambda_figures'",
+            "results' / 'weighted' / 'figures' / 'lambda_figures'",
+        )
+        text = text.replace(
+            "results' / 'unweighted' / 'figures' / 'lambda_figures'",
             "results' / 'weighted' / 'figures' / 'lambda_figures'",
         )
         set_source(cell, text)
