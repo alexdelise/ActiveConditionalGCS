@@ -54,12 +54,79 @@ figures. A TeX installation is therefore required when exporting the figures.
 
 ## Repository Organization
 
+<pre>
+📦 ActiveConditionalGCS/
+│
+├── 📄 <a href="README.md">README.md</a>                         ← Setup, terminology, repository layout, and experiment guide
+├── 📄 <a href="requirements.txt">requirements.txt</a>                  ← Python dependencies
+├── 📄 <a href="THIRD_PARTY_NOTICES.md">THIRD_PARTY_NOTICES.md</a>           ← Third-party attribution and model notices
+├── 📄 <a href="activeconditionalgcs.pdf">activeconditionalgcs.pdf</a>          ← Current paper PDF
+├── 📄 <a href="build_dataset.py">build_dataset.py</a>                  ← Build or validate the fixed datasets
+├── 📄 <a href="build_ktilde.py">build_ktilde.py</a>                   ← Estimate empirical Christoffel functions
+├── 📄 <a href="run_ktilde_convergence.py">run_ktilde_convergence.py</a>         ← Run one convergence trial
+├── 📄 <a href="run_conditioning_regression.py">run_conditioning_regression.py</a>      ← Run reconstruction suites
+├── 📄 <a href="run_cs.py">run_cs.py</a>                          ← Run one Christoffel-sampling configuration
+├── 📄 <a href="run_mcs.py">run_mcs.py</a>                         ← Run one uniform-MCS configuration
+├── 📄 <a href="run_all.py">run_all.py</a>                         ← Run all samplers enabled by one configuration
+├── 📄 <a href="run_suite.py">run_suite.py</a>                       ← Run a generic collection of reconstruction cases
+│
+├── 📁 <a href="src/">src/</a>                              ← Core reconstruction package
+│   ├── 📄 <a href="src/config.py">config.py</a>                     ← Configuration models and validation
+│   ├── 📄 <a href="src/datasets.py">datasets.py</a>                   ← Dataset construction and loading
+│   ├── 📄 <a href="src/diffusion.py">diffusion.py</a>                  ← SD1.5, DDIM, prompt, and VAE helpers
+│   ├── 📄 <a href="src/fft.py">fft.py</a>                        ← Partial Fourier operators and adjoints
+│   ├── 📄 <a href="src/ktilde.py">ktilde.py</a>                     ← Empirical Christoffel artifacts and sampling laws
+│   ├── 📄 <a href="src/metrics.py">metrics.py</a>                    ← Reconstruction metrics
+│   ├── 📄 <a href="src/reconstruction.py">reconstruction.py</a>             ← Latent reconstruction loop
+│   ├── 📄 <a href="src/runner.py">runner.py</a>                     ← Sweep execution and artifact writing
+│   ├── 📄 <a href="src/sampling.py">sampling.py</a>                   ← Sampling masks and weighted operators
+│   └── 📄 <a href="src/utils.py">utils.py</a>                      ← Reproducibility and artifact-path helpers
+│
+├── 📁 <a href="configs/">configs/</a>                          ← Reconstruction configurations and suite manifests
+│   ├── 📁 <a href="configs/unweighted/">unweighted/</a>                   ← Reported experiments and CFG ablations
+│   └── 📁 <a href="configs/weighted/">weighted/</a>                     ← Weighted replication, baselines, and ablations
+│
+├── 📁 <a href="datasets/">datasets/</a>                         ← Fixed image datasets and generation metadata
+│   ├── 📁 <a href="datasets/sunset_beach_signal_sd15_512x512/">sunset_beach_signal_sd15_512x512/</a>
+│   ├── 📁 <a href="datasets/sunset_sandy_coast_signal_sd15_512x512/">sunset_sandy_coast_signal_sd15_512x512/</a>
+│   └── 📁 <a href="datasets/out_of_range_512x512/">out_of_range_512x512/</a>
+│
+├── 📁 <a href="ktilde/">ktilde/</a>                          ← Empirical Christoffel artifacts
+│   ├── 📁 <a href="ktilde/unweighted/">unweighted/</a>                   ← S500 estimates used by the reported experiments
+│   └── 📁 <a href="ktilde/weighted/">weighted/</a>                     ← S10000 references and convergence trials
+│       ├── 📁 <a href="ktilde/weighted/reference/">reference/</a>
+│       └── 📁 <a href="ktilde/weighted/convergence_trials/">convergence_trials/</a>
+│
+├── 📁 <a href="scripts/">scripts/</a>                          ← Experiment launchers and validation utilities
+│   ├── 📁 <a href="scripts/unweighted/">unweighted/</a>                   ← Unweighted main experiments and ablations
+│   │   └── 📁 <a href="scripts/unweighted/ktilde/">ktilde/</a>                   ← S500 empirical Christoffel builders
+│   └── 📁 <a href="scripts/weighted/">weighted/</a>                     ← Weighted main experiments and ablations
+│       ├── 📁 <a href="scripts/weighted/baselines/">baselines/</a>                ← MCS, inverse-square, and VDHH launchers
+│       └── 📁 <a href="scripts/weighted/ktilde_convergence/">ktilde_convergence/</a>      ← Five-trial convergence launchers
+│
+├── 📁 <a href="analyze_results/">analyze_results/</a>                  ← Shared analysis helpers and paper notebooks
+│   ├── 📁 <a href="analyze_results/unweighted/">unweighted/</a>
+│   │   ├── 📁 <a href="analyze_results/unweighted/main/">main/</a>
+│   │   └── 📁 <a href="analyze_results/unweighted/ablation/">ablation/</a>
+│   └── 📁 <a href="analyze_results/weighted/">weighted/</a>
+│       ├── 📁 <a href="analyze_results/weighted/main/">main/</a>
+│       └── 📁 <a href="analyze_results/weighted/ablation/">ablation/</a>
+│
+└── 📁 <a href="results/">results/</a>                          ← Local reconstruction outputs and generated figures
+    ├── 📁 <a href="results/unweighted/">unweighted/</a>
+    │   └── 📁 <a href="results/unweighted/figures/">figures/</a>
+    └── 📁 <a href="results/weighted/">weighted/</a>
+        ├── 📁 <a href="results/weighted/figures/">figures/</a>
+        ├── 📁 <a href="results/weighted/ktilde_convergence/">ktilde_convergence/</a>
+        └── 📁 <a href="results/weighted/metrics/">metrics/</a>
+</pre>
+
 ### Entry Points
 
 | Location | Purpose |
 | --- | --- |
 | [build_dataset.py](build_dataset.py) | Build or validate the fixed image datasets described by [datasets/config.json](datasets/config.json). |
-| [build_ktilde.py](build_ktilde.py) | Estimate an empirical Christoffel function $\widetilde K$ from generated secants and save its induced sampling law. |
+| [build_ktilde.py](build_ktilde.py) | Estimate an empirical Christoffel function $\widetilde{K}$ from generated secants and save its induced sampling law. |
 | [run_ktilde_convergence.py](run_ktilde_convergence.py) | Run one independent S10000 convergence trial and record scalar diagnostics every ten iterations. |
 | [run_conditioning_regression.py](run_conditioning_regression.py) | Run a suite that crosses one sampling law with the configured recovery prompts, sampling ratios, and repeats. |
 | [run_cs.py](run_cs.py) | Run Christoffel sampling for a single reconstruction configuration. |
@@ -136,11 +203,22 @@ prompt-conditioned model classes:
 
 For a sampling prompt $c_s$, [build_ktilde.py](build_ktilde.py) generates
 independent pairs of images from the prompt-conditioned model class, forms
-normalized secants, and records the largest observed Fourier-coordinate energy.
-The resulting array $\widetilde K_{c_s}$ is an empirical approximation to the
-generalized Christoffel function of the self-difference class
-$\mathbb F_{c_s}-\mathbb F_{c_s}$. Normalizing this array gives the empirical
-Christoffel sampling distribution $\widetilde\mu_{c_s}$.
+normalized secants, and records the largest observed Fourier-coordinate
+energy. The resulting array $\widetilde{K}_{c_s}$ is an empirical
+approximation to the generalized Christoffel function of the self-difference
+class $\mathbb{F}_{c_s}-\mathbb{F}_{c_s}$. Its normalized empirical
+Christoffel sampling law is
+
+$$
+\widetilde{\mu}_{c_s}(i)
+=
+\frac{
+  \widetilde{K}_{c_s}(i)
+}{
+  \displaystyle\sum_{\ell=1}^{n}\widetilde{K}_{c_s}(\ell)
+},
+\qquad i\in D.
+$$
 
 The unweighted experiment suite uses the checked-in S500 estimates in
 [ktilde/unweighted/](ktilde/unweighted/). The theory-aligned weighted suite
@@ -149,14 +227,14 @@ uses the S10000 references in
 $\zeta=1/2$ uniform mixture
 
 $$
-\widetilde\mu_{c_s,1/2}(i)
+\widetilde{\mu}_{c_s,1/2}(i)
 =
-\frac12\widetilde\mu_{c_s}(i)
+\frac{1}{2}\widetilde{\mu}_{c_s}(i)
 +
 \frac{1}{2n}.
 $$
 
-Regularization is applied after normalizing $\widetilde K$, so the saved
+Regularization is applied after normalizing $\widetilde{K}$, so the saved
 S10000 estimates can be reused without regenerating secants.
 
 ## Reconstruction Operators
@@ -167,30 +245,30 @@ unnormalized forward FFT (`backward` normalization in PyTorch) and an
 unweighted least-squares residual.
 
 The weighted suite uses the unitary two-dimensional discrete Fourier transform
-$F_{\mathrm u}$ independently in each color channel. For sampled frequencies
+$\mathbf{F}_{\mathrm{u}}$ independently in each color channel. For sampled frequencies
 $\Omega=(I_1,\ldots,I_m)$, its block-RGB operator is
 
 $$
-\left(A^{\mathrm w}_{\Omega,c_s}f\right)_{j,q}
+\left(\mathbf{A}^{\mathrm{w}}_{\Omega,c_s}\mathbf{f}\right)_{j,q}
 =
 \frac{
-  \left(F_{\mathrm u}f_q\right)_{I_j}
+  \left(\mathbf{F}_{\mathrm{u}}\mathbf{f}_q\right)_{I_j}
 }{
-  \sqrt{m\,\widetilde\mu_{c_s,1/2}(I_j)}
+  \sqrt{m\,\widetilde{\mu}_{c_s,1/2}(I_j)}
 },
 \qquad
 j=1,\ldots,m,\quad q=1,2,3.
 $$
 
 The corresponding latent reconstruction minimizes the weighted measurement
-residual over the recovery class $\mathbb F_{c_r}$. The implementation stores
+residual over the recovery class $\mathbb{F}_{c_r}$. The implementation stores
 both raw and weighted residuals and does not clip inverse-probability weights;
 the $\zeta=1/2$ mixture supplies the probability floor $1/(2n)$.
 
 Both suites force the DC coefficient into the mask and sample the remaining
 frequencies without replacement. For the weighted Christoffel experiments,
 the non-DC draw uses the renormalized DC-excluded proposal, while the recovery
-weights use the original regularized law $\widetilde\mu_{c_s,1/2}$.
+weights use the original regularized law $\widetilde{\mu}_{c_s,1/2}$.
 
 ## Experiment Suites
 
