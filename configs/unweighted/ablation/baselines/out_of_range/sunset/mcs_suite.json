@@ -1,0 +1,168 @@
+{
+  "base_config": "configs/unweighted/out_of_range/sunset/base.json",
+  "tag": "unweighted/ablation/out_of_range/sunset/mcs_cfg_ablation",
+  "use_dc_presets": false,
+  "baseline_sampling_method": "mcs",
+  "cases": [
+    {
+      "name": "baseline_mcs__recover_prompt_sunset_beach_cfg1",
+      "description": "Recover the out of range signal with uniform MCS sampling and sunset beach recovery at CFG 1.",
+      "sampling_condition": "mcs",
+      "sampling_label": "$\\mu_{\\mathrm{MCS}}$",
+      "sampling_rank": 5,
+      "reconstruction_condition": "sunset_beach_cfg1",
+      "reconstruction_label": "CFG 1",
+      "recon_rank": 1,
+      "overrides": {
+        "gen_recon": {
+          "guidance_scale": 1.0
+        },
+        "ktilde": {
+          "name": ""
+        },
+        "sampling": {
+          "weighted_ls": false,
+          "fft_normalization": "backward",
+          "probability_regularization_zeta": 0.0,
+          "methods_enabled": {
+            "cs": false,
+            "mcs": true,
+            "vdhh": false,
+            "inverse_square": false
+          },
+          "vd_params": {
+            "vdhh": {
+              "lowfreq_scale": 2.0,
+              "max_disk_fraction": 0.5
+            },
+            "inverse_square": {}
+          }
+        },
+        "reconstruction": {
+          "prompt": "sunset beach",
+          "prompts": null
+        }
+      }
+    },
+    {
+      "name": "baseline_mcs__recover_prompt_sunset_beach_cfg1p5",
+      "description": "Recover the out of range signal with uniform MCS sampling and sunset beach recovery at CFG 1.5.",
+      "sampling_condition": "mcs",
+      "sampling_label": "$\\mu_{\\mathrm{MCS}}$",
+      "sampling_rank": 5,
+      "reconstruction_condition": "sunset_beach_cfg1p5",
+      "reconstruction_label": "CFG 1.5",
+      "recon_rank": 2,
+      "overrides": {
+        "gen_recon": {
+          "guidance_scale": 1.5
+        },
+        "ktilde": {
+          "name": ""
+        },
+        "sampling": {
+          "weighted_ls": false,
+          "fft_normalization": "backward",
+          "probability_regularization_zeta": 0.0,
+          "methods_enabled": {
+            "cs": false,
+            "mcs": true,
+            "vdhh": false,
+            "inverse_square": false
+          },
+          "vd_params": {
+            "vdhh": {
+              "lowfreq_scale": 2.0,
+              "max_disk_fraction": 0.5
+            },
+            "inverse_square": {}
+          }
+        },
+        "reconstruction": {
+          "prompt": "sunset beach",
+          "prompts": null
+        }
+      }
+    },
+    {
+      "name": "baseline_mcs__recover_prompt_sunset_beach_cfg3",
+      "description": "Recover the out of range signal with uniform MCS sampling and sunset beach recovery at CFG 3.",
+      "sampling_condition": "mcs",
+      "sampling_label": "$\\mu_{\\mathrm{MCS}}$",
+      "sampling_rank": 5,
+      "reconstruction_condition": "sunset_beach_cfg3",
+      "reconstruction_label": "CFG 3",
+      "recon_rank": 3,
+      "overrides": {
+        "gen_recon": {
+          "guidance_scale": 3.0
+        },
+        "ktilde": {
+          "name": ""
+        },
+        "sampling": {
+          "weighted_ls": false,
+          "fft_normalization": "backward",
+          "probability_regularization_zeta": 0.0,
+          "methods_enabled": {
+            "cs": false,
+            "mcs": true,
+            "vdhh": false,
+            "inverse_square": false
+          },
+          "vd_params": {
+            "vdhh": {
+              "lowfreq_scale": 2.0,
+              "max_disk_fraction": 0.5
+            },
+            "inverse_square": {}
+          }
+        },
+        "reconstruction": {
+          "prompt": "sunset beach",
+          "prompts": null
+        }
+      }
+    },
+    {
+      "name": "baseline_mcs__recover_prompt_sunset_beach_cfg5",
+      "description": "Recover the out of range signal with uniform MCS sampling and sunset beach recovery at CFG 5.",
+      "sampling_condition": "mcs",
+      "sampling_label": "$\\mu_{\\mathrm{MCS}}$",
+      "sampling_rank": 5,
+      "reconstruction_condition": "sunset_beach_cfg5",
+      "reconstruction_label": "CFG 5",
+      "recon_rank": 4,
+      "overrides": {
+        "gen_recon": {
+          "guidance_scale": 5.0
+        },
+        "ktilde": {
+          "name": ""
+        },
+        "sampling": {
+          "weighted_ls": false,
+          "fft_normalization": "backward",
+          "probability_regularization_zeta": 0.0,
+          "methods_enabled": {
+            "cs": false,
+            "mcs": true,
+            "vdhh": false,
+            "inverse_square": false
+          },
+          "vd_params": {
+            "vdhh": {
+              "lowfreq_scale": 2.0,
+              "max_disk_fraction": 0.5
+            },
+            "inverse_square": {}
+          }
+        },
+        "reconstruction": {
+          "prompt": "sunset beach",
+          "prompts": null
+        }
+      }
+    }
+  ]
+}

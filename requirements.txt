@@ -1,6 +1,5 @@
 # Direct dependencies for the ActiveConditionalGCS SD1.5 paper runs.
-# System requirements not installed by pip: CUDA-compatible NVIDIA driver and
-# a TeX distribution for the paper-style Matplotlib figure exports.
+# System requirement not installed by pip: a CUDA-compatible NVIDIA driver.
 
 --extra-index-url https://download.pytorch.org/whl/cu121
 
@@ -25,3 +24,4 @@ lpips==0.1.4
 # Notebook execution/display support for the checked-in analysis notebooks.
 ipykernel==7.1.0
 ipython==9.9.0
+nbconvert==7.17.1

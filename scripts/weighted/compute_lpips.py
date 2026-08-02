@@ -27,21 +27,37 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--limit", type=int, default=None)
     parser.add_argument("--checkpoint-every", type=int, default=25)
     parser.add_argument("--force", action="store_true")
+    parser.add_argument("--quiet", action="store_true")
+    parser.add_argument(
+        "--artifact-root",
+        action="append",
+        type=Path,
+        default=None,
+        help="Result subtree to scan; may be supplied more than once.",
+    )
     return parser.parse_args()
 
 
 def main() -> int:
     args = parse_args()
+    artifact_roots = args.artifact_root or [
+        args.project_root / "results" / "weighted" / prefix / family / "sunset"
+        for prefix in ("", "ablation")
+        for family in ("prompt_matched", "prompt_mismatched", "out_of_range")
+    ]
     table = recovery.ensure_lpips_metrics(
         args.project_root,
+        result_namespace="weighted",
+        artifact_roots=artifact_roots,
         device=args.device,
         force=args.force,
         limit=args.limit,
         checkpoint_every=args.checkpoint_every,
+        verbose=not args.quiet,
     )
     output_path = (
         args.project_root.resolve()
-        / recovery.LPIPS_METRICS_RELATIVE_PATH
+        / recovery.LPIPS_METRICS_RELATIVE_PATHS["weighted"]
     )
     print(f"LPIPS table contains {len(table)} rows: {output_path}")
     return 0

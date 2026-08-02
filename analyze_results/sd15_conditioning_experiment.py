@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import json
 import hashlib
 from pathlib import Path
@@ -12,11 +13,33 @@ import numpy as np
 import pandas as pd
 
 
+_LOCAL_TEX_ROOT = Path(__file__).resolve().parent / "tex"
+_texinputs = os.environ.get("TEXINPUTS", "")
+if str(_LOCAL_TEX_ROOT) not in _texinputs.split(os.pathsep):
+    os.environ["TEXINPUTS"] = (
+        f"{_LOCAL_TEX_ROOT}{os.pathsep}{_texinputs}"
+        if _texinputs
+        else f"{_LOCAL_TEX_ROOT}{os.pathsep}"
+    )
+try:
+    from IPython import get_ipython
+    from matplotlib_inline.backend_inline import set_matplotlib_formats
+
+    if get_ipython() is not None:
+        set_matplotlib_formats("svg")
+except (ImportError, RuntimeError):
+    pass
+
 SD15_PRESENTATION_RC: Dict[str, Any] = {
     "text.usetex": True,
     "text.latex.preamble": r"\usepackage{amsmath,amssymb}",
     "font.family": "serif",
-    "font.serif": ["Computer Modern Roman", "CMU Serif", "Latin Modern Roman", "DejaVu Serif"],
+    "font.serif": [
+        "Computer Modern Roman",
+        "CMU Serif",
+        "Latin Modern Roman",
+        "DejaVu Serif",
+    ],
     "mathtext.fontset": "cm",
     "mathtext.rm": "serif",
     "mathtext.it": "serif:italic",
@@ -51,11 +74,11 @@ SD15_X_LABEL = r"Sampling Ratio $m/n$"
 KTILDE_CONVERGENCE_X_LABEL = r"Iterations ($M$)"
 KTILDE_CONVERGENCE_METRICS: Dict[str, Dict[str, str]] = {
     "relative_l2_error": {
-        "label": r"Relative $\ell_2$ Error",
+        "label": r"Relative $\ell^2$ Error",
         "filename": "relative_l2_error",
     },
     "relative_linf_error": {
-        "label": r"Relative $\ell_\infty$ Error",
+        "label": r"Relative $\ell^\infty$ Error",
         "filename": "relative_linf_error",
     },
     "lambda_ref_over_mu_m": {
@@ -1688,11 +1711,34 @@ def load_regression_rows(
         raise FileNotFoundError(f"Resolved suite manifest not found: {tag_root / RESOLVED_SUITE_MANIFEST_FILENAME}")
 
     manifest = load_json(manifest_path)
+    manifest_suite_tag = str(manifest.get("suite_tag", "")).strip("/")
+    requested_suite_tag = str(tag).strip("/")
     for case in list(manifest.get("cases", [])):
         case_tag = str(case.get("tag", "")).strip()
         if not case_tag:
             continue
         case_root = root / "results" / case_tag
+        if (
+            not case_root.is_dir()
+            and manifest_suite_tag
+            and (
+                case_tag == manifest_suite_tag
+                or case_tag.startswith(f"{manifest_suite_tag}/")
+            )
+        ):
+            # Historical manifests predate the explicit unweighted namespace,
+            # so their embedded suite/case tags omit the leading
+            # ``unweighted/`` even though the artifacts now live below it.
+            # Rebase only when the recorded path is absent and the suffix is
+            # anchored to the manifest's own suite tag.
+            suffix = case_tag[len(manifest_suite_tag) :].lstrip("/")
+            effective_case_tag = "/".join(
+                part for part in (requested_suite_tag, suffix) if part
+            )
+            rebased_root = root / "results" / effective_case_tag
+            if rebased_root.is_dir():
+                case_tag = effective_case_tag
+                case_root = rebased_root
         if not case_root.is_dir():
             continue
 

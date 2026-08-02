@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import gc
 import math
+import os
 import time
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
@@ -108,6 +109,7 @@ def measurement_loss(
     measurement_operator: MeasurementOperator,
     sigma_y: float,
     ls_weights: Optional[torch.Tensor],
+    loss_reduction: str = "mean",
 ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """Compute weighted least squares and return raw and weighted residuals."""
 
@@ -121,7 +123,14 @@ def measurement_loss(
     )
     if sigma_y > 0.0:
         squared = squared / float(sigma_y * sigma_y)
-    return 0.5 * torch.mean(squared), raw_residual, weighted_residual
+    reduction = str(loss_reduction).strip().lower()
+    if reduction in {"mean", "measurement_mean", "legacy_mean"}:
+        objective = 0.5 * torch.mean(squared)
+    elif reduction in {"measurement_sum_channel_mean", "sum_measurements"}:
+        objective = 0.5 * squared.reshape(measurement_operator.C, measurement_operator.m).sum(dim=1).mean()
+    else:
+        raise ValueError(f"Unsupported reconstruction_solver.loss_reduction={loss_reduction!r}.")
+    return objective, raw_residual, weighted_residual
 
 
 def residual_l2_norm(residual: torch.Tensor) -> float:
@@ -130,6 +139,85 @@ def residual_l2_norm(residual: torch.Tensor) -> float:
     if torch.is_complex(residual):
         return float(torch.linalg.vector_norm(residual).item())
     return float(residual.norm(p=2).item())
+
+
+def atomic_save_optimization_trace(
+    path: str | Path,
+    *,
+    iterations: list[int],
+    losses: list[float],
+    data_losses: list[float],
+    reg_losses: list[float],
+    grad_norms: list[float],
+    raw_residuals: list[float],
+    weighted_residuals: list[float],
+    learning_rates: list[float],
+    best_iteration: int,
+    best_loss: float,
+    target_iterations: int,
+    configured_learning_rate: float,
+    loss_reduction: str,
+    complete: bool,
+) -> None:
+    """Atomically expose scalar optimizer progress to live analysis notebooks."""
+
+    destination = Path(path)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    temporary = destination.with_name(f".{destination.name}.tmp.npz")
+    np.savez_compressed(
+        temporary,
+        bp_iter=np.asarray(iterations, dtype=np.int64),
+        bp_loss=np.asarray(losses, dtype=np.float64),
+        bp_data_loss=np.asarray(data_losses, dtype=np.float64),
+        bp_reg_loss=np.asarray(reg_losses, dtype=np.float64),
+        bp_grad_norm=np.asarray(grad_norms, dtype=np.float64),
+        bp_raw_resid_l2=np.asarray(raw_residuals, dtype=np.float64),
+        bp_weighted_resid_l2=np.asarray(weighted_residuals, dtype=np.float64),
+        bp_learning_rate=np.asarray(learning_rates, dtype=np.float64),
+        bp_best_iter=np.asarray(best_iteration, dtype=np.int64),
+        bp_best_loss=np.asarray(best_loss, dtype=np.float64),
+        bp_completed_iterations=np.asarray(len(iterations), dtype=np.int64),
+        target_iterations=np.asarray(target_iterations, dtype=np.int64),
+        learning_rate=np.asarray(configured_learning_rate, dtype=np.float64),
+        loss_reduction=np.asarray(str(loss_reduction)),
+        complete=np.asarray(int(bool(complete)), dtype=np.int8),
+    )
+    os.replace(temporary, destination)
+
+
+def atomic_save_optimizer_checkpoint(
+    path: str | Path,
+    *,
+    optimized_latents: torch.Tensor,
+    best_latents: torch.Tensor,
+    optimizer: torch.optim.Optimizer,
+    completed_iteration: int,
+    target_iterations: int,
+    best_iteration: int,
+    best_loss: float,
+    configured_learning_rate: float,
+    loss_reduction: str,
+) -> None:
+    """Atomically save enough state for an exact future Adam continuation."""
+
+    destination = Path(path)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    temporary = destination.with_name(f".{destination.name}.tmp")
+    torch.save(
+        {
+            "optimized_latents": optimized_latents.detach().cpu(),
+            "best_latents": best_latents.detach().cpu(),
+            "optimizer_state_dict": optimizer.state_dict(),
+            "completed_iteration": int(completed_iteration),
+            "target_iterations": int(target_iterations),
+            "best_iteration": int(best_iteration),
+            "best_loss": float(best_loss),
+            "learning_rate": float(configured_learning_rate),
+            "loss_reduction": str(loss_reduction),
+        },
+        temporary,
+    )
+    os.replace(temporary, destination)
 
 
 def build_ls_weights(
@@ -218,6 +306,8 @@ def run_diffusion_backprop_reconstruction(
     optim_cfg,
     weighted_ls: bool,
     probabilities: Optional[np.ndarray],
+    trace_snapshot_path: Optional[str | Path] = None,
+    optimizer_checkpoint_path: Optional[str | Path] = None,
 ) -> Tuple[torch.Tensor, torch.Tensor, Dict[str, Any]]:
     """Optimize the initial latent by backpropagating through the complete denoising chain."""
 
@@ -244,6 +334,49 @@ def run_diffusion_backprop_reconstruction(
             initial_latents = backproj_latents.detach()
             init_mode = "backproj_latent"
 
+    resume_latents_path = str(getattr(config, "resume_latents_path", "") or "").strip()
+    resume_optimizer_path = str(getattr(config, "resume_optimizer_path", "") or "").strip()
+    if resume_latents_path and resume_optimizer_path:
+        raise ValueError("Specify only one of resume_latents_path and resume_optimizer_path.")
+    resumed_optimizer_payload: Optional[Dict[str, Any]] = None
+    if resume_optimizer_path:
+        checkpoint_path = Path(resume_optimizer_path).expanduser()
+        if not checkpoint_path.is_absolute():
+            checkpoint_path = Path.cwd() / checkpoint_path
+        if not checkpoint_path.is_file():
+            raise FileNotFoundError(f"Optimizer continuation checkpoint does not exist: {checkpoint_path}")
+        resumed_optimizer_payload = torch.load(checkpoint_path, map_location=initial_latents.device, weights_only=True)
+        if not isinstance(resumed_optimizer_payload, dict) or "optimized_latents" not in resumed_optimizer_payload:
+            raise TypeError(f"Invalid optimizer continuation checkpoint: {checkpoint_path}")
+        resumed_latents = resumed_optimizer_payload["optimized_latents"]
+        if not torch.is_tensor(resumed_latents):
+            raise TypeError(f"Optimizer checkpoint latent must be a tensor: {checkpoint_path}")
+        resumed_latents = resumed_latents.to(device=initial_latents.device, dtype=initial_latents.dtype)
+        if tuple(resumed_latents.shape) != tuple(initial_latents.shape):
+            raise ValueError(
+                f"Optimizer checkpoint latent has shape {tuple(resumed_latents.shape)}, "
+                f"expected {tuple(initial_latents.shape)}."
+            )
+        initial_latents = resumed_latents.detach().clone()
+        init_mode = "saved_current_latent_resumed_adam"
+    if resume_latents_path:
+        resume_path = Path(resume_latents_path).expanduser()
+        if not resume_path.is_absolute():
+            resume_path = Path.cwd() / resume_path
+        if not resume_path.is_file():
+            raise FileNotFoundError(f"Continuation latent does not exist: {resume_path}")
+        resumed_latents = torch.load(resume_path, map_location=initial_latents.device, weights_only=True)
+        if not torch.is_tensor(resumed_latents):
+            raise TypeError(f"Continuation latent must be a tensor: {resume_path}")
+        resumed_latents = resumed_latents.to(device=initial_latents.device, dtype=initial_latents.dtype)
+        if tuple(resumed_latents.shape) != tuple(initial_latents.shape):
+            raise ValueError(
+                f"Continuation latent has shape {tuple(resumed_latents.shape)}, "
+                f"expected {tuple(initial_latents.shape)}."
+            )
+        initial_latents = resumed_latents.detach().clone()
+        init_mode = "saved_best_latent_fresh_adam"
+
     ls_weights = build_ls_weights(
         weighted_ls=bool(weighted_ls),
         probabilities=probabilities,
@@ -258,6 +391,8 @@ def run_diffusion_backprop_reconstruction(
         betas=(float(optim_cfg.adam_beta1), float(optim_cfg.adam_beta2)),
         eps=float(optim_cfg.adam_eps),
     )
+    if resumed_optimizer_payload is not None:
+        optimizer.load_state_dict(resumed_optimizer_payload["optimizer_state_dict"])
 
     iter_ids: list[int] = []
     total_losses: list[float] = []
@@ -277,14 +412,29 @@ def run_diffusion_backprop_reconstruction(
     early_stop_reason = ""
     early_stop_patience = max(0, int(getattr(config, "early_stop_patience", 0)))
     early_stop_min_rel_improvement = max(0.0, float(getattr(config, "early_stop_min_rel_improvement", 0.0)))
+    iteration_offset = max(0, int(getattr(config, "iteration_offset", 0)))
+    if resumed_optimizer_payload is not None:
+        checkpoint_iteration = int(resumed_optimizer_payload.get("completed_iteration", -1))
+        if checkpoint_iteration != iteration_offset:
+            raise ValueError(
+                f"Optimizer checkpoint ends at iteration {checkpoint_iteration}, "
+                f"but iteration_offset={iteration_offset}."
+            )
+        checkpoint_best = resumed_optimizer_payload.get("best_latents")
+        if torch.is_tensor(checkpoint_best):
+            best_latents = checkpoint_best.to(device=initial_latents.device, dtype=initial_latents.dtype).detach().clone()
+        best_loss = float(resumed_optimizer_payload.get("best_loss", math.inf))
+        best_iter = int(resumed_optimizer_payload.get("best_iteration", -1))
 
     if torch.cuda.is_available():
         torch.cuda.reset_peak_memory_stats()
 
-    for iteration in range(1, int(config.outer_iterations) + 1):
+    target_iterations = iteration_offset + int(config.outer_iterations)
+    for local_iteration in range(1, int(config.outer_iterations) + 1):
+        iteration = iteration_offset + local_iteration
         # Each outer iteration unrolls the full denoising chain, compares the
         # decoded image to Fourier measurements, and updates the initial latent.
-        current_lr = diffusion_backprop_learning_rate(iteration, config=config)
+        current_lr = diffusion_backprop_learning_rate(local_iteration, config=config)
         for param_group in optimizer.param_groups:
             param_group["lr"] = float(current_lr)
         optimizer.zero_grad(set_to_none=True)
@@ -301,6 +451,7 @@ def run_diffusion_backprop_reconstruction(
             measurement_operator=measurement_operator,
             sigma_y=float(config.sigma_y),
             ls_weights=ls_weights,
+            loss_reduction=str(getattr(config, "loss_reduction", "mean")),
         )
         reg_loss = 0.5 * float(config.latent_l2_penalty) * torch.mean((optimized_latents - initial_latents).square())
         total_loss = data_loss + reg_loss
@@ -350,14 +501,51 @@ def run_diffusion_backprop_reconstruction(
         else:
             no_improve_iters += 1
 
-        if int(config.log_every) > 0 and (iteration == 1 or iteration % int(config.log_every) == 0):
+        trace_save_every = max(0, int(getattr(config, "trace_save_every", 0)))
+        if (
+            trace_snapshot_path is not None
+            and trace_save_every > 0
+            and (local_iteration == 1 or iteration % trace_save_every == 0)
+        ):
+            atomic_save_optimization_trace(
+                trace_snapshot_path,
+                iterations=iter_ids,
+                losses=total_losses,
+                data_losses=data_losses,
+                reg_losses=reg_losses,
+                grad_norms=grad_norms,
+                raw_residuals=raw_residual_l2,
+                weighted_residuals=weighted_residual_l2,
+                learning_rates=learning_rates,
+                best_iteration=best_iter,
+                best_loss=best_loss,
+                target_iterations=target_iterations,
+                configured_learning_rate=float(config.learning_rate),
+                loss_reduction=str(getattr(config, "loss_reduction", "mean")),
+                complete=False,
+            )
+            if optimizer_checkpoint_path is not None:
+                atomic_save_optimizer_checkpoint(
+                    optimizer_checkpoint_path,
+                    optimized_latents=optimized_latents,
+                    best_latents=best_latents,
+                    optimizer=optimizer,
+                    completed_iteration=iteration,
+                    target_iterations=target_iterations,
+                    best_iteration=best_iter,
+                    best_loss=best_loss,
+                    configured_learning_rate=float(config.learning_rate),
+                    loss_reduction=str(getattr(config, "loss_reduction", "mean")),
+                )
+
+        if int(config.log_every) > 0 and (local_iteration == 1 or iteration % int(config.log_every) == 0):
             stale_text = (
                 f" | stale {no_improve_iters:03d}/{early_stop_patience:03d}"
                 if early_stop_patience > 0
                 else ""
             )
             print(
-                f"  opt {iteration:03d}/{int(config.outer_iterations):03d} | "
+                f"  opt {iteration:04d}/{target_iterations:04d} | "
                 f"lr {current_lr:9.3e} | "
                 f"loss {total_loss_value:9.3e} | "
                 f"data {data_loss_value:9.3e} | "
@@ -368,7 +556,7 @@ def run_diffusion_backprop_reconstruction(
             )
 
         del image_bchw, raw_residual, weighted_residual, total_loss, data_loss, reg_loss
-        if iteration % 5 == 0:
+        if local_iteration % 5 == 0:
             gc.collect()
             safe_empty_cuda_cache()
 
@@ -380,6 +568,38 @@ def run_diffusion_backprop_reconstruction(
                 f"best loss {best_loss:.3e} has not improved enough since iter {best_iter:03d}"
             )
             break
+
+    if trace_snapshot_path is not None and int(getattr(config, "trace_save_every", 0)) > 0:
+        atomic_save_optimization_trace(
+            trace_snapshot_path,
+            iterations=iter_ids,
+            losses=total_losses,
+            data_losses=data_losses,
+            reg_losses=reg_losses,
+            grad_norms=grad_norms,
+            raw_residuals=raw_residual_l2,
+            weighted_residuals=weighted_residual_l2,
+            learning_rates=learning_rates,
+            best_iteration=best_iter,
+            best_loss=best_loss,
+            target_iterations=target_iterations,
+            configured_learning_rate=float(config.learning_rate),
+            loss_reduction=str(getattr(config, "loss_reduction", "mean")),
+            complete=True,
+        )
+        if optimizer_checkpoint_path is not None:
+            atomic_save_optimizer_checkpoint(
+                optimizer_checkpoint_path,
+                optimized_latents=optimized_latents,
+                best_latents=best_latents,
+                optimizer=optimizer,
+                completed_iteration=iter_ids[-1],
+                target_iterations=target_iterations,
+                best_iteration=best_iter,
+                best_loss=best_loss,
+                configured_learning_rate=float(config.learning_rate),
+                loss_reduction=str(getattr(config, "loss_reduction", "mean")),
+            )
 
     with torch.no_grad():
         # Decode the selected best latent once without checkpointing for the
@@ -398,6 +618,7 @@ def run_diffusion_backprop_reconstruction(
             measurement_operator=measurement_operator,
             sigma_y=float(config.sigma_y),
             ls_weights=ls_weights,
+            loss_reduction=str(getattr(config, "loss_reduction", "mean")),
         )
 
     if ls_weights is None:
@@ -427,6 +648,12 @@ def run_diffusion_backprop_reconstruction(
         "lr_schedule": str(getattr(config, "lr_schedule", "constant")),
         "lr_warmup_iterations": int(getattr(config, "lr_warmup_iterations", 0)),
         "lr_min_factor": float(getattr(config, "lr_min_factor", 0.0)),
+        "loss_reduction": str(getattr(config, "loss_reduction", "mean")),
+        "trace_save_every": int(getattr(config, "trace_save_every", 0)),
+        "resume_latents_path": resume_latents_path,
+        "resume_optimizer_path": resume_optimizer_path,
+        "iteration_offset": iteration_offset,
+        "optimizer_state_resumed": int(resumed_optimizer_payload is not None),
         "latent_l2_penalty": float(config.latent_l2_penalty),
         "normalize_grad": int(bool(config.normalize_grad)),
         "grad_clip": float(config.grad_clip),
@@ -548,6 +775,23 @@ def run_single_reconstruction(
         else:
             measurements = measurements + sigma_y * torch.randn_like(measurements)
 
+    method_folder = sampling_method_folder(samp_method)
+    item_id = int(dataset_item["item_id"])
+    sample_tag = f"samp_{float(samp_perc):.5f}".replace(".", "p")
+    repeat_tag = f"rep_{int(repeat_id):02d}"
+    run_dir = Path(parent_run_dir) / f"item_{item_id:03d}" / sample_tag / repeat_tag
+    run_dir.mkdir(parents=True, exist_ok=True)
+    trace_snapshot_path = (
+        run_dir / "optimization_trace.npz"
+        if int(getattr(cfg.reconstruction_solver, "trace_save_every", 0)) > 0
+        else None
+    )
+    optimizer_checkpoint_path = (
+        run_dir / "optimizer_checkpoint.pt"
+        if int(getattr(cfg.reconstruction_solver, "trace_save_every", 0)) > 0
+        else None
+    )
+
     start_time = time.time()
     print(
         f"\n[recon start] prompt={prompt_text or '<unprompted>'!r} "
@@ -564,6 +808,8 @@ def run_single_reconstruction(
         optim_cfg=cfg.optim,
         weighted_ls=bool(cfg.sampling.weighted_ls),
         probabilities=prob_used,
+        trace_snapshot_path=trace_snapshot_path,
+        optimizer_checkpoint_path=optimizer_checkpoint_path,
     )
     runtime = time.time() - start_time
 
@@ -583,15 +829,9 @@ def run_single_reconstruction(
     grain_value = grain_score(image_rec_display)
     pixel_mae_value = float(np.mean(np.abs(image_true_display - image_rec_display)))
 
-    method_folder = sampling_method_folder(samp_method)
-    item_id = int(dataset_item["item_id"])
     conditioning_mode = "unconditioned" if str(prompt_text) == "" else "prompt"
     # The directory names are intentionally stable because scripts and notebooks
     # use them to find completed runs.
-    sample_tag = f"samp_{float(samp_perc):.5f}".replace(".", "p")
-    repeat_tag = f"rep_{int(repeat_id):02d}"
-    run_dir = Path(parent_run_dir) / f"item_{item_id:03d}" / sample_tag / repeat_tag
-    run_dir.mkdir(parents=True, exist_ok=True)
 
     # The zero-filled reconstruction is not optimized; it is saved as a simple
     # Fourier-adjoint baseline for each exact mask.

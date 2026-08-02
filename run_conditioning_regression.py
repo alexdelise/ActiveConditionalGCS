@@ -117,6 +117,16 @@ def main() -> None:
         help="Optional override for the top-level results tag.",
     )
     parser.add_argument(
+        "--results-root",
+        type=str,
+        default=None,
+        help=(
+            "Optional directory under which the tagged result folder is created. "
+            "Relative paths are resolved from the project root; the legacy default "
+            "is the repository's results directory."
+        ),
+    )
+    parser.add_argument(
         "--cases",
         type=str,
         default=None,
@@ -204,7 +214,11 @@ def main() -> None:
     ):
         raise ValueError("--repeats-per-setting must be positive.")
 
-    top_level_root = root / "results" / suite_tag
+    results_base = Path(args.results_root) if args.results_root is not None else root / "results"
+    if not results_base.is_absolute():
+        results_base = root / results_base
+    results_base = results_base.resolve()
+    top_level_root = results_base / suite_tag
 
     resolved_cases: List[Dict[str, Any]] = []
     for case in selected:
@@ -298,6 +312,7 @@ def main() -> None:
             "sampling_method_ids": method_ids,
             "execution_sampling_percentages": execution_sampling_percentages,
             "execution_repeats_per_setting": execution_repeats_per_setting,
+            "results_root": str(results_base),
             "cases": resolved_cases,
         },
     )
@@ -343,6 +358,7 @@ def main() -> None:
                 method_ids=method_ids,
                 sampling_percentages=execution_sampling_percentages,
                 repeats_per_setting=execution_repeats_per_setting,
+                results_base=results_base,
             )
         else:
             outputs = run_enabled_methods(
@@ -352,6 +368,7 @@ def main() -> None:
                 families=families or None,
                 sampling_percentages=execution_sampling_percentages,
                 repeats_per_setting=execution_repeats_per_setting,
+                results_base=results_base,
             )
         suite_results.append(
             {
@@ -378,6 +395,7 @@ def main() -> None:
             "sampling_method_ids": method_ids,
             "execution_sampling_percentages": execution_sampling_percentages,
             "execution_repeats_per_setting": execution_repeats_per_setting,
+            "results_root": str(results_base),
             "resolved_suite_manifest_path": str((top_level_root / RESOLVED_SUITE_MANIFEST_FILENAME).resolve()),
             "cases": resolved_cases,
         },

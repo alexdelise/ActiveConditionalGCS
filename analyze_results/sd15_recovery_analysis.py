@@ -63,6 +63,19 @@ DEFAULT_ALLOWED_SAMPLING_PERCENTAGES: tuple[float, ...] = (
     0.005,
     0.01,
 )
+UNWEIGHTED_MAIN_SAMPLING_METHODS: tuple[str, ...] = (
+    "cs",
+    "mcs",
+    "inverse_square",
+)
+UNWEIGHTED_MAIN_DISTRIBUTIONS: tuple[tuple[str, str, int], ...] = (
+    ("k0", "cs", 0),
+    ("k1_daytime_beach", "cs", 1),
+    ("k2_sunset_beach", "cs", 2),
+    ("k4_cat", "cs", 3),
+    ("mcs", "mcs", 4),
+    ("inverse_square", "inverse_square", 5),
+)
 
 PROMPT_TEXT = {
     "unprompted": "",
@@ -96,7 +109,7 @@ RECON_COLOR_BY_CONDITION = {
     "cat": ABLATION_RECON_COLORS[3],
 }
 SWEEP_FIGSIZE_PER_COL = 4.9
-SWEEP_FIGSIZE_PER_ROW = 3.7
+SWEEP_FIGSIZE_PER_ROW = 4.0
 SWEEP_SINGLE_FIGSIZE_HEIGHT = 5.25
 SWEEP_SINGLE_LEGEND_Y = 0.985
 SWEEP_SINGLE_TOP = 0.76
@@ -104,6 +117,7 @@ SWEEP_SINGLE_BOTTOM = 0.28
 SWEEP_SINGLE_LEFT = 0.065
 SWEEP_SINGLE_RIGHT = 0.995
 SWEEP_SINGLE_WSPACE = 0.18
+SWEEP_SINGLE_XLABEL_Y = 0.15
 SWEEP_LEGEND_Y = 1.08
 SWEEP_LINEWIDTH = 2.4
 SWEEP_MARKERSIZE = 7.0
@@ -115,7 +129,10 @@ ZERO_FILLED_METRIC_COLUMNS = {
     "lpips": "zero_filled_lpips",
     "pixel_mae": "zero_filled_pixel_mae",
 }
-LPIPS_METRICS_RELATIVE_PATH = Path("results/weighted/metrics/lpips.csv")
+LPIPS_METRICS_RELATIVE_PATHS = {
+    "weighted": Path("results/weighted/metrics/lpips.csv"),
+    "unweighted": Path("results/unweighted/metrics/lpips.csv"),
+}
 
 
 def _figure_slug(value: object) -> str:
@@ -223,6 +240,236 @@ def weighted_main_tag_group_candidates(base_tag: str) -> list[tuple[str, list[st
         (base, unsplit_cs + baseline_tags),
         (base, [base]),
     ]
+
+
+def unweighted_main_tag_group_candidates(base_tag: str) -> list[tuple[str, list[str]]]:
+    """Return the split-tag set for unweighted CS, MCS, and inverse-square."""
+
+    base = str(base_tag).strip("/")
+    cs_tags: list[str] = []
+    for suffix in DEFAULT_DISTRIBUTION_TAG_SUFFIXES:
+        cs_tags.extend(
+            [
+                f"{base}/first4_{suffix}",
+                f"{base}/last3_{suffix}",
+            ]
+        )
+    baseline_tags: list[str] = []
+    for condition, method, _ in UNWEIGHTED_MAIN_DISTRIBUTIONS:
+        if method == "cs":
+            continue
+        for recovery in WEIGHTED_MAIN_RECOVERIES:
+            baseline_tags.extend(
+                [
+                    f"{base}/first4_{condition}_recover_{recovery}",
+                    f"{base}/last3_{condition}_recover_{recovery}",
+                ]
+            )
+    unsplit_cs = [f"{base}/{suffix}" for suffix in DEFAULT_DISTRIBUTION_TAG_SUFFIXES]
+    return [
+        (base, cs_tags + baseline_tags),
+        (base, unsplit_cs + baseline_tags),
+        (base, [base]),
+    ]
+
+
+def validate_unweighted_main_rows(frame: pd.DataFrame) -> None:
+    """Reject rows that do not belong to the original unweighted pipeline."""
+
+    if frame.empty:
+        return
+    expected_method = {
+        condition: method
+        for condition, method, _ in UNWEIGHTED_MAIN_DISTRIBUTIONS
+    }
+    unknown_conditions = sorted(
+        set(frame["sampling_condition"].astype(str)).difference(expected_method)
+    )
+    if unknown_conditions:
+        raise ValueError(f"Unknown unweighted sampling conditions: {unknown_conditions}")
+
+    methods = frame["sampling_method"].astype(str)
+    conditions = frame["sampling_condition"].astype(str)
+    mismatched = frame[
+        [
+            method != expected_method[condition]
+            for method, condition in zip(methods, conditions)
+        ]
+    ]
+    if not mismatched.empty:
+        raise ValueError(
+            "Unweighted sampling method/condition mismatch:\n"
+            + mismatched[
+                ["sampling_method", "sampling_condition", "source_suite_tag"]
+            ]
+            .drop_duplicates()
+            .to_string(index=False)
+        )
+
+    recoveries = set(frame["reconstruction_condition"].astype(str))
+    unknown_recoveries = sorted(recoveries.difference(WEIGHTED_MAIN_RECOVERIES))
+    if unknown_recoveries:
+        raise ValueError(f"Unknown unweighted recovery conditions: {unknown_recoveries}")
+
+    if not bool(
+        (
+            pd.to_numeric(frame["weighted_ls"], errors="coerce").fillna(0)
+            == 0
+        ).all()
+    ):
+        raise ValueError("Unweighted-main rows must not use weighted least squares.")
+    if not bool(
+        frame["fft_normalization"].astype(str).str.lower().eq("backward").all()
+    ):
+        raise ValueError("Unweighted-main rows must use the legacy backward FFT.")
+    zeta = pd.to_numeric(
+        frame["probability_regularization_zeta"],
+        errors="coerce",
+    )
+    if zeta.isna().any() or not bool(np.isclose(zeta, 0.0, rtol=0.0, atol=0.0).all()):
+        raise ValueError("Unweighted-main rows must use zeta=0.")
+
+    cs_rows = frame[methods == "cs"]
+    if "ktilde_name" in cs_rows.columns:
+        names = cs_rows["ktilde_name"].astype(str)
+        if not bool(names.str.contains("S500", regex=False).all()):
+            raise ValueError("Unweighted CS rows must use the original S500 K-tilde artifacts.")
+
+    rates = frame["samp_perc"].astype(float).to_numpy()
+    allowed = np.asarray(DEFAULT_ALLOWED_SAMPLING_PERCENTAGES, dtype=float)
+    valid_rates = np.isclose(
+        rates[:, None],
+        allowed[None, :],
+        rtol=0.0,
+        atol=5e-8,
+    ).any(axis=1)
+    if not bool(valid_rates.all()):
+        raise ValueError(
+            "Unweighted rows contain unsupported sampling ratios: "
+            f"{sorted(set(rates[~valid_rates].tolist()))}"
+        )
+    repeat_ids = pd.to_numeric(frame["repeat_id"], errors="coerce")
+    if repeat_ids.isna().any() or not repeat_ids.between(0, 4).all():
+        raise ValueError("Unweighted repeat ids must be integers in [0, 4].")
+
+
+def unweighted_main_completion_table(frame: pd.DataFrame) -> pd.DataFrame:
+    """Return observed counts for the six-law, seven-rate unweighted suite."""
+
+    records: list[dict[str, Any]] = []
+    for condition, method, rank in UNWEIGHTED_MAIN_DISTRIBUTIONS:
+        for recovery in WEIGHTED_MAIN_RECOVERIES:
+            for rate in DEFAULT_ALLOWED_SAMPLING_PERCENTAGES:
+                for repeat_id in range(5):
+                    if frame.empty:
+                        observed = 0
+                    else:
+                        match = frame[
+                            (frame["sampling_method"].astype(str) == method)
+                            & (frame["sampling_condition"].astype(str) == condition)
+                            & (
+                                frame["reconstruction_condition"].astype(str)
+                                == recovery
+                            )
+                            & np.isclose(
+                                frame["samp_perc"].astype(float),
+                                float(rate),
+                                rtol=0.0,
+                                atol=5e-8,
+                            )
+                            & (
+                                pd.to_numeric(frame["repeat_id"], errors="coerce")
+                                == repeat_id
+                            )
+                        ]
+                        observed = int(len(match))
+                    records.append(
+                        {
+                            "sampling_condition": condition,
+                            "sampling_method": method,
+                            "sampling_rank": int(rank),
+                            "reconstruction_condition": recovery,
+                            "samp_perc": float(rate),
+                            "repeat_id": int(repeat_id),
+                            "observed": observed,
+                            "expected": 1,
+                            "left": max(0, 1 - observed),
+                            "complete": observed == 1,
+                        }
+                    )
+    return pd.DataFrame.from_records(records)
+
+
+def load_unweighted_main_analysis(
+    sd15_root: str | Path,
+    *,
+    base_tag: str,
+    output_root: str | Path | None = None,
+    include_partial: bool = True,
+) -> tuple[RecoveryAnalysis, pd.DataFrame]:
+    """Load and audit original CS plus matched unweighted baseline runs."""
+
+    analysis = load_recovery_analysis(
+        sd15_root,
+        tag_group_candidates=unweighted_main_tag_group_candidates(base_tag),
+        sampling_methods=UNWEIGHTED_MAIN_SAMPLING_METHODS,
+        allowed_sampling_percentages=DEFAULT_ALLOWED_SAMPLING_PERCENTAGES,
+        include_partial=include_partial,
+        output_root=output_root,
+    )
+    rows = analysis.rows.copy()
+    if not rows.empty:
+        # Historical CS CSVs predate these explicit audit columns; these values
+        # are the fixed legacy defaults used to generate those artifacts.
+        if "weighted_ls" not in rows.columns:
+            rows["weighted_ls"] = 0
+        else:
+            rows["weighted_ls"] = pd.to_numeric(
+                rows["weighted_ls"], errors="coerce"
+            ).fillna(0)
+        if "fft_normalization" not in rows.columns:
+            rows["fft_normalization"] = "backward"
+        else:
+            rows["fft_normalization"] = rows["fft_normalization"].fillna("backward")
+        if "probability_regularization_zeta" not in rows.columns:
+            rows["probability_regularization_zeta"] = 0.0
+        else:
+            rows["probability_regularization_zeta"] = pd.to_numeric(
+                rows["probability_regularization_zeta"],
+                errors="coerce",
+            ).fillna(0.0)
+        duplicate_keys = [
+            "source_suite_tag",
+            "sampling_method",
+            "item_id",
+            "prompt_sha256",
+            "samp_perc",
+            "repeat_id",
+        ]
+        rows = rows.drop_duplicates(
+            subset=[column for column in duplicate_keys if column in rows.columns],
+            keep="last",
+        ).reset_index(drop=True)
+        rows = attach_lpips_metrics(
+            rows,
+            analysis.sd15_root,
+            result_namespace="unweighted",
+        )
+    validate_unweighted_main_rows(rows)
+    if rows is not analysis.rows:
+        analysis = RecoveryAnalysis(
+            sd15_root=analysis.sd15_root,
+            active_tag=analysis.active_tag,
+            loaded_tags=analysis.loaded_tags,
+            output_dir=analysis.output_dir,
+            rows=rows,
+            mean_table=(
+                exp.build_mean_metric_table(rows)
+                if not rows.empty
+                else pd.DataFrame()
+            ),
+        )
+    return analysis, unweighted_main_completion_table(rows)
 
 
 def validate_weighted_main_rows(frame: pd.DataFrame) -> None:
@@ -584,8 +831,19 @@ def load_recovery_analysis(
             loaded_tags = candidate_loaded_tags
             break
 
-    resolved_output_root = Path(output_root) if output_root is not None else root / "results" / "figures"
-    output_dir = resolved_output_root / active_tag
+    resolved_output_root = (
+        Path(output_root)
+        if output_root is not None
+        else root / "results" / "figures"
+    )
+    output_tag = Path(active_tag)
+    if (
+        resolved_output_root.name == "figures"
+        and output_tag.parts
+        and output_tag.parts[0] == resolved_output_root.parent.name
+    ):
+        output_tag = Path(*output_tag.parts[1:])
+    output_dir = resolved_output_root / output_tag
     output_dir.mkdir(parents=True, exist_ok=True)
 
     if not rows.empty and allowed_sampling_percentages:
@@ -642,6 +900,27 @@ def sampling_mu_label(condition: Any) -> str:
     return rf"${exp._mu_symbol(str(condition), hat=True)}$"
 
 
+def synchronize_christoffel_y_limits(
+    axes: Sequence[Any],
+    sampling_conditions: Sequence[Any],
+) -> None:
+    """Give the four Christoffel panels one scale and each baseline its own."""
+
+    baseline_conditions = {"mcs", "inverse_square", "vdhh"}
+    christoffel_axes = [
+        ax
+        for ax, condition in zip(axes, sampling_conditions)
+        if str(condition) not in baseline_conditions and ax.get_visible()
+    ]
+    if len(christoffel_axes) < 2:
+        return
+    limits = [ax.get_ylim() for ax in christoffel_axes]
+    lower = min(float(limit[0]) for limit in limits)
+    upper = max(float(limit[1]) for limit in limits)
+    for ax in christoffel_axes:
+        ax.set_ylim(lower, upper)
+
+
 def sampling_tick_labels(values: Sequence[float]) -> list[str]:
     labels: list[str] = []
     for value in values:
@@ -670,14 +949,37 @@ def style_sampling_ratio_axis(ax: Any, ticks: Sequence[float]) -> None:
         label.set_horizontalalignment("right")
 
 
-def attach_lpips_metrics(frame: pd.DataFrame, sd15_root: str | Path) -> pd.DataFrame:
+def _lpips_metrics_relative_path(result_namespace: str) -> Path:
+    namespace = str(result_namespace).strip().lower()
+    try:
+        return LPIPS_METRICS_RELATIVE_PATHS[namespace]
+    except KeyError as exc:
+        raise ValueError(
+            f"Unsupported LPIPS result namespace {result_namespace!r}; "
+            f"choose one of {sorted(LPIPS_METRICS_RELATIVE_PATHS)}."
+        ) from exc
+
+
+def attach_lpips_metrics(
+    frame: pd.DataFrame,
+    sd15_root: str | Path,
+    *,
+    result_namespace: str = "weighted",
+    metrics_path: str | Path | None = None,
+) -> pd.DataFrame:
     """Join incremental LPIPS values without modifying run artifacts."""
 
     result = frame.copy()
     for column in ("lpips", "zero_filled_lpips"):
         if column not in result.columns:
             result[column] = np.nan
-    sidecar_path = Path(sd15_root) / LPIPS_METRICS_RELATIVE_PATH
+    sidecar_path = (
+        Path(metrics_path)
+        if metrics_path is not None
+        else Path(sd15_root) / _lpips_metrics_relative_path(result_namespace)
+    )
+    if not sidecar_path.is_absolute():
+        sidecar_path = Path(sd15_root) / sidecar_path
     if result.empty or not sidecar_path.is_file():
         return result
 
@@ -692,7 +994,11 @@ def attach_lpips_metrics(frame: pd.DataFrame, sd15_root: str | Path) -> pd.DataF
     sidecar = sidecar.copy()
     sidecar["artifact_relpath"] = sidecar["artifact_relpath"].astype(str)
     artifact_paths = [
-        str(run_artifact_dir(sd15_root, row).relative_to(Path(sd15_root)))
+        str(
+            run_artifact_dir(sd15_root, row)
+            .resolve()
+            .relative_to(Path(sd15_root).resolve())
+        )
         for _, row in result.iterrows()
     ]
     result["artifact_relpath"] = artifact_paths
@@ -770,6 +1076,30 @@ def _lpips_image_tensor(path: Path, *, torch: Any, device: Any) -> Any:
     return tensor.to(device=device, dtype=torch.float32).mul(2.0).sub(1.0)
 
 
+def resolve_dataset_artifact_path(
+    project_root: str | Path,
+    stored_path: str | Path,
+) -> Path:
+    """Resolve a dataset file after its checkout has moved."""
+
+    root = find_sd15_root(project_root)
+    stored = Path(stored_path)
+    if stored.is_file():
+        return stored
+    if "datasets" in stored.parts:
+        datasets_index = stored.parts.index("datasets")
+        relocated = root.joinpath(*stored.parts[datasets_index:])
+        if relocated.is_file():
+            return relocated
+    candidates = list((root / "datasets").glob(f"*/{stored.name}"))
+    if len(candidates) == 1:
+        return candidates[0]
+    raise FileNotFoundError(
+        f"Could not resolve dataset artifact {stored}; "
+        f"found {len(candidates)} filename matches under {root / 'datasets'}."
+    )
+
+
 def _resolve_lpips_ground_truth(
     project_root: Path,
     run_dir: Path,
@@ -777,15 +1107,7 @@ def _resolve_lpips_ground_truth(
     item_path = run_dir / "dataset_item.json"
     with item_path.open("r", encoding="utf-8") as handle:
         item = json.load(handle)
-    stored = Path(str(item["gt_png_path"]))
-    if stored.is_file():
-        return stored
-    candidates = list((project_root / "datasets").glob(f"*/{stored.name}"))
-    if len(candidates) == 1:
-        return candidates[0]
-    raise FileNotFoundError(
-        f"Could not resolve ground truth for {run_dir}: {stored}"
-    )
+    return resolve_dataset_artifact_path(project_root, item["gt_png_path"])
 
 
 def _resolve_lpips_reconstruction(run_dir: Path) -> Path:
@@ -801,13 +1123,16 @@ def _resolve_lpips_reconstruction(run_dir: Path) -> Path:
 def ensure_lpips_metrics(
     sd15_root: str | Path,
     *,
+    result_namespace: str = "weighted",
+    artifact_roots: Optional[Sequence[str | Path]] = None,
     device: str = "cpu",
     force: bool = False,
     limit: Optional[int] = None,
     checkpoint_every: int = 25,
     verbose: bool = True,
+    metrics_path: str | Path | None = None,
 ) -> pd.DataFrame:
-    """Calculate missing LPIPS values used by the weighted notebooks.
+    """Calculate missing LPIPS values used by the recovery notebooks.
 
     Results are refreshed incrementally in a shared metric table. CPU is the
     default so notebook analysis does not contend with active reconstruction
@@ -817,11 +1142,26 @@ def ensure_lpips_metrics(
     from datetime import datetime, timezone
 
     root = find_sd15_root(sd15_root)
-    output_path = root / LPIPS_METRICS_RELATIVE_PATH
+    namespace = str(result_namespace).strip().lower()
+    output_path = (
+        Path(metrics_path)
+        if metrics_path is not None
+        else root / _lpips_metrics_relative_path(namespace)
+    )
+    if not output_path.is_absolute():
+        output_path = root / output_path
     records = _load_lpips_records(output_path)
+    search_roots = (
+        [Path(path) for path in artifact_roots]
+        if artifact_roots is not None
+        else [root / "results" / namespace]
+    )
     run_dirs = sorted(
-        path.parent
-        for path in (root / "results" / "weighted").glob("**/run_data.npz")
+        {
+            path.parent
+            for search_root in search_roots
+            for path in search_root.glob("**/run_data.npz")
+        }
     )
     pending = [
         run_dir
@@ -845,7 +1185,7 @@ def ensure_lpips_metrics(
         import torch
     except ImportError as exc:
         raise ImportError(
-            "LPIPS is required by the weighted notebooks. Install the pinned "
+            "LPIPS is required by the recovery notebooks. Install the pinned "
             "requirements and rerun the notebook."
         ) from exc
 
@@ -1062,7 +1402,7 @@ def plot_metric_curves(
                 SWEEP_FIGSIZE_PER_COL * num_columns,
                 SWEEP_SINGLE_FIGSIZE_HEIGHT * num_rows,
             ),
-            sharey=True,
+            sharey=False,
             constrained_layout=False,
             squeeze=False,
         )
@@ -1157,6 +1497,10 @@ def plot_metric_curves(
             ax.set_xlabel("")
             ax.set_title(sampling_mu_label(sampling_case["sampling_condition"]))
             ax.grid(True, which="major", axis="both", alpha=0.28, linestyle="--")
+        synchronize_christoffel_y_limits(
+            panel_axes,
+            sampling_cases["sampling_condition"].tolist(),
+        )
         fig.supylabel(
             METRIC_LABELS.get(metric, title_case(metric)),
             fontsize=exp.SD15_PRESENTATION_RC.get("axes.labelsize", 30),
@@ -1178,7 +1522,7 @@ def plot_metric_curves(
         fig.supxlabel(
             GLOBAL_SAMPLING_X_LABEL,
             fontsize=exp.SD15_PRESENTATION_RC.get("axes.labelsize", 30),
-            y=0.15,
+            y=SWEEP_SINGLE_XLABEL_Y,
         )
         legend_handles: list[Any] = []
         legend_labels: list[str] = []
@@ -1269,6 +1613,8 @@ def plot_combined_metric_curves(
         for metric_idx, metric in enumerate(metrics):
             band_column = f"{metric}_ci_halfwidth"
             zero_summary = zero_filled_metric_summary(frame, metric)
+            metric_panel_axes: list[Any] = []
+            metric_sampling_conditions: list[Any] = []
             for case_idx, (_, sampling_case) in enumerate(sampling_cases.iterrows()):
                 if reverse_pyramid and case_idx >= 4:
                     case_row = 1
@@ -1278,6 +1624,8 @@ def plot_combined_metric_curves(
                     col_idx = int(case_idx % case_columns)
                 row_idx = int(metric_idx * case_rows + case_row)
                 ax = axes[row_idx, col_idx]
+                metric_panel_axes.append(ax)
+                metric_sampling_conditions.append(sampling_case["sampling_condition"])
                 subset = summary[summary["sampling_condition"] == sampling_case["sampling_condition"]]
                 for idx, (_, recon_case) in enumerate(recon_cases.iterrows()):
                     group = subset[
@@ -1347,6 +1695,10 @@ def plot_combined_metric_curves(
                 ax.set_xlabel("")
                 ax.set_title(sampling_mu_label(sampling_case["sampling_condition"]))
                 ax.grid(True, which="major", axis="both", alpha=0.28, linestyle="--")
+            synchronize_christoffel_y_limits(
+                metric_panel_axes,
+                metric_sampling_conditions,
+            )
             used_in_last_row = num_cases - ((case_rows - 1) * case_columns)
             if reverse_pyramid:
                 last_row = int(metric_idx * case_rows + case_rows - 1)
@@ -1365,7 +1717,7 @@ def plot_combined_metric_curves(
             bottom=0.14,
             top=0.95,
             wspace=0.22,
-            hspace=0.52,
+            hspace=0.70,
         )
         if reverse_pyramid:
             for metric_idx, metric in enumerate(metrics):
@@ -1527,20 +1879,23 @@ def export_metric_figures(
             )
             if output is not None:
                 outputs.append(output)
-        output = plot_combined_metric_curves(
-            subset,
-            combined_metrics,
-            output_path=output_root
-            / _figure_filename(
-                output_root,
-                sampling_method,
-                "_".join(str(metric) for metric in combined_metrics),
-                "vs_sampling_ratio_by_recovery_prompt",
-            ),
-            show=show,
-        )
-        if output is not None:
-            outputs.append(output)
+        # An empty sequence explicitly disables the combined figure.  This is
+        # useful for diagnostic notebooks that request only individual sweeps.
+        if combined_metrics:
+            output = plot_combined_metric_curves(
+                subset,
+                combined_metrics,
+                output_path=output_root
+                / _figure_filename(
+                    output_root,
+                    sampling_method,
+                    "_".join(str(metric) for metric in combined_metrics),
+                    "vs_sampling_ratio_by_recovery_prompt",
+                ),
+                show=show,
+            )
+            if output is not None:
+                outputs.append(output)
     return outputs
 
 
@@ -1574,7 +1929,7 @@ def load_target_path(sd15_root: str | Path, frame: pd.DataFrame, *, item_id: int
     with dataset_ref_path.open("r", encoding="utf-8") as handle:
         dataset_ref = json.load(handle)
     item = next(item for item in dataset_ref["items"] if int(item["item_id"]) == int(item_id))
-    return Path(item["gt_png_path"])
+    return resolve_dataset_artifact_path(sd15_root, item["gt_png_path"])
 
 
 def add_zero_filled_metric_label(ax: Any, row: pd.Series) -> None:
@@ -1646,7 +2001,7 @@ def plot_recovery_grid(
     repeat_id: Optional[int] = None,
     sampling_method: str = DEFAULT_SAMPLING_METHODS[0],
     sampling_percentage: float = 0.00125,
-    panel_width_in: float = 3.0,
+    panel_width_in: float = 3.6,
     panel_height_in: float = 4.2,
     selection_metrics: Sequence[str] = ("psnr_db", "ssim"),
     output_path: str | Path | None = None,
@@ -1702,7 +2057,7 @@ def plot_recovery_grid(
             squeeze=False,
             constrained_layout=True,
         )
-        fig.set_constrained_layout_pads(w_pad=0.02, h_pad=0.02, wspace=0.02, hspace=0.02)
+        fig.set_constrained_layout_pads(w_pad=0.02, h_pad=0.12, wspace=0.02, hspace=0.02)
         fig.suptitle(
             rf"Sampling Distribution: {sampling_mu_label(sampling_condition)}",
             fontsize=34,
@@ -1742,12 +2097,35 @@ def plot_recovery_grid(
                         fontsize=22,
                         pad=6,
                     )
+                best_objective = pd.to_numeric(
+                    pd.Series([record.get("bp_best_loss", np.nan)]),
+                    errors="coerce",
+                ).iloc[0]
+                objective_line = (
+                    f"Objective {float(best_objective):.3e}\n"
+                    if pd.notna(best_objective)
+                    else ""
+                )
+                lpips_value = pd.to_numeric(
+                    pd.Series([record.get("lpips", np.nan)]),
+                    errors="coerce",
+                ).iloc[0]
+                lpips_line = (
+                    f"LPIPS {float(lpips_value):.3f}\n"
+                    if pd.notna(lpips_value)
+                    else ""
+                )
+                metric_text = (
+                    objective_line
+                    + f"PSNR {float(record['psnr_db']):.2f} dB\n"
+                    + f"SSIM {float(record['ssim']):.3f}\n"
+                    + lpips_line
+                    + f"PPMAE {float(record['pixel_mae']):.4f}"
+                )
                 ax.text(
                     0.02,
                     0.96,
-                    f"PSNR {float(record['psnr_db']):.2f} dB\n"
-                    f"SSIM {float(record['ssim']):.3f}\n"
-                    f"PPMAE {float(record['pixel_mae']):.4f}",
+                    metric_text,
                     transform=ax.transAxes,
                     ha="left",
                     va="top",
@@ -1779,7 +2157,7 @@ def export_recovery_grids(
     repeat_id: Optional[int] = None,
     sampling_method: Optional[str] = DEFAULT_SAMPLING_METHODS[0],
     sampling_percentage: float = 0.00125,
-    panel_width_in: float = 3.0,
+    panel_width_in: float = 3.6,
     panel_height_in: float = 4.2,
     selection_metrics: Sequence[str] = ("psnr_db", "ssim"),
     show: bool = True,

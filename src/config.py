@@ -221,6 +221,11 @@ class ReconstructionSolverConfig:
     early_stop_min_rel_improvement: float = 0.0
     checkpoint_denoiser: bool = True
     log_every: int = 1
+    loss_reduction: str = "mean"
+    trace_save_every: int = 0
+    resume_latents_path: str = ""
+    resume_optimizer_path: str = ""
+    iteration_offset: int = 0
 
 
 @dataclass(frozen=True)
@@ -413,6 +418,11 @@ def from_run_dict(payload: Dict[str, Any]) -> RunConfig:
         "early_stop_min_rel_improvement": float(solver_payload.get("early_stop_min_rel_improvement", 0.0)),
         "checkpoint_denoiser": bool(solver_payload.get("checkpoint_denoiser", True)),
         "log_every": int(solver_payload.get("log_every", 1)),
+        "loss_reduction": str(solver_payload.get("loss_reduction", "mean")),
+        "trace_save_every": int(solver_payload.get("trace_save_every", 0)),
+        "resume_latents_path": str(solver_payload.get("resume_latents_path", "") or ""),
+        "resume_optimizer_path": str(solver_payload.get("resume_optimizer_path", "") or ""),
+        "iteration_offset": int(solver_payload.get("iteration_offset", 0)),
     }
 
     output_payload = dict(normalized.get("output", {}))

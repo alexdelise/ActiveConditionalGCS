@@ -219,12 +219,18 @@ def load_completed_run_row(
     return row
 
 
-def results_root(project_root: str | Path, tag: str) -> Path:
+def results_root(
+    project_root: str | Path,
+    tag: str,
+    *,
+    results_base: str | Path | None = None,
+) -> Path:
     """Return the results folder for a tagged run."""
 
     if not str(tag).strip():
         raise ValueError("Runners require a non-empty --tag value.")
-    root = Path(project_root) / "results" / str(tag).strip()
+    base = Path(results_base) if results_base is not None else Path(project_root) / "results"
+    root = base / str(tag).strip()
     # Create the tag root early so metadata can be written before the heavy model
     # is loaded.
     root.mkdir(parents=True, exist_ok=True)
@@ -333,6 +339,7 @@ def run_method(
     samp_method: int,
     sampling_percentages: Optional[List[float]] = None,
     repeats_per_setting: Optional[int] = None,
+    results_base: str | Path | None = None,
 ) -> Dict[str, Any]:
     """Run one sampling method over the configured sweep grid.
 
@@ -351,7 +358,7 @@ def run_method(
     from .diffusion import encode_prompt, load_sd15_pipeline
     from .reconstruction import run_single_reconstruction
 
-    run_root = results_root(project_root, tag)
+    run_root = results_root(project_root, tag, results_base=results_base)
     dataset = resolve_dataset_for_run(project_root, cfg)
     ktilde_info = resolve_ktilde_for_run(project_root, cfg) if int(samp_method) == 1 else None
     save_run_metadata(run_root, cfg, dataset, ktilde_info)
@@ -523,6 +530,7 @@ def run_methods(
     method_ids: List[int],
     sampling_percentages: Optional[List[float]] = None,
     repeats_per_setting: Optional[int] = None,
+    results_base: str | Path | None = None,
 ) -> List[Dict[str, Any]]:
     """Run a list of sampling methods under a shared tagged results root."""
 
@@ -541,6 +549,7 @@ def run_methods(
                 samp_method=int(method_id),
                 sampling_percentages=sampling_percentages,
                 repeats_per_setting=repeats_per_setting,
+                results_base=results_base,
             )
         )
     return outputs
@@ -554,6 +563,7 @@ def run_enabled_methods(
     families: Optional[List[str]] = None,
     sampling_percentages: Optional[List[float]] = None,
     repeats_per_setting: Optional[int] = None,
+    results_base: str | Path | None = None,
 ) -> List[Dict[str, Any]]:
     """Run the sampling methods enabled in the config, optionally filtered by family."""
 
@@ -568,4 +578,5 @@ def run_enabled_methods(
         method_ids=method_ids,
         sampling_percentages=sampling_percentages,
         repeats_per_setting=repeats_per_setting,
+        results_base=results_base,
     )

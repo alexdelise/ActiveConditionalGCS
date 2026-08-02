@@ -1,0 +1,168 @@
+{
+  "base_config": "configs/unweighted/prompt_mismatched/sunset/base.json",
+  "tag": "unweighted/ablation/prompt_mismatched/sunset/inverse_square_cfg_ablation",
+  "use_dc_presets": false,
+  "baseline_sampling_method": "inverse_square",
+  "cases": [
+    {
+      "name": "baseline_inverse_square__recover_prompt_sunset_beach_cfg1",
+      "description": "Recover the prompt mismatched signal with pure inverse-square sampling and sunset beach recovery at CFG 1.",
+      "sampling_condition": "inverse_square",
+      "sampling_label": "$\\mu_{\\mathrm{IS}}$",
+      "sampling_rank": 6,
+      "reconstruction_condition": "sunset_beach_cfg1",
+      "reconstruction_label": "CFG 1",
+      "recon_rank": 1,
+      "overrides": {
+        "gen_recon": {
+          "guidance_scale": 1.0
+        },
+        "ktilde": {
+          "name": ""
+        },
+        "sampling": {
+          "weighted_ls": false,
+          "fft_normalization": "backward",
+          "probability_regularization_zeta": 0.0,
+          "methods_enabled": {
+            "cs": false,
+            "mcs": false,
+            "vdhh": false,
+            "inverse_square": true
+          },
+          "vd_params": {
+            "vdhh": {
+              "lowfreq_scale": 2.0,
+              "max_disk_fraction": 0.5
+            },
+            "inverse_square": {}
+          }
+        },
+        "reconstruction": {
+          "prompt": "sunset beach",
+          "prompts": null
+        }
+      }
+    },
+    {
+      "name": "baseline_inverse_square__recover_prompt_sunset_beach_cfg1p5",
+      "description": "Recover the prompt mismatched signal with pure inverse-square sampling and sunset beach recovery at CFG 1.5.",
+      "sampling_condition": "inverse_square",
+      "sampling_label": "$\\mu_{\\mathrm{IS}}$",
+      "sampling_rank": 6,
+      "reconstruction_condition": "sunset_beach_cfg1p5",
+      "reconstruction_label": "CFG 1.5",
+      "recon_rank": 2,
+      "overrides": {
+        "gen_recon": {
+          "guidance_scale": 1.5
+        },
+        "ktilde": {
+          "name": ""
+        },
+        "sampling": {
+          "weighted_ls": false,
+          "fft_normalization": "backward",
+          "probability_regularization_zeta": 0.0,
+          "methods_enabled": {
+            "cs": false,
+            "mcs": false,
+            "vdhh": false,
+            "inverse_square": true
+          },
+          "vd_params": {
+            "vdhh": {
+              "lowfreq_scale": 2.0,
+              "max_disk_fraction": 0.5
+            },
+            "inverse_square": {}
+          }
+        },
+        "reconstruction": {
+          "prompt": "sunset beach",
+          "prompts": null
+        }
+      }
+    },
+    {
+      "name": "baseline_inverse_square__recover_prompt_sunset_beach_cfg3",
+      "description": "Recover the prompt mismatched signal with pure inverse-square sampling and sunset beach recovery at CFG 3.",
+      "sampling_condition": "inverse_square",
+      "sampling_label": "$\\mu_{\\mathrm{IS}}$",
+      "sampling_rank": 6,
+      "reconstruction_condition": "sunset_beach_cfg3",
+      "reconstruction_label": "CFG 3",
+      "recon_rank": 3,
+      "overrides": {
+        "gen_recon": {
+          "guidance_scale": 3.0
+        },
+        "ktilde": {
+          "name": ""
+        },
+        "sampling": {
+          "weighted_ls": false,
+          "fft_normalization": "backward",
+          "probability_regularization_zeta": 0.0,
+          "methods_enabled": {
+            "cs": false,
+            "mcs": false,
+            "vdhh": false,
+            "inverse_square": true
+          },
+          "vd_params": {
+            "vdhh": {
+              "lowfreq_scale": 2.0,
+              "max_disk_fraction": 0.5
+            },
+            "inverse_square": {}
+          }
+        },
+        "reconstruction": {
+          "prompt": "sunset beach",
+          "prompts": null
+        }
+      }
+    },
+    {
+      "name": "baseline_inverse_square__recover_prompt_sunset_beach_cfg5",
+      "description": "Recover the prompt mismatched signal with pure inverse-square sampling and sunset beach recovery at CFG 5.",
+      "sampling_condition": "inverse_square",
+      "sampling_label": "$\\mu_{\\mathrm{IS}}$",
+      "sampling_rank": 6,
+      "reconstruction_condition": "sunset_beach_cfg5",
+      "reconstruction_label": "CFG 5",
+      "recon_rank": 4,
+      "overrides": {
+        "gen_recon": {
+          "guidance_scale": 5.0
+        },
+        "ktilde": {
+          "name": ""
+        },
+        "sampling": {
+          "weighted_ls": false,
+          "fft_normalization": "backward",
+          "probability_regularization_zeta": 0.0,
+          "methods_enabled": {
+            "cs": false,
+            "mcs": false,
+            "vdhh": false,
+            "inverse_square": true
+          },
+          "vd_params": {
+            "vdhh": {
+              "lowfreq_scale": 2.0,
+              "max_disk_fraction": 0.5
+            },
+            "inverse_square": {}
+          }
+        },
+        "reconstruction": {
+          "prompt": "sunset beach",
+          "prompts": null
+        }
+      }
+    }
+  ]
+}

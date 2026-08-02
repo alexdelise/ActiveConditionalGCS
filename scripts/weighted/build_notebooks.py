@@ -144,7 +144,7 @@ def trial_convergence_markdown() -> str:
 
 The four saved S10000 artifacts remain fixed references. For every prompt, five
 new S10000 estimates use disjoint latent-seed blocks and record relative
-$\\ell_2$ error, relative $\\ell_\\infty$ error, the regularized Lambda
+$\\ell^2$ error, relative $\\ell^\\infty$ error, the regularized Lambda
 max-ratio, and the regularized maximum log-probability ratio every 10
 iterations. The probability-based metrics use $\\zeta=1/2$.
 
@@ -196,7 +196,7 @@ WEIGHTED_BASE_TAG = '{weighted_tag}'
 SAMPLING_METHODS = list(recovery.WEIGHTED_MAIN_SAMPLING_METHODS)
 ALLOWED_SAMPLING_PERC = set(recovery.WEIGHTED_MAIN_RATES)
 EXCLUDED_SAMPLING_CONDITIONS = set()
-OUTPUT_ROOT = SD15_ROOT / 'results' / 'figures'
+OUTPUT_ROOT = SD15_ROOT / 'results' / 'weighted' / 'figures'
 
 LPIPS_TABLE = recovery.ensure_lpips_metrics(
     SD15_ROOT,
@@ -238,13 +238,14 @@ def main_comparison_code(old_tag: str) -> str:
     return f"""# This is a complete-pipeline comparison: S10000, zeta, weighting, and FFT normalization all change.
 SHARED_PAPER_RATES = {SHARED_RATES}
 WEIGHTED_ONLY_RATE = 0.025
+ORIGINAL_OUTPUT_ROOT = SD15_ROOT / 'results' / 'unweighted' / 'figures'
 original_analysis = recovery.load_recovery_analysis(
     SD15_ROOT,
     tag_group_candidates=recovery.split_tag_group_candidates('{old_tag}'),
     sampling_methods=SAMPLING_METHODS,
     allowed_sampling_percentages=SHARED_PAPER_RATES,
     excluded_sampling_conditions=EXCLUDED_SAMPLING_CONDITIONS,
-    output_root=OUTPUT_ROOT,
+    output_root=ORIGINAL_OUTPUT_ROOT,
 )
 
 comparison_keys = [
@@ -315,7 +316,10 @@ The four shared rates are compared with the original paper results as a complete
                 "metric curves for `psnr_db`, `ssim`, and `pixel_mae`",
                 "metric curves for `psnr_db`, `ssim`, `lpips`, and `pixel_mae`",
             )
-            if "METRIC_OUTPUTS = recovery.export_metric_figures(" in text:
+            if (
+                "METRIC_OUTPUTS = recovery.export_metric_figures(" in text
+                and "    combine_sampling_methods=True,\n" not in text
+            ):
                 text = text.replace(
                     "    show=True,\n)",
                     "    combine_sampling_methods=True,\n    show=True,\n)",
@@ -425,6 +429,14 @@ The four shared paper rates are compared as a complete-pipeline comparison, and 
         set_source(notebook["cells"][1], setup)
 
         load_code = source_text(notebook["cells"][3])
+        load_code = load_code.replace(
+            "result_namespace='unweighted'",
+            "result_namespace='weighted'",
+        )
+        load_code = load_code.replace(
+            "SD15_ROOT / 'results' / 'unweighted' /",
+            "SD15_ROOT / 'results' / 'weighted' /",
+        )
         load_code = load_code.replace(
             "sync_report = cfgviz.sync_main_references(SD15_ROOT, experiment=EXPERIMENT)",
             "sync_report = cfgviz.sync_main_references(SD15_ROOT, experiment=EXPERIMENT, dry_run=True)",

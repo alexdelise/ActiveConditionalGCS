@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import shutil
 from pathlib import Path
@@ -13,11 +14,33 @@ import numpy as np
 import pandas as pd
 
 
+_LOCAL_TEX_ROOT = Path(__file__).resolve().parent / "tex"
+_texinputs = os.environ.get("TEXINPUTS", "")
+if str(_LOCAL_TEX_ROOT) not in _texinputs.split(os.pathsep):
+    os.environ["TEXINPUTS"] = (
+        f"{_LOCAL_TEX_ROOT}{os.pathsep}{_texinputs}"
+        if _texinputs
+        else f"{_LOCAL_TEX_ROOT}{os.pathsep}"
+    )
+try:
+    from IPython import get_ipython
+    from matplotlib_inline.backend_inline import set_matplotlib_formats
+
+    if get_ipython() is not None:
+        set_matplotlib_formats("svg")
+except (ImportError, RuntimeError):
+    pass
+
 PRESENTATION_RC: Dict[str, Any] = {
     "text.usetex": True,
     "text.latex.preamble": r"\usepackage{amsmath,amssymb}",
     "font.family": "serif",
-    "font.serif": ["Computer Modern Roman", "CMU Serif", "Latin Modern Roman", "DejaVu Serif"],
+    "font.serif": [
+        "Computer Modern Roman",
+        "CMU Serif",
+        "Latin Modern Roman",
+        "DejaVu Serif",
+    ],
     "mathtext.fontset": "cm",
     "mathtext.rm": "serif",
     "mathtext.it": "serif:italic",
@@ -59,7 +82,10 @@ ABLATION_SAMPLING_PERCENTAGES: tuple[float, ...] = (
 )
 OLD_ABLATION_SAMPLING_PERCENTAGES: tuple[float, ...] = (0.00125, 0.0025, 0.005, 0.01, 0.025)
 WEIGHTED_SAMPLING_PERCENTAGES: tuple[float, ...] = (0.00125, 0.0025, 0.005, 0.01, 0.025)
-PANEL_TITLE_FONT = {"fontfamily": "serif", "fontname": "Computer Modern Roman"}
+PANEL_TITLE_FONT = {
+    "fontfamily": "serif",
+    "fontname": "Computer Modern Roman",
+}
 
 
 BASE_DISTRIBUTIONS: List[Dict[str, Any]] = [
@@ -90,6 +116,25 @@ BASE_DISTRIBUTIONS: List[Dict[str, Any]] = [
         "name": "Cat sampling",
         "rank": 4,
         "prefix": "sample_k4_cat",
+    },
+]
+
+UNWEIGHTED_BASELINE_DISTRIBUTIONS: List[Dict[str, Any]] = [
+    {
+        "key": "mcs",
+        "label": r"$\mu_{\mathrm{MCS}}$",
+        "name": "Uniform MCS",
+        "rank": 5,
+        "prefix": "baseline_mcs",
+        "sampling_method": "mcs",
+    },
+    {
+        "key": "inverse_square",
+        "label": r"$\mu_{\mathrm{IS}}$",
+        "name": "Inverse-square sampling",
+        "rank": 6,
+        "prefix": "baseline_inverse_square",
+        "sampling_method": "inverse_square",
     },
 ]
 
@@ -167,24 +212,38 @@ def experiment_distributions(experiment: str = "prompt_matched_in_range") -> Lis
         raise KeyError(f"Unknown CFG-ablation experiment {experiment!r}; expected one of {sorted(EXPERIMENT_SPECS)}.")
     spec = EXPERIMENT_SPECS[key]
     distributions: List[Dict[str, Any]] = []
-    for base in BASE_DISTRIBUTIONS:
+    bases = [*BASE_DISTRIBUTIONS, *UNWEIGHTED_BASELINE_DISTRIBUTIONS]
+    for base in bases:
         item = dict(base)
         prefix = str(item["prefix"])
+        sampling_method = str(item.get("sampling_method", "cs"))
         item["experiment"] = key
         item["dataset_name"] = str(spec["dataset_name"])
-        item["new_tag"] = f"{spec['ablation_root']}/{prefix}"
         split_names = tuple(spec.get("split_names", ("first4", "last3")))
-        item["new_tags"] = (
-            [f"{spec['ablation_root']}/{split_name}_{prefix}" for split_name in split_names]
-            if bool(spec.get("split", False))
-            else [item["new_tag"]]
-        )
-        item["old_tag"] = f"{spec['result_root']}/{prefix}"
-        item["old_tags"] = (
-            [f"{spec['result_root']}/{split_name}_{prefix}" for split_name in split_names]
-            if bool(spec.get("split", False))
-            else [item["old_tag"]]
-        )
+        item["result_root"] = str(spec["result_root"])
+        item["split_names"] = split_names
+        if sampling_method == "cs":
+            item["new_tag"] = f"{spec['ablation_root']}/{prefix}"
+            item["new_tags"] = (
+                [f"{spec['ablation_root']}/{split_name}_{prefix}" for split_name in split_names]
+                if bool(spec.get("split", False))
+                else [item["new_tag"]]
+            )
+            item["old_tag"] = f"{spec['result_root']}/{prefix}"
+            item["old_tags"] = (
+                [f"{spec['result_root']}/{split_name}_{prefix}" for split_name in split_names]
+                if bool(spec.get("split", False))
+                else [item["old_tag"]]
+            )
+        else:
+            item["new_tag"] = f"{spec['ablation_root']}/{sampling_method}_cfg_ablation"
+            item["new_tags"] = [
+                f"{spec['ablation_root']}/{split_name}_{sampling_method}_{line_key}"
+                for split_name in split_names
+                for line_key in ("cfg1", "cfg1p5", "cfg3", "cfg5")
+            ]
+            item["old_tag"] = ""
+            item["old_tags"] = []
         distributions.append(item)
     return distributions
 
@@ -203,9 +262,10 @@ LINE_SPECS: List[Dict[str, Any]] = [
 METRIC_SPECS: List[tuple[str, str]] = [
     ("psnr_db", "PSNR (dB)"),
     ("ssim", "SSIM"),
+    ("lpips", "LPIPS"),
     ("pixel_mae", "Per-Pixel MAE"),
 ]
-PLOT_METRIC_SPECS: List[tuple[str, str]] = METRIC_SPECS[:2]
+PLOT_METRIC_SPECS: List[tuple[str, str]] = METRIC_SPECS[:3]
 
 LINE_COLORS: Dict[str, str] = {
     "unconditioned": "#4C78A8",
@@ -230,7 +290,12 @@ SWEEP_LEGEND_Y = 1.08
 ZERO_FILLED_METRIC_COLUMNS: Dict[str, str] = {
     "psnr_db": "zero_filled_psnr_db",
     "ssim": "zero_filled_ssim",
+    "lpips": "zero_filled_lpips",
     "pixel_mae": "zero_filled_pixel_mae",
+}
+LPIPS_METRICS_RELATIVE_PATHS = {
+    "weighted": Path("results/weighted/metrics/lpips.csv"),
+    "unweighted": Path("results/unweighted/metrics/lpips.csv"),
 }
 
 RUN_DATA_KEYS = {
@@ -296,7 +361,10 @@ def _load_run_data_row(path: Path) -> Dict[str, Any]:
 
 
 def _load_run_data_rows(case_root: Path) -> List[Dict[str, Any]]:
-    return [_load_run_data_row(path) for path in sorted(case_root.glob("cs/item_*/samp_*/rep_*/run_data.npz"))]
+    return [
+        _load_run_data_row(path)
+        for path in sorted(case_root.glob("*/item_*/samp_*/rep_*/run_data.npz"))
+    ]
 
 
 def _load_compact_npz_rows(case_root: Path) -> List[Dict[str, Any]]:
@@ -355,6 +423,40 @@ def case_root_candidate_groups(
     root = find_sd15_root(sd15_root)
     prefix = str(distribution["prefix"])
     new_roots = [root / "results" / str(tag) for tag in distribution["new_tags"]]
+    sampling_method = str(distribution.get("sampling_method", "cs"))
+    if sampling_method != "cs":
+        result_root = root / "results" / str(distribution["result_root"])
+        split_names = tuple(distribution.get("split_names", ("first4", "last3")))
+        if line_key == "unconditioned":
+            return [
+                [
+                    result_root
+                    / f"{split_name}_{sampling_method}_recover_unprompted"
+                    / f"baseline_{sampling_method}__recover_unprompted"
+                    for split_name in split_names
+                ]
+            ]
+        if line_key == "cfg7p5":
+            return [
+                [
+                    result_root
+                    / f"{split_name}_{sampling_method}_recover_sunset_beach"
+                    / f"baseline_{sampling_method}__recover_sunset_beach"
+                    for split_name in split_names
+                ]
+            ]
+        case_name = _new_case_name(distribution, line_key)
+        return [
+            [
+                root
+                / "results"
+                / str(EXPERIMENT_SPECS[str(distribution["experiment"])]["ablation_root"])
+                / f"{split_name}_{sampling_method}_{line_key}"
+                / case_name
+                for split_name in split_names
+            ]
+        ]
+
     old_roots = [root / "results" / str(tag) for tag in distribution["old_tags"]]
     unsplit_new_root = root / "results" / str(distribution["new_tag"])
     unsplit_old_root = root / "results" / str(distribution["old_tag"])
@@ -445,6 +547,21 @@ def sync_main_references(
     for distribution in experiment_distributions(key):
         prefix = str(distribution["prefix"])
         copied_any = False
+        if str(distribution.get("sampling_method", "cs")) != "cs":
+            records.append(
+                {
+                    "experiment": key,
+                    "distribution_key": str(distribution["key"]),
+                    "reference": "unconditioned,cfg7p5",
+                    "source_kind": "direct_main_baseline",
+                    "sampling_dir": "",
+                    "status": "loaded_in_place",
+                    "copied_files": 0,
+                    "source": str(root / "results" / str(distribution["result_root"])),
+                    "destination": str(root / "results" / str(spec["ablation_root"])),
+                }
+            )
+            continue
 
         if bool(spec.get("split", False)):
             tag_roots = [
@@ -579,6 +696,61 @@ def _filter_sampling_percentages(frame: pd.DataFrame, sampling_percentages: Sequ
     return frame.loc[mask].copy()
 
 
+def attach_lpips_metrics(
+    frame: pd.DataFrame,
+    sd15_root: str | Path,
+    *,
+    result_namespace: str,
+) -> pd.DataFrame:
+    """Join the same incremental LPIPS sidecar used by the main notebooks."""
+
+    result = frame.copy()
+    for column in ("lpips", "zero_filled_lpips"):
+        if column not in result.columns:
+            result[column] = np.nan
+    namespace = str(result_namespace).strip().lower()
+    if namespace not in LPIPS_METRICS_RELATIVE_PATHS:
+        raise ValueError(f"Unsupported LPIPS namespace: {result_namespace!r}.")
+    sidecar_path = Path(sd15_root) / LPIPS_METRICS_RELATIVE_PATHS[namespace]
+    if result.empty or not sidecar_path.is_file() or "_run_data_path" not in result.columns:
+        return result
+
+    sidecar = pd.read_csv(sidecar_path)
+    required = {"artifact_relpath", "lpips"}
+    if not required.issubset(sidecar.columns):
+        raise ValueError(
+            f"LPIPS sidecar {sidecar_path} is missing "
+            f"{sorted(required.difference(sidecar.columns))}."
+        )
+    if sidecar["artifact_relpath"].duplicated().any():
+        raise ValueError(f"LPIPS sidecar {sidecar_path} contains duplicate artifact paths.")
+
+    root = Path(sd15_root).resolve()
+
+    def artifact_relpath(value: Any) -> str:
+        if not isinstance(value, str) or not value:
+            return ""
+        return str(Path(value).resolve().parent.relative_to(root))
+
+    result["artifact_relpath"] = result["_run_data_path"].map(artifact_relpath)
+    metric_columns = [
+        column
+        for column in ("lpips", "zero_filled_lpips")
+        if column in sidecar.columns
+    ]
+    result = result.drop(columns=metric_columns, errors="ignore").merge(
+        sidecar[["artifact_relpath", *metric_columns]],
+        on="artifact_relpath",
+        how="left",
+        validate="many_to_one",
+    )
+    for column in ("lpips", "zero_filled_lpips"):
+        if column not in result.columns:
+            result[column] = np.nan
+        result[column] = pd.to_numeric(result[column], errors="coerce")
+    return result
+
+
 def load_cfg_ablation_rows(
     sd15_root: str | Path | None = None,
     *,
@@ -631,10 +803,12 @@ def load_cfg_ablation_rows(
         "samp_perc",
         "repeat_id",
     ]
-    return frame.drop_duplicates(subset=dedupe_columns, keep="last").sort_values(
+    frame = frame.drop_duplicates(subset=dedupe_columns, keep="last").sort_values(
         ["distribution_rank", "line_rank", "samp_perc", "repeat_id"],
         kind="stable",
     ).reset_index(drop=True)
+    namespace = "weighted" if str(experiment).startswith("weighted_") else "unweighted"
+    return attach_lpips_metrics(frame, root, result_namespace=namespace)
 
 
 def _z_value_for_confidence_level(confidence_level: float) -> float:
@@ -850,6 +1024,26 @@ def _apply_sampling_axis(ax: Any, values: Sequence[float]) -> None:
     ax.grid(True, which="major", axis="both", alpha=0.28, linestyle="--")
 
 
+def _synchronize_christoffel_y_limits(
+    axes: Sequence[Any],
+    distributions: Sequence[Dict[str, Any]],
+) -> None:
+    """Give the four Christoffel panels one scale and each baseline its own."""
+
+    christoffel_axes = [
+        ax
+        for ax, distribution in zip(axes, distributions)
+        if str(distribution.get("sampling_method", "cs")) == "cs" and ax.get_visible()
+    ]
+    if len(christoffel_axes) < 2:
+        return
+    limits = [ax.get_ylim() for ax in christoffel_axes]
+    lower = min(float(limit[0]) for limit in limits)
+    upper = max(float(limit[1]) for limit in limits)
+    for ax in christoffel_axes:
+        ax.set_ylim(lower, upper)
+
+
 def _save_figure(fig: Any, output_dir: str | Path | None, stem: str, *, show: bool) -> Dict[str, Path]:
     import matplotlib.pyplot as plt
 
@@ -891,7 +1085,7 @@ def plot_metric_curves(
     band: str = "ci",
     confidence_level: float = DEFAULT_CONFIDENCE_LEVEL,
 ) -> Dict[str, Path]:
-    """Plot the combined PSNR and SSIM curves for all sampling distributions."""
+    """Plot combined PSNR, SSIM, and LPIPS curves for all distributions."""
 
     import matplotlib.pyplot as plt
 
@@ -910,7 +1104,7 @@ def plot_metric_curves(
             len(distributions),
             figsize=(4.9 * len(distributions), 3.7 * len(PLOT_METRIC_SPECS)),
             sharex="col",
-            sharey="row",
+            sharey=False,
             squeeze=False,
             constrained_layout=True,
         )
@@ -982,6 +1176,12 @@ def plot_metric_curves(
                 else:
                     ax.grid(True, which="major", axis="both", alpha=0.28, linestyle="--")
 
+        for row_idx, _ in enumerate(PLOT_METRIC_SPECS):
+            _synchronize_christoffel_y_limits(
+                list(axes_array[row_idx, :]),
+                distributions,
+            )
+
         fig.supxlabel(SAMPLING_X_LABEL, fontsize=PRESENTATION_RC["axes.labelsize"])
         handles: List[Any] = []
         labels: List[str] = []
@@ -1004,7 +1204,7 @@ def plot_metric_curves(
                 borderaxespad=0.2,
             )
         context = _ablation_context_slug(output_dir)
-        stem = f"cfg_ablation_{context}_psnr_ssim_vs_sampling_ratio"
+        stem = f"cfg_ablation_{context}_psnr_ssim_lpips_vs_sampling_ratio"
         return _save_figure(fig, output_dir, stem, show=show)
 
 
@@ -1080,10 +1280,16 @@ def _best_zero_filled_panel_row(frame: pd.DataFrame, *, distribution_key: str, s
 
 
 def _add_metric_overlay(ax: Any, row: pd.Series) -> None:
+    lpips_line = ""
+    if "lpips" in row and pd.notna(row["lpips"]):
+        lpips_line = f"\nLPIPS {float(row['lpips']):.3f}"
     ax.text(
         0.02,
         0.96,
-        f"PSNR {float(row['psnr_db']):.2f} dB\nSSIM {float(row['ssim']):.3f}\nPPMAE {float(row['pixel_mae']):.4f}",
+        f"PSNR {float(row['psnr_db']):.2f} dB\n"
+        f"SSIM {float(row['ssim']):.3f}"
+        f"{lpips_line}\n"
+        f"PPMAE {float(row['pixel_mae']):.4f}",
         transform=ax.transAxes,
         ha="left",
         va="top",
@@ -1094,11 +1300,15 @@ def _add_metric_overlay(ax: Any, row: pd.Series) -> None:
 
 
 def _add_zero_filled_metric_overlay(ax: Any, row: pd.Series) -> None:
+    lpips_line = ""
+    if "zero_filled_lpips" in row and pd.notna(row["zero_filled_lpips"]):
+        lpips_line = f"\nLPIPS {float(row['zero_filled_lpips']):.3f}"
     ax.text(
         0.02,
         0.96,
         f"PSNR {float(row['zero_filled_psnr_db']):.2f} dB\n"
-        f"SSIM {float(row['zero_filled_ssim']):.3f}\n"
+        f"SSIM {float(row['zero_filled_ssim']):.3f}"
+        f"{lpips_line}\n"
         f"PPMAE {float(row['zero_filled_pixel_mae']):.4f}",
         transform=ax.transAxes,
         ha="left",
@@ -1196,7 +1406,8 @@ def plot_reconstruction_panel(
                     samp_perc=float(samp_perc),
                 )
                 if selected is not None and "_run_data_path" in selected and isinstance(selected["_run_data_path"], str):
-                    recon_path = Path(selected["_run_data_path"]).parent / "recon_cs.png"
+                    method = str(selected.get("method", "cs"))
+                    recon_path = Path(selected["_run_data_path"]).parent / f"recon_{method}.png"
                     if recon_path.is_file():
                         ax.imshow(_read_image(recon_path))
                         _add_metric_overlay(ax, selected)
