@@ -83,8 +83,7 @@ figures. A TeX installation is therefore required when exporting the figures.
 │   └── 📄 <a href="src/utils.py">utils.py</a>                      ← Reproducibility and artifact-path helpers
 │
 ├── 📁 <a href="configs/">configs/</a>                          ← Reconstruction configurations and suite manifests
-│   ├── 📁 <a href="configs/unweighted/">unweighted/</a>                   ← Reported experiments and CFG ablations
-│   └── 📁 <a href="configs/weighted/">weighted/</a>                     ← Weighted replication, baselines, and ablations
+│   └── 📁 <a href="configs/unweighted/">unweighted/</a>                   ← Reported experiments and CFG ablations
 │
 ├── 📁 <a href="datasets/">datasets/</a>                         ← Fixed image datasets and generation metadata
 │   ├── 📁 <a href="datasets/sunset_beach_signal_sd15_512x512/">sunset_beach_signal_sd15_512x512/</a>
@@ -100,8 +99,7 @@ figures. A TeX installation is therefore required when exporting the figures.
 ├── 📁 <a href="scripts/">scripts/</a>                          ← Experiment launchers and validation utilities
 │   ├── 📁 <a href="scripts/unweighted/">unweighted/</a>                   ← Unweighted main experiments and ablations
 │   │   └── 📁 <a href="scripts/unweighted/ktilde/">ktilde/</a>                   ← S500 empirical Christoffel builders
-│   └── 📁 <a href="scripts/weighted/">weighted/</a>                     ← Weighted main experiments and ablations
-│       ├── 📁 <a href="scripts/weighted/baselines/">baselines/</a>                ← MCS, inverse-square, and VDHH launchers
+│   └── 📁 <a href="scripts/weighted/">weighted/</a>
 │       └── 📁 <a href="scripts/weighted/ktilde_convergence/">ktilde_convergence/</a>      ← Five-trial convergence launchers
 │
 ├── 📁 <a href="analyze_results/">analyze_results/</a>                  ← Shared analysis helpers and paper notebooks
@@ -109,16 +107,14 @@ figures. A TeX installation is therefore required when exporting the figures.
 │   │   ├── 📁 <a href="analyze_results/unweighted/main/">main/</a>
 │   │   └── 📁 <a href="analyze_results/unweighted/ablation/">ablation/</a>
 │   └── 📁 <a href="analyze_results/weighted/">weighted/</a>
-│       ├── 📁 <a href="analyze_results/weighted/main/">main/</a>
-│       └── 📁 <a href="analyze_results/weighted/ablation/">ablation/</a>
+│       └── 📁 <a href="analyze_results/weighted/main/">main/</a>                  ← K-tilde and compatibility analysis
 │
 └── 📁 <a href="results/">results/</a>                          ← Local reconstruction outputs and generated figures
     ├── 📁 <a href="results/unweighted/">unweighted/</a>
     │   └── 📁 <a href="results/unweighted/figures/">figures/</a>
     └── 📁 <a href="results/weighted/">weighted/</a>
         ├── 📁 <a href="results/weighted/figures/">figures/</a>
-        ├── 📁 <a href="results/weighted/ktilde_convergence/">ktilde_convergence/</a>
-        └── 📁 <a href="results/weighted/metrics/">metrics/</a>
+        └── 📁 <a href="results/weighted/ktilde_convergence/">ktilde_convergence/</a>
 </pre>
 
 ### Entry Points
@@ -159,17 +155,16 @@ Further implementation notes are available in [src/README.md](src/README.md).
 | Location | Contents |
 | --- | --- |
 | [configs/unweighted/](configs/unweighted/) | Configurations and suite manifests for the reported unweighted experiments and CFG ablations. |
-| [configs/weighted/](configs/weighted/) | Configurations for the theory-aligned weighted experiments, weighted CFG ablations, and classical sampling baselines. |
 | [datasets/](datasets/) | Dataset indices, fixed ground-truth images, generation metadata, and the dataset build configuration. |
 | [ktilde/unweighted/](ktilde/unweighted/) | S500 empirical Christoffel artifacts used by the unweighted experiments, including the CFG-ablation estimates. |
 | [ktilde/weighted/](ktilde/weighted/) | S10000 reference estimates, the convergence-trial manifest, and completed convergence artifacts. |
 | [scripts/unweighted/](scripts/unweighted/) | Launchers for unweighted main experiments, CFG ablations, and S500 empirical Christoffel estimation. |
-| [scripts/weighted/](scripts/weighted/) | Launchers for weighted main experiments, CFG ablations, sampling baselines, and the five-trial convergence study. |
+| [scripts/weighted/ktilde_convergence/](scripts/weighted/ktilde_convergence/) | Launchers for the five-trial empirical Christoffel convergence study. |
 | [analyze_results/](analyze_results/) | Shared loading, validation, metric, and plotting functions. |
 | [analyze_results/unweighted/](analyze_results/unweighted/) | Main and CFG-ablation notebooks for the unweighted experiment suite. |
-| [analyze_results/weighted/](analyze_results/weighted/) | Main, CFG-ablation, and convergence notebooks for the weighted experiment suite. |
+| [analyze_results/weighted/main/](analyze_results/weighted/main/) | Empirical Christoffel, compatibility, and convergence analysis. |
 | [results/unweighted/](results/unweighted/) | Unweighted reconstruction artifacts and [unweighted figures](results/unweighted/figures/). |
-| [results/weighted/](results/weighted/) | Weighted reconstruction artifacts, convergence traces, derived metrics, and [weighted figures](results/weighted/figures/). |
+| [results/weighted/](results/weighted/) | Convergence traces and [weighted figures](results/weighted/figures/). |
 
 The README files inside [configs/](configs/), [datasets/](datasets/),
 [ktilde/](ktilde/), [scripts/](scripts/), and
@@ -267,27 +262,6 @@ recovery prompts in each of the three recovery scenarios. Separate CFG
 ablation manifests evaluate how classifier-free guidance changes the effective
 recovery class.
 
-### Weighted Experiments
-
-The theory-aligned weighted main experiments use five sampling ratios:
-
-`0.00125`, `0.0025`, `0.005`, `0.01`, and `0.025`.
-
-Each cell uses five independently seeded masks. The main Christoffel grid
-contains four sampling prompts, four recovery prompts, three scenarios, five
-sampling ratios, and five repeats, for 1,200 reconstructions.
-
-The weighted baseline configurations provide:
-
-- uniform Monte Carlo sampling, denoted MCS;
-- pure inverse-square variable-density sampling; and
-- VDHH, which deterministically includes a centered low-frequency disk and
-  samples the remaining coefficients uniformly outside it.
-
-All three baselines use the same unitary weighted operator, with weights
-defined by the sampling law or inclusion probabilities appropriate to that
-design.
-
 ### Empirical Christoffel Convergence Study
 
 The convergence study keeps each checked-in S10000 estimate fixed as a
@@ -318,24 +292,6 @@ Run an unweighted split:
   <unprompted|daytime_beach|sunset_beach|cat>
 ```
 
-Run a weighted Christoffel split:
-
-```bash
-./scripts/weighted/run_split.sh \
-  <main|ablation> \
-  <prompt_matched|prompt_mismatched|out_of_range> \
-  <first3|last2> \
-  <sample_k0_unconditioned|sample_k1_daytime_beach|sample_k2_sunset_beach|sample_k4_cat>
-```
-
-Run one weighted baseline split:
-
-```bash
-./scripts/weighted/baselines/run_mcs_split.sh prompt_matched first3 unprompted
-./scripts/weighted/baselines/run_inverse_square_split.sh prompt_matched first3 unprompted
-./scripts/weighted/baselines/run_vdhh_split.sh prompt_matched first3 unprompted
-```
-
 Run one convergence trial:
 
 ```bash
@@ -346,14 +302,11 @@ Validate the manifests or list the resolved job grids without loading SD1.5:
 
 ```bash
 python scripts/unweighted/validate_suite.py
-python scripts/weighted/validate_suite.py
-./scripts/weighted/baselines/list_all.sh
 ./scripts/weighted/ktilde_convergence/list_all.sh
 ```
 
 Detailed launcher documentation is available in
-[scripts/unweighted/README.md](scripts/unweighted/README.md) and
-[scripts/weighted/README.md](scripts/weighted/README.md).
+[scripts/unweighted/README.md](scripts/unweighted/README.md).
 
 ## Output and Resume Behavior
 
@@ -394,8 +347,7 @@ The main notebook groups are:
 
 - [analyze_results/unweighted/main/](analyze_results/unweighted/main/)
 - [analyze_results/unweighted/ablation/](analyze_results/unweighted/ablation/)
-- [analyze_results/weighted/main/](analyze_results/weighted/main/)
-- [analyze_results/weighted/ablation/](analyze_results/weighted/ablation/)
+- [analyze_results/weighted/main/ktilde_lambda_comparison.ipynb](analyze_results/weighted/main/ktilde_lambda_comparison.ipynb)
 
 The main recovery notebooks load available split tags, validate their
 experiment metadata, and support partially completed grids. They generate

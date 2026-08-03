@@ -1,12 +1,9 @@
 # Weighted Analysis
 
-- [main/](main/) contains the three weighted recovery notebooks and the
-  regularized S10000 K-tilde/Lambda notebook.
-- [ablation/](ablation/) contains the three weighted recovery-CFG notebooks.
-
-The recovery notebooks compare the weighted pipeline with the unweighted
-pipeline at the four shared rates and label `0.025` as weighted-only.
-
-Rows are loaded from [../../results/weighted/](../../results/weighted/), and
-notebook outputs are written to
+[main/ktilde_lambda_comparison.ipynb](main/ktilde_lambda_comparison.ipynb)
+analyzes the regularized S10000 empirical Christoffel laws, prompt
+compatibility values, and five independent convergence trials. It reads the
+scalar traces from
+[../../results/weighted/ktilde_convergence/](../../results/weighted/ktilde_convergence/)
+and writes figures to
 [../../results/weighted/figures/](../../results/weighted/figures/).

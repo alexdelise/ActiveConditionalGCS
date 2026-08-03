@@ -328,17 +328,23 @@ def unrolled_latents_from_init(
 
             # Checkpointing trades extra UNet forward passes for lower memory
             # during diffusion-backprop sweeps.
-            def step_fn(latents_in: torch.Tensor) -> torch.Tensor:
+            def step_fn(latents_in: torch.Tensor, timestep_in: torch.Tensor) -> torch.Tensor:
                 return denoise_one_step(
                     pipe,
                     latents_in,
                     prompt_embeddings,
-                    timestep,
+                    timestep_in,
                     guidance_scale=float(generation.guidance_scale),
                     eta=float(getattr(generation, "eta", 0.0)),
                 )
 
-            latents = torch_checkpoint(step_fn, latents)
+            # Pass the timestep explicitly.
+            latents = torch_checkpoint(
+                step_fn,
+                latents,
+                timestep,
+                use_reentrant=False,
+            )
         else:
             latents = denoise_one_step(
                 pipe,
