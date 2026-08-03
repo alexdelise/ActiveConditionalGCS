@@ -30,7 +30,7 @@ def save_preview_png(path: Path, image_chw: torch.Tensor) -> None:
     """Save a channel-first image tensor to disk without changing its spatial resolution."""
 
     # Import plotting only when an image is actually being written so metadata-only
-    # operations do not depend on matplotlib being installed.
+    # operations do not depend on matplotlib being installed
     import matplotlib.pyplot as plt
 
     image_np = image_chw.detach().to(dtype=torch.float32, device="cpu").numpy()
@@ -48,7 +48,7 @@ def _canonicalize_item_paths(dataset_dir_path: Path, item: Dict[str, Any]) -> Di
     item_id = int(item["item_id"])
     normalized = dict(item)
     # Dataset indexes may have been copied from another absolute path. Rebuild
-    # local paths from the dataset folder so the submission is relocatable.
+    # local paths from the dataset folder so the submission is relocatable
     normalized["gt_png_path"] = str(dataset_dir_path / f"gt_{item_id:03d}.png")
     meta_path = dataset_dir_path / f"meta_{item_id:03d}.json"
     if meta_path.exists():
@@ -122,13 +122,13 @@ def build_dataset(
     """
 
     # Keep the diffusion dependency on the build path only so loading copied
-    # dataset metadata does not require diffusers to be installed.
+    # dataset metadata does not require diffusers to be installed
     from .diffusion import encode_prompt, generate_from_latents, load_sd15_pipeline, make_latents, offload_text_encoder
 
     index_path = dataset_index_path(datasets_dir, definition.name)
     if index_path.exists() and not force:
         # Reuse checked-in dataset artifacts when they match the catalog entry;
-        # this keeps reproduction runs from regenerating ground-truth images.
+        # this keeps reproduction runs from regenerating ground-truth images
         dataset = load_dataset_index(datasets_dir, definition.name)
         validate_dataset(dataset, definition)
         return dataset
@@ -146,7 +146,7 @@ def build_dataset(
         seed = int(definition.seed + definition.per_item_seed_offset + item_id)
         set_seed_all(seed)
         # Each dataset item is generated from a deterministic seed and prompt so
-        # later reconstruction runs can treat the saved image as fixed truth.
+        # later reconstruction runs can treat the saved image as fixed truth
         prompt_embeddings = encode_prompt(
             pipe,
             str(prompt_text),
@@ -174,7 +174,7 @@ def build_dataset(
 
         if definition.save_images:
             # Ground-truth PNGs are the reconstruction target consumed by the
-            # Fourier measurement code.
+            # Fourier measurement code
             gt_path = dataset_dir_path / f"gt_{item_id:03d}.png"
             save_preview_png(gt_path, image_chw)
             item_record["gt_png_path"] = str(gt_path)

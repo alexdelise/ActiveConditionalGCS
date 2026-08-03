@@ -19,7 +19,7 @@ from .diffusion import (
     make_latents,
     unrolled_image_from_latents,
 )
-from .metrics import calculate_psnr, calculate_ssim, chw_to_hwc_for_display
+from .metrics import calculate_lpips, calculate_psnr, calculate_ssim, chw_to_hwc_for_display
 from .sampling import MeasurementOperator, build_sampling_pattern
 from .utils import json_dump, safe_empty_cuda_cache, sha256_text
 
@@ -321,7 +321,7 @@ def run_diffusion_backprop_reconstruction(
 
     if bool(config.init_from_meas_backproj):
         # A zero-filled inverse FFT can be mixed into the initial latent to warm
-        # start optimization; paper configs can disable this for random starts.
+        # start optimization; paper configs can disable this for random starts
         backproj = measurement_operator.zero_filled(measurements)
         backproj = backproj.to(dtype=torch.float32).clamp(0.0, 1.0)
         backproj_latents = encode_image_to_latents(pipe, backproj)
@@ -433,7 +433,7 @@ def run_diffusion_backprop_reconstruction(
     for local_iteration in range(1, int(config.outer_iterations) + 1):
         iteration = iteration_offset + local_iteration
         # Each outer iteration unrolls the full denoising chain, compares the
-        # decoded image to Fourier measurements, and updates the initial latent.
+        # decoded image to Fourier measurements, and updates the initial latent
         current_lr = diffusion_backprop_learning_rate(local_iteration, config=config)
         for param_group in optimizer.param_groups:
             param_group["lr"] = float(current_lr)
@@ -464,7 +464,7 @@ def run_diffusion_backprop_reconstruction(
                 grad_norm = float(gradient.norm(p=2).item())
                 if bool(config.normalize_grad) and grad_norm > 0.0:
                     # Normalization and clipping are optional guards for very
-                    # high-gradient runs; they are controlled entirely by config.
+                    # high-gradient runs; they are controlled entirely by config
                     gradient.div_(float(grad_norm + 1e-12))
                 if float(config.grad_clip) > 0.0:
                     clipped_norm = float(gradient.norm(p=2).item())
@@ -493,7 +493,7 @@ def run_diffusion_backprop_reconstruction(
         min_improvement = 0.0 if not math.isfinite(best_loss) else abs(best_loss) * early_stop_min_rel_improvement
         if total_loss_value < best_loss - min_improvement:
             # Keep the best latent rather than the last latent so noisy
-            # optimization tails do not degrade the reported reconstruction.
+            # optimization tails do not degrade the reported reconstruction
             best_loss = total_loss_value
             best_iter = int(iteration)
             best_latents = optimized_latents.detach().clone()
@@ -603,7 +603,7 @@ def run_diffusion_backprop_reconstruction(
 
     with torch.no_grad():
         # Decode the selected best latent once without checkpointing for the
-        # final image and metrics.
+        # final image and metrics
         image_rec = unrolled_image_from_latents(
             pipe,
             best_latents,
@@ -638,7 +638,7 @@ def run_diffusion_backprop_reconstruction(
 
     traces = {
         # These arrays are saved into run_data.npz and later consumed by the
-        # analysis notebooks for convergence diagnostics.
+        # analysis notebooks for convergence diagnostics
         "reconstruction_solver": "sd15_backprop",
         "sigma_y": float(config.sigma_y),
         "init_mode": init_mode,
@@ -731,7 +731,7 @@ def run_single_reconstruction(
     m_coeffs = int(np.round(float(samp_perc) * num_pixels))
     m_coeffs = max(1, min(m_coeffs, num_pixels))
     # Fold item id, repeat id, sampling percentage, and sampler id into the seed
-    # so every leaf run is deterministic and distinct.
+    # so every reconstruction is deterministic and distinct
     repeat_seed = int(
         cfg.repro.seed
         + 10_000 * int(dataset_item["item_id"])
@@ -751,7 +751,6 @@ def run_single_reconstruction(
         prob=probabilities,
         H=height,
         W=width,
-        vd_params=cfg.sampling.vd_params,
         return_metadata=True,
     )
     measurement_operator = MeasurementOperator(
@@ -762,12 +761,12 @@ def run_single_reconstruction(
         W=width,
         fft_normalization=str(cfg.sampling.fft_normalization),
     )
-    # Measurements are generated directly from the saved ground-truth image.
+    # Measurements are generated directly from the saved ground-truth image
     measurements = measurement_operator.A(image_true)
 
     sigma_y = float(cfg.reconstruction_solver.sigma_y)
     if sigma_y > 0.0:
-        # Optional synthetic measurement noise follows the configured sigma_y.
+        # Optional synthetic measurement noise follows the configured sigma_y
         if torch.is_complex(measurements):
             noise = torch.randn_like(measurements.real) + 1j * torch.randn_like(measurements.real)
             noise = noise / math.sqrt(2.0)
@@ -831,10 +830,10 @@ def run_single_reconstruction(
 
     conditioning_mode = "unconditioned" if str(prompt_text) == "" else "prompt"
     # The directory names are intentionally stable because scripts and notebooks
-    # use them to find completed runs.
+    # use them to find completed runs
 
     # The zero-filled reconstruction is not optimized; it is saved as a simple
-    # Fourier-adjoint baseline for each exact mask.
+    # Fourier-adjoint baseline for each exact mask
     zero_filled_t = measurement_operator.zero_filled(measurements)
     zero_filled_display = chw_to_hwc_for_display(
         np.nan_to_num(
@@ -852,10 +851,13 @@ def run_single_reconstruction(
         zf_ssim_value = calculate_ssim(255.0 * image_true_display, 255.0 * zero_filled_display, max_value=255.0)
     zf_grain_value = grain_score(zero_filled_display)
     zf_pixel_mae_value = float(np.mean(np.abs(image_true_display - zero_filled_display)))
+    # LPIPS runs on CPU after optimization to avoid competing with the reconstruction model for GPU memory
+    lpips_value = calculate_lpips(image_true_display, image_rec_display, device="cpu")
+    zf_lpips_value = calculate_lpips(image_true_display, zero_filled_display, device="cpu")
 
     run_data: Dict[str, Any] = {
         # Keep scalar metadata and metrics together so npz/csv tables are enough
-        # for most analysis without reopening images.
+        # for most analysis without reopening images
         "item_id": item_id,
         "prompt_text": prompt_text,
         "prompt_sha256": sha256_text(prompt_text),
@@ -881,10 +883,12 @@ def run_single_reconstruction(
         "runtime_sec": float(runtime),
         "psnr_db": float(psnr_value),
         "ssim": float(ssim_value),
+        "lpips": float(lpips_value),
         "pixel_mae": float(pixel_mae_value),
         "grain": float(grain_value),
         "zero_filled_psnr_db": float(zf_psnr_value),
         "zero_filled_ssim": float(zf_ssim_value),
+        "zero_filled_lpips": float(zf_lpips_value),
         "zero_filled_pixel_mae": float(zf_pixel_mae_value),
         "zero_filled_grain": float(zf_grain_value),
         "recon_num_steps": int(cfg.gen_recon.num_steps),
@@ -902,7 +906,7 @@ def run_single_reconstruction(
 
     torch.save(latents_rec.detach().cpu(), str(run_dir / "z_rec.pt"))
     if bool(cfg.output.save_npz) and bool(cfg.sweep.save_per_run_artifacts):
-        # Only scalar/array/string fields are serializable in the compact npz.
+        # Only scalar/array/string fields are serializable in the compact npz
         np.savez_compressed(
             str(run_dir / "run_data.npz"),
             **{key: value for key, value in run_data.items() if isinstance(value, (np.ndarray, np.number, float, int, str))},
@@ -915,6 +919,7 @@ def run_single_reconstruction(
             {
                 "psnr_db": np.array([[psnr_value]], dtype=np.float64),
                 "ssim": np.array([[ssim_value]], dtype=np.float64),
+                "lpips": np.array([[lpips_value]], dtype=np.float64),
                 "pixel_mae": np.array([[pixel_mae_value]], dtype=np.float64),
                 "prompt_text": np.array([prompt_text], dtype=object),
                 "samp_perc": np.array([[float(samp_perc)]], dtype=np.float64),
@@ -981,9 +986,11 @@ def run_single_reconstruction(
         handle.write(f"runtime_sec: {runtime:.4f}\n")
         handle.write(f"psnr_db: {psnr_value:.4f}\n")
         handle.write(f"ssim: {ssim_value:.6f}\n")
+        handle.write(f"lpips: {lpips_value:.6f}\n")
         handle.write(f"pixel_mae: {pixel_mae_value:.6f}\n")
         handle.write(f"zero_filled_psnr_db: {zf_psnr_value:.4f}\n")
         handle.write(f"zero_filled_ssim: {zf_ssim_value:.6f}\n")
+        handle.write(f"zero_filled_lpips: {zf_lpips_value:.6f}\n")
         handle.write(f"zero_filled_pixel_mae: {zf_pixel_mae_value:.6f}\n")
         handle.write(f"final_raw_resid_l2: {float(run_data['final_raw_resid_l2']):.12e}\n")
         handle.write(f"final_weighted_resid_l2: {float(run_data['final_weighted_resid_l2']):.12e}\n")

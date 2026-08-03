@@ -27,15 +27,7 @@
           "methods_enabled": {
             "cs": false,
             "mcs": true,
-            "vdhh": false,
             "inverse_square": false
-          },
-          "vd_params": {
-            "vdhh": {
-              "lowfreq_scale": 2.0,
-              "max_disk_fraction": 0.5
-            },
-            "inverse_square": {}
           }
         },
         "reconstruction": {
@@ -67,15 +59,7 @@
           "methods_enabled": {
             "cs": false,
             "mcs": true,
-            "vdhh": false,
             "inverse_square": false
-          },
-          "vd_params": {
-            "vdhh": {
-              "lowfreq_scale": 2.0,
-              "max_disk_fraction": 0.5
-            },
-            "inverse_square": {}
           }
         },
         "reconstruction": {
@@ -107,15 +91,7 @@
           "methods_enabled": {
             "cs": false,
             "mcs": true,
-            "vdhh": false,
             "inverse_square": false
-          },
-          "vd_params": {
-            "vdhh": {
-              "lowfreq_scale": 2.0,
-              "max_disk_fraction": 0.5
-            },
-            "inverse_square": {}
           }
         },
         "reconstruction": {
@@ -147,15 +123,7 @@
           "methods_enabled": {
             "cs": false,
             "mcs": true,
-            "vdhh": false,
             "inverse_square": false
-          },
-          "vd_params": {
-            "vdhh": {
-              "lowfreq_scale": 2.0,
-              "max_disk_fraction": 0.5
-            },
-            "inverse_square": {}
           }
         },
         "reconstruction": {

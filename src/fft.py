@@ -72,7 +72,7 @@ def partial_fourier_2d(
         x = x.view(-1, height, width)
         transformed = fft2_dft(x, normalization=normalization)
         # Sampling indices are defined on the centered spectrum, matching the
-        # k-tilde artifacts and mask visualizations.
+        # k-tilde artifacts and mask visualizations
         transformed = torch.fft.fftshift(transformed, dim=(-2, -1))
         transformed = transformed.view(-1, num_pixels)
         return transformed[..., inds]
@@ -82,7 +82,7 @@ def partial_fourier_2d(
         dtype = x.dtype if torch.is_complex(x) else torch.complex64
         transformed = torch.zeros(x.shape[:-1] + (num_pixels,), dtype=dtype, device=x.device)
         # Place measured coefficients back into an otherwise-zero Fourier grid;
-        # unsampled frequencies remain zero for the adjoint operation.
+        # unsampled frequencies remain zero for the adjoint operation
         transformed[..., inds] = x.view(-1, num_coefficients).to(dtype)
         transformed = transformed.view(-1, height, width)
         transformed = torch.fft.ifftshift(transformed, dim=(-2, -1))

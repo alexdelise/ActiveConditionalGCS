@@ -124,7 +124,6 @@ SAMPLING_METHOD_LABELS = {
     "cs": "CS (Christoffel)",
     "mcs": "MCS",
     "inverse_square": "Inverse-Square",
-    "vdhh": "VDHH",
 }
 REGRESSION_ROW_COLUMNS = [
     "sampling_method",

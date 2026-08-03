@@ -144,7 +144,7 @@ def main() -> None:
         default=None,
         help=(
             "Optional comma-separated exact sampling methods, e.g. "
-            "'cs', 'mcs', 'inverse_square', or 'vdhh'."
+            "'cs', 'mcs', or 'inverse_square'."
         ),
     )
     parser.add_argument(

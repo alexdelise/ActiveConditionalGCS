@@ -738,16 +738,21 @@ def attach_lpips_metrics(
         for column in ("lpips", "zero_filled_lpips")
         if column in sidecar.columns
     ]
-    result = result.drop(columns=metric_columns, errors="ignore").merge(
-        sidecar[["artifact_relpath", *metric_columns]],
+    sidecar_columns = {column: f"{column}_sidecar" for column in metric_columns}
+    result = result.merge(
+        sidecar[["artifact_relpath", *metric_columns]].rename(columns=sidecar_columns),
         on="artifact_relpath",
         how="left",
         validate="many_to_one",
     )
     for column in ("lpips", "zero_filled_lpips"):
-        if column not in result.columns:
-            result[column] = np.nan
-        result[column] = pd.to_numeric(result[column], errors="coerce")
+        direct = pd.to_numeric(result.get(column, np.nan), errors="coerce")
+        sidecar_column = f"{column}_sidecar"
+        if sidecar_column in result.columns:
+            fallback = pd.to_numeric(result.pop(sidecar_column), errors="coerce")
+            result[column] = direct.combine_first(fallback)
+        else:
+            result[column] = direct
     return result
 
 

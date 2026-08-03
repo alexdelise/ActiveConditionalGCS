@@ -34,7 +34,7 @@ def resolve_ktilde_npz_path(ktilde_dir: str | Path, ktilde_name: str) -> Path:
         locations = ", ".join(str(path) for path in matches)
         raise RuntimeError(f"K-tilde '{ktilde_name}' is ambiguous across artifact directories: {locations}.")
     # Prefer the namespaced path when a local compatibility symlink points to
-    # the same physical artifact.
+    # the same physical artifact
     return matches[0]
 
 
@@ -50,7 +50,7 @@ def set_reproducibility(cfg: "ReproConfig") -> Dict[str, Any]:
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(cfg.seed)
 
-    # Keep the CuDNN knobs explicit so saved run metadata reflects the active behavior.
+    # Keep the CuDNN knobs explicit so saved run metadata reflects the active behavior
     torch.backends.cudnn.benchmark = bool(cfg.cudnn_benchmark)
     torch.backends.cudnn.deterministic = bool(cfg.deterministic)
     return {
@@ -132,5 +132,5 @@ def safe_empty_cuda_cache() -> None:
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
     except Exception:
-        # Cache cleanup is best-effort and should never break the experiment flow.
+        # Cache cleanup is best-effort and should never break the experiment flow
         pass

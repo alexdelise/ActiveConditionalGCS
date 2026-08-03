@@ -30,7 +30,6 @@ WEIGHTED_MAIN_SAMPLING_METHODS: tuple[str, ...] = (
     "cs",
     "mcs",
     "inverse_square",
-    "vdhh",
 )
 WEIGHTED_MAIN_RATES: tuple[float, ...] = (
     0.00125,
@@ -52,7 +51,6 @@ WEIGHTED_MAIN_DISTRIBUTIONS: tuple[tuple[str, str, int], ...] = (
     ("k4_cat", "cs", 3),
     ("mcs", "mcs", 4),
     ("inverse_square", "inverse_square", 5),
-    ("vdhh", "vdhh", 6),
 )
 DEFAULT_ALLOWED_SAMPLING_PERCENTAGES: tuple[float, ...] = (
     0.00015625,
@@ -720,7 +718,7 @@ def load_weighted_main_analysis(
     output_root: str | Path | None = None,
     include_partial: bool = True,
 ) -> tuple[RecoveryAnalysis, pd.DataFrame]:
-    """Load, validate, and audit one seven-distribution weighted experiment."""
+    """Load, validate, and audit one six-distribution weighted experiment."""
 
     analysis = load_recovery_analysis(
         sd15_root,
@@ -892,7 +890,6 @@ def sampling_mu_label(condition: Any) -> str:
     baseline_labels = {
         "mcs": r"$\mu_{\mathrm{MCS}}$",
         "inverse_square": r"$\mu_{\mathrm{IS}}$",
-        "vdhh": r"$\mu_{\mathrm{VDHH}}$",
     }
     condition_text = str(condition)
     if condition_text in baseline_labels:
@@ -906,7 +903,7 @@ def synchronize_christoffel_y_limits(
 ) -> None:
     """Give the four Christoffel panels one scale and each baseline its own."""
 
-    baseline_conditions = {"mcs", "inverse_square", "vdhh"}
+    baseline_conditions = {"mcs", "inverse_square"}
     christoffel_axes = [
         ax
         for ax, condition in zip(axes, sampling_conditions)
@@ -1007,16 +1004,21 @@ def attach_lpips_metrics(
         for column in ("lpips", "zero_filled_lpips")
         if column in sidecar.columns
     ]
-    result = result.drop(columns=metric_columns, errors="ignore").merge(
-        sidecar[["artifact_relpath", *metric_columns]],
+    sidecar_columns = {column: f"{column}_sidecar" for column in metric_columns}
+    result = result.merge(
+        sidecar[["artifact_relpath", *metric_columns]].rename(columns=sidecar_columns),
         on="artifact_relpath",
         how="left",
         validate="many_to_one",
     )
     for column in ("lpips", "zero_filled_lpips"):
-        if column not in result.columns:
-            result[column] = np.nan
-        result[column] = pd.to_numeric(result[column], errors="coerce")
+        direct = pd.to_numeric(result.get(column, np.nan), errors="coerce")
+        sidecar_column = f"{column}_sidecar"
+        if sidecar_column in result.columns:
+            fallback = pd.to_numeric(result.pop(sidecar_column), errors="coerce")
+            result[column] = direct.combine_first(fallback)
+        else:
+            result[column] = direct
     return result
 
 
@@ -1168,13 +1170,52 @@ def ensure_lpips_metrics(
         for run_dir in run_dirs
         if force or str(run_dir.relative_to(root)) not in records
     ]
+
+    # New reconstruction artifacts store LPIPS directly, so copy those values
+    # into the shared table before loading the analysis-time metric network
+    reused_saved_metrics = 0
+    if not force:
+        still_pending: list[Path] = []
+        for run_dir in pending:
+            with np.load(run_dir / "run_data.npz", allow_pickle=False) as payload:
+                saved_lpips = (
+                    float(np.asarray(payload["lpips"]).reshape(-1)[0])
+                    if "lpips" in payload.files
+                    else np.nan
+                )
+                saved_zero_filled_lpips = (
+                    float(np.asarray(payload["zero_filled_lpips"]).reshape(-1)[0])
+                    if "zero_filled_lpips" in payload.files
+                    else np.nan
+                )
+            if not np.isfinite(saved_lpips):
+                still_pending.append(run_dir)
+                continue
+            artifact_relpath = str(run_dir.relative_to(root))
+            gt_path = _resolve_lpips_ground_truth(root, run_dir)
+            recon_path = _resolve_lpips_reconstruction(run_dir)
+            records[artifact_relpath] = {
+                "artifact_relpath": artifact_relpath,
+                "lpips": saved_lpips,
+                "zero_filled_lpips": saved_zero_filled_lpips,
+                "gt_path": str(gt_path.relative_to(root)),
+                "recon_path": str(recon_path.relative_to(root)),
+                "computed_at_utc": datetime.now(timezone.utc).isoformat(),
+                "network": "alex",
+            }
+            reused_saved_metrics += 1
+        pending = still_pending
+
     if limit is not None:
         pending = pending[: max(0, int(limit))]
     if verbose:
         print(
             f"LPIPS: {len(run_dirs)} reconstruction artifacts discovered; "
-            f"{len(records)} measured; {len(pending)} pending."
+            f"{len(records)} measured; {reused_saved_metrics} loaded from run data; "
+            f"{len(pending)} pending."
         )
+    if reused_saved_metrics:
+        _atomic_write_lpips_records(output_path, records)
     if not pending:
         return pd.DataFrame(
             [records[key] for key in sorted(records)]

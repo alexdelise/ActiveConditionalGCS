@@ -28,3 +28,16 @@ manifest with [validate_suite.py](validate_suite.py):
 ```bash
 python scripts/unweighted/validate_suite.py
 ```
+
+Uniform and inverse-square main baselines use the launchers in
+[baselines/](baselines/):
+
+```bash
+./scripts/unweighted/baselines/run_mcs_split.sh prompt_matched first4 unprompted
+./scripts/unweighted/baselines/run_inverse_square_split.sh prompt_matched last3 sunset_beach
+```
+
+Their CFG-ablation counterparts are in
+[ablation_baselines/](ablation_baselines/). Every reconstruction launcher is
+safe to repeat after interruption because completed reconstructions are loaded
+before the remaining sampling ratios and repeats are scheduled.

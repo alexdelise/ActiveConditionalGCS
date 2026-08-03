@@ -47,7 +47,7 @@ def expand_prompt_bank(definition: KtildeBuildConfig) -> List[str]:
             continue
         if template:
             # Support both named and positional templates because older prompt
-            # banks used both conventions.
+            # banks used both conventions
             if "{type}" in template:
                 prompt_text = template.format(type=token)
             elif "{}" in template:
@@ -70,7 +70,7 @@ def build_prompt_schedule(definition: KtildeBuildConfig) -> List[str]:
         return [str(definition.prompt or "") for _ in range(int(definition.max_samples))]
 
     # Cycle through the prompt bank deterministically so each prompt contributes
-    # evenly to the Monte Carlo estimate.
+    # evenly to the Monte Carlo estimate
     repetitions = int(definition.max_samples) // len(prompt_bank)
     remainder = int(definition.max_samples) % len(prompt_bank)
     schedule: List[str] = []
@@ -176,7 +176,7 @@ def estimate_ktilde_christoffel(
         set_seed_all(int(seed))
         if prompt_text not in prompt_cache:
             # Reusing prompt embeddings avoids repeated text-encoder calls while
-            # preserving the same image-generation seeds.
+            # preserving the same image-generation seeds
             prompt_cache[prompt_text] = encode_prompt(
                 pipe,
                 prompt_text,
@@ -215,7 +215,7 @@ def estimate_ktilde_christoffel(
             continue
 
         # The Christoffel estimate tracks the largest normalized Fourier energy
-        # observed at each coefficient across generated image differences.
+        # observed at each coefficient across generated image differences
         fourier_values = partial_fourier_2d(all_indices, int(definition.height), int(definition.width), diff, mode=1)
         contribution = (fourier_values.abs() ** 2).sum(dim=0).detach().cpu().numpy().astype(np.float64)
         contribution /= diff_norm**2
@@ -229,7 +229,7 @@ def estimate_ktilde_christoffel(
 
     total = np.sum(k_tilde)
     # Degenerate all-zero estimates fall back to a valid uniform distribution
-    # instead of producing NaNs.
+    # instead of producing NaNs
     probabilities = (np.ones(num_pixels, dtype=np.float64) / num_pixels) if total == 0.0 else (k_tilde / total)
     return k_tilde, probabilities
 
@@ -307,7 +307,7 @@ def build_ktilde(
     """
 
     # Keep the diffusion dependency on the build path only so loading copied
-    # k-tilde artifacts does not require diffusers to be installed.
+    # k-tilde artifacts does not require diffusers to be installed
     from .diffusion import load_sd15_pipeline
 
     file_path = ktilde_npz_path(ktilde_dir, definition.name)
@@ -316,7 +316,7 @@ def build_ktilde(
 
     if file_path.exists() and not force:
         # Existing artifacts are reused only after metadata validation, which
-        # catches stale files from a different prompt/seed/resolution.
+        # catches stale files from a different prompt/seed/resolution
         _, probabilities, metadata = load_ktilde_npz(file_path)
         validate_ktilde_metadata(metadata, definition)
         return file_path, probabilities

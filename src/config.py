@@ -13,21 +13,19 @@ MODEL_ID = "stable-diffusion-v1-5/stable-diffusion-v1-5"
 SAMPLING_METHODS: Dict[int, str] = {
     1: "cs",
     2: "mcs",
-    6: "vdhh",
     10: "inverse_square",
 }
 
 # Integer ids are persisted into result tables, while folder names are used on
-# disk. Keeping both maps explicit avoids hidden assumptions in analysis code.
+# disk. Keeping both maps explicit avoids hidden assumptions in analysis code
 METHOD_FOLDER_NAMES: Dict[int, str] = {
     1: "cs",
     2: "mcs",
-    6: "vdhh",
     10: "inverse_square",
 }
 
 # Accept a few human-friendly aliases at config/CLI boundaries, then convert
-# everything back to the canonical integer ids used by the runners.
+# everything back to the canonical integer ids used by the runners
 METHOD_ALIASES: Dict[str, int] = {
     "1": 1,
     "cs": 1,
@@ -36,29 +34,13 @@ METHOD_ALIASES: Dict[str, int] = {
     "mcs": 2,
     "uniform": 2,
     "uniform_mcs": 2,
-    "6": 6,
-    "vdhh": 6,
-    "half_half_lowfreq": 6,
     "10": 10,
     "inverse_square": 10,
     "pure_inverse_square": 10,
-    # Retain the old spelling as an input alias. The refactored implementation
-    # is deliberately pure inverse-square and does not mix with uniform draws.
+    # Historical input spellings map to the canonical pure inverse-square method
     "inverse_square_mixed": 10,
     "vdis": 10,
 }
-
-
-def default_vd_params() -> Dict[str, Dict[str, Any]]:
-    """Return defaults for the two variable-density baseline samplers."""
-
-    return {
-        "vdhh": {
-            "lowfreq_scale": 2.0,
-            "max_disk_fraction": 0.5,
-        },
-        "inverse_square": {},
-    }
 
 
 def default_methods_enabled() -> Dict[str, bool]:
@@ -80,7 +62,7 @@ def sampling_method_id(method: int | str) -> int:
         return int(METHOD_ALIASES[token])
     raise ValueError(
         f"Unknown sampling method '{method}'. Expected one of: "
-        "cs, mcs, inverse_square, vdhh."
+        "cs, mcs, inverse_square."
     )
 
 
@@ -104,27 +86,11 @@ def normalize_methods_enabled(raw: Mapping[str, Any] | None) -> Dict[str, bool]:
         return normalized
 
     # Config files may use aliases, but downstream runners expect canonical
-    # method names in the toggle map.
+    # method names in the toggle map
     for key, value in raw.items():
         method_name = sampling_method_name(str(key))
         normalized[method_name] = bool(value)
     return normalized
-
-
-def normalize_vd_params(raw: Mapping[str, Any] | None) -> Dict[str, Dict[str, Any]]:
-    """Merge optional variable-density parameters into stable defaults."""
-
-    merged = default_vd_params()
-    if raw is None:
-        return merged
-    for key, value in raw.items():
-        method_name = sampling_method_name(str(key))
-        if method_name not in merged or not isinstance(value, Mapping):
-            continue
-        updated = dict(merged[method_name])
-        updated.update({str(param): param_value for param, param_value in value.items()})
-        merged[method_name] = updated
-    return merged
 
 
 def enabled_sampling_method_ids(
@@ -236,7 +202,6 @@ class SamplingConfig:
     fft_normalization: str = "backward"
     probability_regularization_zeta: float = 0.0
     methods_enabled: Dict[str, bool] = field(default_factory=default_methods_enabled)
-    vd_params: Dict[str, Dict[str, Any]] = field(default_factory=default_vd_params)
 
 
 @dataclass(frozen=True)
@@ -365,7 +330,7 @@ def from_run_dict(payload: Dict[str, Any]) -> RunConfig:
     normalized["runtime"] = _normalize_runtime(dict(normalized.get("runtime", {})))
 
     # Normalize nested dictionaries before dataclass construction so copied
-    # configs can omit optional fields without changing runtime behavior.
+    # configs can omit optional fields without changing runtime behavior
     sampling_payload = dict(normalized.get("sampling", {}))
     sampling_payload.setdefault("weighted_ls", False)
     fft_normalization = str(sampling_payload.get("fft_normalization", "backward")).strip().lower()
@@ -377,7 +342,7 @@ def from_run_dict(payload: Dict[str, Any]) -> RunConfig:
     sampling_payload["fft_normalization"] = fft_normalization
     sampling_payload["probability_regularization_zeta"] = probability_regularization_zeta
     sampling_payload["methods_enabled"] = normalize_methods_enabled(sampling_payload.get("methods_enabled"))
-    sampling_payload["vd_params"] = normalize_vd_params(sampling_payload.get("vd_params"))
+    sampling_payload.pop("vd_params", None)
     normalized["sampling"] = sampling_payload
 
     gen_recon_payload = dict(normalized.get("gen_recon", {}))
@@ -393,7 +358,7 @@ def from_run_dict(payload: Dict[str, Any]) -> RunConfig:
     prompts = reconstruction_payload.get("prompts")
     reconstruction_payload["prompts"] = None if prompts is None else ["" if item is None else str(item) for item in prompts]
     # Store only the supported reconstruction prompt fields. This strips legacy
-    # keys from old configs while preserving the actual prompt schedule.
+    # keys from old configs while preserving the actual prompt schedule
     normalized["reconstruction"] = {
         "prompt": reconstruction_payload["prompt"],
         "prompts": reconstruction_payload["prompts"],
@@ -427,7 +392,7 @@ def from_run_dict(payload: Dict[str, Any]) -> RunConfig:
 
     output_payload = dict(normalized.get("output", {}))
     # Keep artifact saving enabled by default because analysis notebooks expect
-    # both compact result tables and per-run files.
+    # both compact result tables and per-run files
     output_payload.setdefault("save_mat", False)
     output_payload.setdefault("save_npz", True)
     output_payload.setdefault("save_json", True)
@@ -490,7 +455,7 @@ def _build_ktilde_entry(name: str, payload: Mapping[str, Any]) -> KtildeBuildCon
     """Build a single k-tilde-catalog entry from its JSON payload."""
 
     # A prompt bank lets one k-tilde artifact average over a controlled prompt
-    # set instead of a single text condition.
+    # set instead of a single text condition
     prompt_bank_raw = payload.get("prompt_bank")
     prompt_bank = None if prompt_bank_raw is None else [str(item) for item in prompt_bank_raw]
     return KtildeBuildConfig(

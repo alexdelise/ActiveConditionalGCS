@@ -1,15 +1,17 @@
 # Experiment Configurations
 
-- [unweighted/](unweighted/) contains the seven-rate main and CFG-ablation
-  configurations with `first4` and `last3` splits.
-- [weighted/](weighted/) contains the five-rate main, CFG-ablation, and
-  sampling-baseline configurations with `first3` and `last2` splits.
-- [example_run.json](example_run.json) is a compact single-run example.
+[unweighted/](unweighted/) contains the public seven-rate main experiments,
+CFG ablations, uniform baselines, and inverse-square baselines. Main
+Christoffel experiments use `first4` and `last3` manifests so the seven rates
+can be scheduled independently. Baseline manifests select one sampling method
+and define the four recovery prompts explicitly.
 
-Each suite manifest points to its base configuration and defines the sampling
-prior, recovery prompt, sampling grid, and repeat count.
+[example_run.json](example_run.json) is a compact single-run example. A suite
+manifest points to a base configuration and supplies the sampling condition,
+recovery condition, sampling ratios, repeat count, and any case-specific
+overrides.
 
-Inspect a manifest without running a reconstruction:
+Inspect a manifest without loading Stable Diffusion:
 
 ```bash
 python run_conditioning_regression.py \

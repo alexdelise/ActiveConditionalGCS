@@ -34,7 +34,6 @@ def suite_payload(family: str, scheme: str) -> dict:
         methods = {
             "cs": False,
             "mcs": scheme == "mcs",
-            "vdhh": False,
             "inverse_square": scheme == "inverse_square",
         }
         cases.append(
@@ -58,13 +57,6 @@ def suite_payload(family: str, scheme: str) -> dict:
                         "fft_normalization": "backward",
                         "probability_regularization_zeta": 0.0,
                         "methods_enabled": methods,
-                        "vd_params": {
-                            "vdhh": {
-                                "lowfreq_scale": 2.0,
-                                "max_disk_fraction": 0.5,
-                            },
-                            "inverse_square": {},
-                        },
                     },
                     "reconstruction": {
                         "prompt": prompt,

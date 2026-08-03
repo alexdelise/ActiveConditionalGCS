@@ -23,7 +23,9 @@ from .utils import collect_env_info, json_dump, safe_empty_cuda_cache, set_repro
 
 
 OPTIONAL_RESULT_COLUMNS = [
+    "lpips",
     "pixel_mae",
+    "zero_filled_lpips",
     "zero_filled_pixel_mae",
 ]
 
@@ -50,7 +52,7 @@ def write_results_csv(path: Path, rows: List[Dict[str, Any]]) -> None:
             if key not in fieldnames:
                 fieldnames.append(str(key))
     # Include optional columns even when all rows came from older artifacts that
-    # predate those metrics, keeping CSV schemas stable across resumed runs.
+    # predate those metrics, keeping CSV schemas stable across resumed runs
     for key in OPTIONAL_RESULT_COLUMNS:
         if key not in fieldnames:
             fieldnames.append(key)
@@ -89,7 +91,7 @@ def metric_log_fragment(row: Dict[str, Any], key: str, label: str, precision: in
 
 
 def sample_run_dir(parent_run_dir: str | Path, *, item_id: int, samp_perc: float, repeat_id: int) -> Path:
-    """Return the artifact directory for one sweep leaf."""
+    """Return the artifact directory for one reconstruction."""
 
     sample_tag = f"samp_{float(samp_perc):.5f}".replace(".", "p")
     repeat_tag = f"rep_{int(repeat_id):02d}"
@@ -177,7 +179,7 @@ def backfill_pixel_mae_for_completed_run(
         return row
 
     # When a skipped run predates pixel-MAE logging, refresh the compact npz and
-    # text summary in place so downstream analysis sees a complete schema.
+    # text summary in place so downstream analysis sees a complete schema
     row.update(updates)
     np.savez_compressed(
         str(run_dir / "run_data.npz"),
@@ -204,7 +206,7 @@ def load_completed_run_row(
     if not run_data_path.is_file() or not run_summary_path.is_file():
         return None
     # A run is considered resumable only when both the compact data and summary
-    # marker are present.
+    # marker are present
     with np.load(str(run_data_path), allow_pickle=False) as payload:
         row = {str(key): npz_value_to_python(payload[key]) for key in payload.files}
     if dataset_item is not None and image_height is not None and image_width is not None and method_folder is not None:
@@ -232,7 +234,7 @@ def results_root(
     base = Path(results_base) if results_base is not None else Path(project_root) / "results"
     root = base / str(tag).strip()
     # Create the tag root early so metadata can be written before the heavy model
-    # is loaded.
+    # is loaded
     root.mkdir(parents=True, exist_ok=True)
     return root
 
@@ -243,7 +245,7 @@ def resolve_dataset_for_run(project_root: str | Path, cfg: RunConfig) -> Dict[st
     dataset = load_dataset_index(Path(project_root) / "datasets", cfg.dataset.name)
     for item in dataset.get("items", []):
         # Shape checks catch accidental config/dataset mismatches before any GPU
-        # work starts.
+        # work starts
         if int(item["height"]) != int(cfg.image.height) or int(item["width"]) != int(cfg.image.width):
             raise ValueError(
                 f"Dataset '{cfg.dataset.name}' item {int(item['item_id'])} has shape "
@@ -260,7 +262,7 @@ def resolve_ktilde_for_run(project_root: str | Path, cfg: RunConfig) -> Dict[str
     raw_probabilities, metadata, file_path = load_ktilde_probabilities(Path(project_root) / "ktilde", cfg.ktilde.name)
     if int(metadata["height"]) != int(cfg.image.height) or int(metadata["width"]) != int(cfg.image.width):
         # K-tilde maps are resolution-specific because they index flattened FFT
-        # coordinates.
+        # coordinates
         raise ValueError(
             f"K-tilde '{cfg.ktilde.name}' has shape {(metadata['height'], metadata['width'])}, "
             f"expected {(cfg.image.height, cfg.image.width)}."
@@ -314,7 +316,7 @@ def save_run_metadata(run_root: Path, cfg: RunConfig, dataset: Dict[str, Any], k
     json_dump(run_root / "dataset_ref.json", dataset)
     if ktilde_info is not None:
         # Save the exact artifact metadata so a result directory is self
-        # describing even after files are moved.
+        # describing even after files are moved
         json_dump(
             run_root / "ktilde_ref.json",
             {
@@ -354,7 +356,7 @@ def run_method(
     """
 
     # Keep pipeline and reconstruction imports on the execution path so config
-    # validation helpers can be imported without pulling in the complete model stack.
+    # validation helpers can be imported without pulling in the complete model stack
     from .diffusion import encode_prompt, load_sd15_pipeline
     from .reconstruction import run_single_reconstruction
 
@@ -365,7 +367,7 @@ def run_method(
 
     method_folder = sampling_method_folder(samp_method)
     # Per-sampler folders let multiple sampling strategies share one suite tag
-    # without overwriting leaf artifacts.
+    # without overwriting per-reconstruction artifacts
     method_root = run_root / method_folder
     method_root.mkdir(parents=True, exist_ok=True)
 
@@ -411,7 +413,7 @@ def run_method(
             prompt_text = reconstruction_prompt(cfg, item_id)
             if prompt_text not in prompt_cache:
                 # Cache prompt embeddings once per unique recovery prompt; the
-                # same embeddings are reused for all sampling rates/repeats.
+                # same embeddings are reused for all sampling rates/repeats
                 prompt_cache[prompt_text] = encode_prompt(
                     pipe,
                     prompt_text,
@@ -435,8 +437,8 @@ def run_method(
                         method_folder=method_folder,
                     )
                     if existing_row is not None:
-                        # Resume behavior is idempotent: completed leaves are
-                        # loaded into the aggregate tables instead of rerun.
+                        # Resume behavior is idempotent: completed reconstructions are
+                        # loaded into the aggregate tables instead of rerun
                         all_rows.append(existing_row)
                         print(
                             f"[recon skip ] sampler={method_folder:<6} item={item_id:03d} rep={repeat_id:02d} "
@@ -465,12 +467,13 @@ def run_method(
                         f"samp={float(samp_perc):.5f} | "
                         f"PSNR {float(row['psnr_db']):6.2f} dB | "
                         f"SSIM {float(row['ssim']):.4f}"
+                        f"{metric_log_fragment(row, 'lpips', 'LPIPS', precision=4)}"
                         f"{metric_log_fragment(row, 'pixel_mae', 'MAE')}"
                     )
 
-        # Rebuild the aggregate from all completed canonical leaves. Disjoint
+        # Rebuild the aggregate from all completed canonical runs. Disjoint
         # rate shards therefore compose into one table without changing the
-        # canonical five-rate run configuration.
+        # canonical five-rate run configuration
         all_rows = []
         for item in dataset["items"]:
             for samp_perc in cfg.sweep.sampling_perc_list:
@@ -494,7 +497,7 @@ def run_method(
         results_csv = run_root / f"results_{method_folder}.csv"
         write_results_csv(results_csv, all_rows)
         # Compact npz tables mirror the CSV for notebooks that prefer NumPy
-        # loading over CSV parsing.
+        # loading over CSV parsing
         compact_payload = {
             "samp_perc": column_array(all_rows, "samp_perc", np.float64),
             "psnr_db": column_array(all_rows, "psnr_db", np.float64),
@@ -502,9 +505,11 @@ def run_method(
             "repeat_id": column_array(all_rows, "repeat_id", np.int64),
             "samp_method": column_array(all_rows, "samp_method", np.int64),
             "ssim": column_array(all_rows, "ssim", np.float64),
+            "lpips": optional_column_array(all_rows, "lpips", np.float64),
             "pixel_mae": optional_column_array(all_rows, "pixel_mae", np.float64),
             "zero_filled_psnr_db": column_array(all_rows, "zero_filled_psnr_db", np.float64),
             "zero_filled_ssim": column_array(all_rows, "zero_filled_ssim", np.float64),
+            "zero_filled_lpips": optional_column_array(all_rows, "zero_filled_lpips", np.float64),
             "zero_filled_pixel_mae": optional_column_array(all_rows, "zero_filled_pixel_mae", np.float64),
             "final_raw_resid_l2": optional_column_array(all_rows, "final_raw_resid_l2", np.float64),
             "final_weighted_resid_l2": optional_column_array(all_rows, "final_weighted_resid_l2", np.float64),
@@ -537,7 +542,7 @@ def run_methods(
     seen: set[int] = set()
     outputs: List[Dict[str, Any]] = []
     for method_id in method_ids:
-        # De-duplicate method ids so repeated CLI aliases do not rerun a sampler.
+        # De-duplicate method ids so repeated CLI aliases do not rerun a sampler
         if int(method_id) in seen:
             continue
         seen.add(int(method_id))

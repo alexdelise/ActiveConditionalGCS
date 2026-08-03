@@ -1,7 +1,8 @@
 # Result Analysis
 
-Shared loaders and plotting functions are located directly in this directory.
-Notebook groups are:
+Shared loaders, validation routines, metric summaries, uncertainty estimates,
+and plotting functions are located directly in this directory. Notebook
+groups are:
 
 - [unweighted/main/](unweighted/main/)
 - [unweighted/ablation/](unweighted/ablation/)

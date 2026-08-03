@@ -60,7 +60,7 @@ def _scheduler_step(pipe, noise_pred: torch.Tensor, timestep, latents: torch.Ten
     signature = inspect.signature(pipe.scheduler.step)
     kwargs: Dict[str, Any] = {}
     # Diffusers scheduler signatures vary across versions; only pass eta when
-    # the installed scheduler exposes it.
+    # the installed scheduler exposes it
     if "eta" in signature.parameters:
         kwargs["eta"] = float(eta)
     return pipe.scheduler.step(noise_pred, timestep, latents, return_dict=False, **kwargs)[0]
@@ -80,7 +80,7 @@ def load_sd15_pipeline(runtime: RuntimeConfig):
         "requires_safety_checker": False,
     }
     # The pinned and fallback diffusers versions differ slightly in accepted
-    # kwargs, so loading is intentionally defensive while preserving the model id.
+    # kwargs, so loading is intentionally defensive while preserving the model id
     try:
         pipe = StableDiffusionPipeline.from_pretrained(
             MODEL_ID,
@@ -107,7 +107,7 @@ def load_sd15_pipeline(runtime: RuntimeConfig):
         pass
 
     # Keep the denoiser/VAE on the active device, but offload the text encoder
-    # after prompt encoding because reconstruction optimizes latents only.
+    # after prompt encoding because reconstruction optimizes latents only
     try:
         pipe.to(DEVICE)
     except Exception:
@@ -124,7 +124,7 @@ def load_sd15_pipeline(runtime: RuntimeConfig):
             pass
 
     # These memory-saving switches are no-ops when unsupported by the installed
-    # diffusers version.
+    # diffusers version
     if runtime.attention_slicing:
         try:
             pipe.enable_attention_slicing(runtime.attention_slicing)
@@ -178,7 +178,7 @@ def encode_prompt(
     do_cfg = float(guidance_scale) > 1.0
     with torch.no_grad():
         # Keep prompt encoding outside the optimization graph. Gradients flow
-        # through the denoising chain with these embeddings held fixed.
+        # through the denoising chain with these embeddings held fixed
         prompt_embeds, negative_prompt_embeds = pipe.encode_prompt(
             prompt=str(prompt or ""),
             device=DEVICE,
@@ -285,7 +285,7 @@ def denoise_one_step(
 
     encoder_hidden_states = _prompt_embeds_for_unet(prompt_embeddings).to(device=unet_device)
     # The UNet may run in fp16/bfloat16, but the optimized latent state is kept
-    # in fp32 for stable Adam updates.
+    # in fp32 for stable Adam updates
     noise_pred = pipe.unet(
         latent_model_input.to(device=unet_device, dtype=pipe.unet.dtype),
         timestep_model,
@@ -295,7 +295,7 @@ def denoise_one_step(
 
     if do_cfg:
         # Classifier-free guidance combines unconditional and conditional noise
-        # predictions using the configured guidance scale.
+        # predictions using the configured guidance scale
         noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
         noise_pred = noise_pred_uncond + guidance_scale * (noise_pred_text - noise_pred_uncond)
 
@@ -327,7 +327,7 @@ def unrolled_latents_from_init(
             from torch.utils.checkpoint import checkpoint as torch_checkpoint
 
             # Checkpointing trades extra UNet forward passes for lower memory
-            # during diffusion-backprop sweeps.
+            # during diffusion-backprop sweeps
             def step_fn(latents_in: torch.Tensor, timestep_in: torch.Tensor) -> torch.Tensor:
                 return denoise_one_step(
                     pipe,
@@ -338,7 +338,7 @@ def unrolled_latents_from_init(
                     eta=float(getattr(generation, "eta", 0.0)),
                 )
 
-            # Pass the timestep explicitly.
+            # Explicit timestep inputs keep recomputation aligned with each denoising step
             latents = torch_checkpoint(
                 step_fn,
                 latents,
