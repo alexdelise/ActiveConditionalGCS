@@ -179,6 +179,7 @@ class ReconstructionSolverConfig:
     learning_rate: float = 5e-2
     lr_schedule: str = "constant"
     lr_warmup_iterations: int = 0
+    lr_decay_start_iteration: int = 0
     lr_min_factor: float = 0.0
     latent_l2_penalty: float = 0.0
     normalize_grad: bool = False
@@ -375,6 +376,7 @@ def from_run_dict(payload: Dict[str, Any]) -> RunConfig:
         "learning_rate": float(solver_payload.get("learning_rate", 5e-2)),
         "lr_schedule": str(solver_payload.get("lr_schedule", solver_payload.get("learning_rate_schedule", "constant"))),
         "lr_warmup_iterations": int(solver_payload.get("lr_warmup_iterations", solver_payload.get("lr_warmup_iters", 0))),
+        "lr_decay_start_iteration": int(solver_payload.get("lr_decay_start_iteration", 0)),
         "lr_min_factor": float(solver_payload.get("lr_min_factor", solver_payload.get("minimum_learning_rate_factor", 0.0))),
         "latent_l2_penalty": float(solver_payload.get("latent_l2_penalty", 0.0)),
         "normalize_grad": bool(solver_payload.get("normalize_grad", False)),

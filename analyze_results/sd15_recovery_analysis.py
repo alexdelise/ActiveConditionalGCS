@@ -1976,13 +1976,26 @@ def load_target_path(sd15_root: str | Path, frame: pd.DataFrame, *, item_id: int
 def add_zero_filled_metric_label(ax: Any, row: pd.Series) -> None:
     psnr = row.get("zero_filled_psnr_db", np.nan)
     ssim = row.get("zero_filled_ssim", np.nan)
+    lpips_value = pd.to_numeric(
+        pd.Series([row.get("zero_filled_lpips", np.nan)]),
+        errors="coerce",
+    ).iloc[0]
     ppmae = row.get("zero_filled_pixel_mae", np.nan)
     if pd.isna(psnr) or pd.isna(ssim) or pd.isna(ppmae):
         return
+    lpips_line = (
+        f"LPIPS {float(lpips_value):.3f}\n"
+        if pd.notna(lpips_value)
+        else ""
+    )
     ax.text(
         0.02,
         0.96,
-        f"PSNR {float(psnr):.2f} dB\nSSIM {float(ssim):.3f}\nPPMAE {float(ppmae):.4f}",
+        "Objective $\\approx 0$\n"
+        f"PSNR {float(psnr):.2f} dB\n"
+        f"SSIM {float(ssim):.3f}\n"
+        f"{lpips_line}"
+        f"PPMAE {float(ppmae):.4f}",
         transform=ax.transAxes,
         ha="left",
         va="top",

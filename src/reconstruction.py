@@ -84,6 +84,10 @@ def diffusion_backprop_learning_rate(iteration: int, *, config) -> float:
         return base_lr
 
     warmup_iterations = max(0, int(getattr(config, "lr_warmup_iterations", 0)))
+    decay_start_iteration = max(
+        0,
+        int(getattr(config, "lr_decay_start_iteration", 0)),
+    )
     min_factor = max(0.0, min(1.0, float(getattr(config, "lr_min_factor", 0.0))))
     min_lr = base_lr * min_factor
 
@@ -92,9 +96,24 @@ def diffusion_backprop_learning_rate(iteration: int, *, config) -> float:
 
     if schedule in {"cosine", "cosine_decay"}:
         total_iterations = max(1, int(config.outer_iterations))
-        if total_iterations <= warmup_iterations:
+        if decay_start_iteration > 0:
+            if warmup_iterations > 0:
+                raise ValueError(
+                    "lr_warmup_iterations and lr_decay_start_iteration cannot both be positive."
+                )
+            if decay_start_iteration >= total_iterations:
+                return base_lr
+            if iteration <= decay_start_iteration:
+                return base_lr
+            progress = float(iteration - decay_start_iteration) / float(
+                total_iterations - decay_start_iteration
+            )
+        elif total_iterations <= warmup_iterations:
             return base_lr
-        progress = float(iteration - warmup_iterations) / float(max(1, total_iterations - warmup_iterations))
+        else:
+            progress = float(iteration - warmup_iterations) / float(
+                max(1, total_iterations - warmup_iterations)
+            )
         progress = min(1.0, max(0.0, progress))
         cosine_weight = 0.5 * (1.0 + math.cos(math.pi * progress))
         return min_lr + (base_lr - min_lr) * cosine_weight
@@ -647,6 +666,9 @@ def run_diffusion_backprop_reconstruction(
         "learning_rate": float(config.learning_rate),
         "lr_schedule": str(getattr(config, "lr_schedule", "constant")),
         "lr_warmup_iterations": int(getattr(config, "lr_warmup_iterations", 0)),
+        "lr_decay_start_iteration": int(
+            getattr(config, "lr_decay_start_iteration", 0)
+        ),
         "lr_min_factor": float(getattr(config, "lr_min_factor", 0.0)),
         "loss_reduction": str(getattr(config, "loss_reduction", "mean")),
         "trace_save_every": int(getattr(config, "trace_save_every", 0)),
