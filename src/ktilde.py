@@ -130,6 +130,7 @@ def ktilde_metadata(definition: KtildeBuildConfig, prompt_schedule: List[str]) -
         "prompt_bank": prompt_bank,
         "prompt_template": str(definition.prompt_template or ""),
         "pair_same_prompt": bool(definition.pair_same_prompt),
+        "pair_prompt": definition.pair_prompt,
         "prompt_schedule_counts": prompt_histogram(prompt_schedule),
     }
 
@@ -194,7 +195,14 @@ def estimate_ktilde_christoffel(
     for sample_id in range(int(definition.max_samples)):
         previous = k_tilde.copy()
         prompt_i = str(prompt_schedule[sample_id])
-        prompt_j = prompt_i if definition.pair_same_prompt else str(prompt_schedule[(sample_id + 1) % int(definition.max_samples)])
+        if definition.pair_prompt is not None:
+            # Cross-class estimates keep the requested class ordering fixed
+            # instead of alternating the two prompts through a prompt bank
+            prompt_j = str(definition.pair_prompt)
+        elif definition.pair_same_prompt:
+            prompt_j = prompt_i
+        else:
+            prompt_j = str(prompt_schedule[(sample_id + 1) % int(definition.max_samples)])
         image_i = sample_image(prompt_i, seed=int(definition.seed) + 2 * sample_id)
         image_j = sample_image(prompt_j, seed=int(definition.seed) + 2 * sample_id + 1)
 
@@ -251,6 +259,7 @@ def validate_ktilde_metadata(metadata: Dict[str, Any], definition: KtildeBuildCo
         "prompt_bank",
         "prompt_template",
         "pair_same_prompt",
+        "pair_prompt",
         "prompt_schedule_counts",
     ]
     for key in keys:

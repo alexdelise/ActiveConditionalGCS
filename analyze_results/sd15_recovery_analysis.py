@@ -932,10 +932,10 @@ def sampling_tick_labels(values: Sequence[float]) -> list[str]:
 
 
 def style_sampling_ratio_axis(ax: Any, ticks: Sequence[float]) -> None:
-    """Use only explicit decimal labels on the logarithmic sampling-ratio axis."""
+    """Use explicit decimal labels on a linear sampling-ratio axis."""
 
     tick_values = sorted({float(value) for value in ticks})
-    ax.set_xscale("log")
+    ax.set_xscale("linear")
     ax.xaxis.set_major_locator(FixedLocator(tick_values))
     ax.xaxis.set_major_formatter(FixedFormatter(sampling_tick_labels(tick_values)))
     ax.xaxis.set_minor_locator(NullLocator())
@@ -2032,14 +2032,15 @@ def show_image_or_placeholder(ax: Any, path: str | Path, *, cmap: Any = None) ->
 def best_reconstruction_record(
     rows: pd.DataFrame,
     *,
-    selection_metrics: Sequence[str] = ("psnr_db", "ssim"),
+    selection_metrics: Sequence[str] = ("lpips", "psnr_db"),
 ) -> pd.Series:
     sort_columns = [column for column in selection_metrics if column in rows.columns]
     tie_breakers = [column for column in ["item_id", "repeat_id", "run_tag"] if column in rows.columns]
     if sort_columns or tie_breakers:
+        lower_is_better = {"lpips", "pixel_mae", "mae", "loss", "objective"}
         rows = rows.sort_values(
             sort_columns + tie_breakers,
-            ascending=([False] * len(sort_columns)) + ([True] * len(tie_breakers)),
+            ascending=([column in lower_is_better for column in sort_columns]) + ([True] * len(tie_breakers)),
             na_position="last",
             kind="stable",
         )
@@ -2057,7 +2058,7 @@ def plot_recovery_grid(
     sampling_percentage: float = 0.00125,
     panel_width_in: float = 3.6,
     panel_height_in: float = 4.2,
-    selection_metrics: Sequence[str] = ("psnr_db", "ssim"),
+    selection_metrics: Sequence[str] = ("lpips", "psnr_db"),
     output_path: str | Path | None = None,
     show: bool = True,
 ) -> Optional[Path]:
@@ -2213,7 +2214,7 @@ def export_recovery_grids(
     sampling_percentage: float = 0.00125,
     panel_width_in: float = 3.6,
     panel_height_in: float = 4.2,
-    selection_metrics: Sequence[str] = ("psnr_db", "ssim"),
+    selection_metrics: Sequence[str] = ("lpips", "psnr_db"),
     show: bool = True,
 ) -> list[Path]:
     """Export one recovery-image grid per sampling distribution."""

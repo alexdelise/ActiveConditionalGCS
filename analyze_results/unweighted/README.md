@@ -1,15 +1,12 @@
 # Unweighted Analysis
 
-- [main/](main/) contains the three recovery notebooks and the S500
-  K-tilde/Lambda notebook.
-- [ablation/](ablation/) contains the three CFG-ablation notebooks.
+- [main/](main/) contains the three main recovery notebooks
+- [ablation/](ablation/) contains the three recovery-CFG ablation notebooks
+- [ktilde/ktilde_analysis.ipynb](ktilde/ktilde_analysis.ipynb) contains the
+  unweighted K-tilde and compatibility analysis
 
-The notebooks read from
-[../../results/unweighted/](../../results/unweighted/), use artifacts from
-[../../ktilde/unweighted/](../../ktilde/unweighted/), and write figures to
-[../../results/unweighted/figures/](../../results/unweighted/figures/).
-
-Main recovery notebooks compare Christoffel, uniform, and inverse-square
-sampling with PSNR, SSIM, LPIPS, and per-pixel MAE sweeps and recovered-image
-panels. New runs provide LPIPS in their saved result data; older runs continue
-to use the shared analysis-time LPIPS cache.
+The notebooks read artifacts from the corresponding directory under
+[../../results/unweighted/](../../results/unweighted/). Each experiment writes
+its PDFs and summary tables into its own `figures/` folder. Main recovery
+notebooks compare Christoffel, uniform, and inverse-square sampling using PSNR,
+SSIM, LPIPS, and per-pixel MAE.

@@ -64,7 +64,7 @@ SD15_ROOT = recovery.find_sd15_root(NOTEBOOK_DIR)
 UNWEIGHTED_BASE_TAG = 'unweighted/{family}/sunset'
 SAMPLING_METHODS = list(recovery.UNWEIGHTED_MAIN_SAMPLING_METHODS)
 ALLOWED_SAMPLING_PERC = set(recovery.DEFAULT_ALLOWED_SAMPLING_PERCENTAGES)
-OUTPUT_ROOT = SD15_ROOT / 'results' / 'unweighted' / 'figures'
+OUTPUT_ROOT = SD15_ROOT / 'results'
 
 # LPIPS is calculated by the shared analysis pipeline and saved incrementally.
 LPIPS_TABLE = recovery.ensure_lpips_metrics(
@@ -83,7 +83,7 @@ ROWS = analysis.rows
 MEAN_TABLE = analysis.mean_table
 ACTIVE_TAG = analysis.active_tag
 LOADED_TAGS = analysis.loaded_tags
-OUTPUT_DIR = analysis.output_dir
+OUTPUT_DIR = analysis.output_dir / 'figures'
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 COMPLETION_PATH = OUTPUT_DIR / 'unweighted_main_completion.csv'
 COMPLETION_TABLE.to_csv(COMPLETION_PATH, index=False)
@@ -124,7 +124,8 @@ the four empirical Christoffel sampling laws, uniform MCS, and pure
 inverse-square sampling. All six distributions use the original seven sampling
 ratios and five trials. PSNR, SSIM, LPIPS, and per-pixel MAE are loaded and
 plotted through the shared analysis code. Outputs remain under
-`results/unweighted/figures/`.
+the corresponding experiment's `results/unweighted/<scenario>/sunset/figures/`
+directory.
 """,
         )
         set_source(notebook["cells"][1], setup_code(family))
@@ -133,6 +134,10 @@ plotted through the shared analysis code. Outputs remain under
             text = text.replace(
                 "metric curves for `psnr_db`, `ssim`, and `pixel_mae`",
                 "metric curves for `psnr_db`, `ssim`, `lpips`, and `pixel_mae`",
+            )
+            text = text.replace(
+                "selected from the loaded rows by PSNR first and SSIM second",
+                "selected from the loaded rows by minimum LPIPS, with maximum PSNR as the tie-breaker",
             )
             if (
                 "METRIC_OUTPUTS = recovery.export_metric_figures(" in text

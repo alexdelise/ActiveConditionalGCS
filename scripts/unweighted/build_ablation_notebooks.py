@@ -70,6 +70,13 @@ def main() -> None:
         )
         set_source(notebook["cells"][4], metric_markdown)
 
+        for cell in notebook["cells"]:
+            text = source_text(cell).replace(
+                "selected by PSNR first and SSIM second",
+                "selected by minimum LPIPS, with maximum PSNR as the tie-breaker",
+            )
+            set_source(cell, text)
+
         introduction = source_text(notebook["cells"][0])
         if "uniform MCS" not in introduction:
             introduction += (

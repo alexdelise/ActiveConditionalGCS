@@ -42,6 +42,18 @@ The S10000 convergence study uses $\zeta=1/2$. Regularization is applied after
 normalizing $\widetilde K_c$, so a stored empirical Christoffel estimate can
 be evaluated with different values of $\zeta$ without regenerating secants.
 
+For an ordered cross-class estimate, the optional `pair_prompt` configuration
+field fixes the prompt used to generate the second image of every secant. Thus
+`prompt = "cat"` and `pair_prompt = "sunset beach"` estimate
+
+$$
+\widetilde K(\mathbb F_{c_{\mathrm{ca}}}-\mathbb F_{c_{\mathrm{sb}}}),
+$$
+
+with the cat image always generated first and the sunset-beach image second.
+The three S10000 cross-class definitions are in
+[weighted/config_cross_class_s10000.json](weighted/config_cross_class_s10000.json).
+
 ## Reconstruction operators
 
 Let $F_{\mathrm u}$ denote the unitary two-dimensional Fourier transform and

@@ -6,6 +6,7 @@ import gc
 import math
 import os
 import time
+from dataclasses import replace
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
@@ -75,7 +76,12 @@ def noise_latents_at_timestep(pipe, latents_in: torch.Tensor, timestep_value) ->
     return latents_in + noise
 
 
-def diffusion_backprop_learning_rate(iteration: int, *, config) -> float:
+def diffusion_backprop_learning_rate(
+    iteration: int,
+    *,
+    config,
+    total_iterations: Optional[int] = None,
+) -> float:
     """Return the active diffusion-backprop learning rate for a given iteration."""
 
     base_lr = max(0.0, float(config.learning_rate))
@@ -95,7 +101,10 @@ def diffusion_backprop_learning_rate(iteration: int, *, config) -> float:
         return max(min_lr, base_lr * float(iteration) / float(max(1, warmup_iterations)))
 
     if schedule in {"cosine", "cosine_decay"}:
-        total_iterations = max(1, int(config.outer_iterations))
+        total_iterations = max(
+            1,
+            int(config.outer_iterations if total_iterations is None else total_iterations),
+        )
         if decay_start_iteration > 0:
             if warmup_iterations > 0:
                 raise ValueError(
@@ -423,6 +432,36 @@ def run_diffusion_backprop_reconstruction(
     weighted_residual_l2: list[float] = []
     learning_rates: list[float] = []
 
+    # An optimizer continuation should retain the scalar history already saved
+    # for this run so analysis sees one uninterrupted trajectory
+    if resumed_optimizer_payload is not None and trace_snapshot_path is not None:
+        existing_trace_path = Path(trace_snapshot_path)
+        if existing_trace_path.is_file():
+            with np.load(existing_trace_path, allow_pickle=False) as existing_trace:
+                existing_iterations = np.asarray(existing_trace["bp_iter"], dtype=np.int64)
+                if existing_iterations.size and int(existing_iterations[-1]) != int(config.iteration_offset):
+                    raise ValueError(
+                        f"Trace ends at iteration {int(existing_iterations[-1])}, "
+                        f"but iteration_offset={int(config.iteration_offset)}."
+                    )
+                iter_ids.extend(existing_iterations.tolist())
+                total_losses.extend(np.asarray(existing_trace["bp_loss"], dtype=np.float64).tolist())
+                data_losses.extend(np.asarray(existing_trace["bp_data_loss"], dtype=np.float64).tolist())
+                reg_losses.extend(np.asarray(existing_trace["bp_reg_loss"], dtype=np.float64).tolist())
+                grad_norms.extend(np.asarray(existing_trace["bp_grad_norm"], dtype=np.float64).tolist())
+                raw_residual_l2.extend(
+                    np.asarray(existing_trace["bp_raw_resid_l2"], dtype=np.float64).tolist()
+                )
+                weighted_residual_l2.extend(
+                    np.asarray(existing_trace["bp_weighted_resid_l2"], dtype=np.float64).tolist()
+                )
+                residual_l2.extend(
+                    np.asarray(existing_trace["bp_weighted_resid_l2"], dtype=np.float64).tolist()
+                )
+                learning_rates.extend(
+                    np.asarray(existing_trace["bp_learning_rate"], dtype=np.float64).tolist()
+                )
+
     best_loss = math.inf
     best_iter = -1
     best_latents = initial_latents.clone()
@@ -448,12 +487,20 @@ def run_diffusion_backprop_reconstruction(
     if torch.cuda.is_available():
         torch.cuda.reset_peak_memory_stats()
 
+    backward_loss_divisor = float(getattr(config, "backward_loss_divisor", 1.0))
+    if not math.isfinite(backward_loss_divisor) or backward_loss_divisor < 1.0:
+        raise ValueError("reconstruction_solver.backward_loss_divisor must be finite and at least 1.")
+
     target_iterations = iteration_offset + int(config.outer_iterations)
     for local_iteration in range(1, int(config.outer_iterations) + 1):
         iteration = iteration_offset + local_iteration
         # Each outer iteration unrolls the full denoising chain, compares the
         # decoded image to Fourier measurements, and updates the initial latent
-        current_lr = diffusion_backprop_learning_rate(local_iteration, config=config)
+        current_lr = diffusion_backprop_learning_rate(
+            iteration,
+            config=config,
+            total_iterations=target_iterations,
+        )
         for param_group in optimizer.param_groups:
             param_group["lr"] = float(current_lr)
         optimizer.zero_grad(set_to_none=True)
@@ -474,12 +521,25 @@ def run_diffusion_backprop_reconstruction(
         )
         reg_loss = 0.5 * float(config.latent_l2_penalty) * torch.mean((optimized_latents - initial_latents).square())
         total_loss = data_loss + reg_loss
-        total_loss.backward()
+        if not bool(torch.isfinite(total_loss).item()):
+            raise FloatingPointError(
+                f"Non-finite reconstruction loss at iteration {iteration}; Adam was not updated."
+            )
+
+        # Scale down the backward signal through the FP16 diffusion model, then
+        # restore the latent gradient before Adam so the optimized objective is unchanged
+        (total_loss / backward_loss_divisor).backward()
 
         grad_norm = 0.0
         with torch.no_grad():
             if optimized_latents.grad is not None:
                 gradient = optimized_latents.grad
+                gradient.mul_(backward_loss_divisor)
+                if not bool(torch.isfinite(gradient).all().item()):
+                    raise FloatingPointError(
+                        f"Non-finite latent gradient at iteration {iteration}; Adam was not updated. "
+                        f"Try increasing reconstruction_solver.backward_loss_divisor."
+                    )
                 grad_norm = float(gradient.norm(p=2).item())
                 if bool(config.normalize_grad) and grad_norm > 0.0:
                     # Normalization and clipping are optional guards for very
@@ -677,6 +737,7 @@ def run_diffusion_backprop_reconstruction(
         "iteration_offset": iteration_offset,
         "optimizer_state_resumed": int(resumed_optimizer_payload is not None),
         "latent_l2_penalty": float(config.latent_l2_penalty),
+        "backward_loss_divisor": float(backward_loss_divisor),
         "normalize_grad": int(bool(config.normalize_grad)),
         "grad_clip": float(config.grad_clip),
         "early_stop_patience": int(early_stop_patience),
@@ -812,6 +873,31 @@ def run_single_reconstruction(
         if int(getattr(cfg.reconstruction_solver, "trace_save_every", 0)) > 0
         else None
     )
+
+    # Incomplete runs resume from their atomically saved latent, Adam moments,
+    # best latent, and iteration count when the canonical command is rerun
+    if (
+        optimizer_checkpoint_path is not None
+        and optimizer_checkpoint_path.is_file()
+        and not str(cfg.reconstruction_solver.resume_optimizer_path).strip()
+        and not str(cfg.reconstruction_solver.resume_latents_path).strip()
+    ):
+        checkpoint = torch.load(optimizer_checkpoint_path, map_location="cpu", weights_only=True)
+        completed_iteration = int(checkpoint.get("completed_iteration", 0))
+        configured_iterations = int(cfg.reconstruction_solver.outer_iterations)
+        if 0 < completed_iteration < configured_iterations:
+            remaining_iterations = configured_iterations - completed_iteration
+            resumed_solver = replace(
+                cfg.reconstruction_solver,
+                outer_iterations=remaining_iterations,
+                resume_optimizer_path=str(optimizer_checkpoint_path.resolve()),
+                iteration_offset=completed_iteration,
+            )
+            cfg = replace(cfg, reconstruction_solver=resumed_solver)
+            print(
+                f"[recon resume] checkpoint={completed_iteration}/{configured_iterations} "
+                f"remaining={remaining_iterations}"
+            )
 
     start_time = time.time()
     print(

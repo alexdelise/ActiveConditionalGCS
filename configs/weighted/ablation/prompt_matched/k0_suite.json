@@ -1,0 +1,139 @@
+{
+  "base_config": "configs/weighted/ablation/prompt_matched/base.json",
+  "tag": "k0",
+  "use_dc_presets": false,
+  "cases": [
+    {
+      "name": "sample_k0_unconditioned__recover_unprompted",
+      "description": "Prompt-Matched In-Range recovery with fixed k0 CFG-7.5 Christoffel sampling and the Unconditioned recovery control.",
+      "sampling_condition": "k0",
+      "sampling_label": "$\\widetilde{\\mu}_{c_{\\mathrm{uc}}}$",
+      "sampling_rank": 0,
+      "reconstruction_condition": "unconditioned",
+      "reconstruction_label": "Unconditioned",
+      "recon_rank": 0,
+      "overrides": {
+        "gen_recon": {
+          "guidance_scale": 1.0
+        },
+        "ktilde": {
+          "name": "Ktilde_SD15__fft__k0_512x512_S10000_ns20"
+        },
+        "reconstruction": {
+          "prompt": "",
+          "prompts": null
+        }
+      }
+    },
+    {
+      "name": "sample_k0_unconditioned__recover_prompt_sunset_beach_cfg1",
+      "description": "Prompt-Matched In-Range recovery with fixed k0 CFG-7.5 Christoffel sampling and the CFG 1 recovery control.",
+      "sampling_condition": "k0",
+      "sampling_label": "$\\widetilde{\\mu}_{c_{\\mathrm{uc}}}$",
+      "sampling_rank": 0,
+      "reconstruction_condition": "cfg1",
+      "reconstruction_label": "CFG 1",
+      "recon_rank": 1,
+      "overrides": {
+        "gen_recon": {
+          "guidance_scale": 1.0
+        },
+        "ktilde": {
+          "name": "Ktilde_SD15__fft__k0_512x512_S10000_ns20"
+        },
+        "reconstruction": {
+          "prompt": "sunset beach",
+          "prompts": null
+        }
+      }
+    },
+    {
+      "name": "sample_k0_unconditioned__recover_prompt_sunset_beach_cfg1p5",
+      "description": "Prompt-Matched In-Range recovery with fixed k0 CFG-7.5 Christoffel sampling and the CFG 1.5 recovery control.",
+      "sampling_condition": "k0",
+      "sampling_label": "$\\widetilde{\\mu}_{c_{\\mathrm{uc}}}$",
+      "sampling_rank": 0,
+      "reconstruction_condition": "cfg1p5",
+      "reconstruction_label": "CFG 1.5",
+      "recon_rank": 2,
+      "overrides": {
+        "gen_recon": {
+          "guidance_scale": 1.5
+        },
+        "ktilde": {
+          "name": "Ktilde_SD15__fft__k0_512x512_S10000_ns20"
+        },
+        "reconstruction": {
+          "prompt": "sunset beach",
+          "prompts": null
+        }
+      }
+    },
+    {
+      "name": "sample_k0_unconditioned__recover_prompt_sunset_beach_cfg3",
+      "description": "Prompt-Matched In-Range recovery with fixed k0 CFG-7.5 Christoffel sampling and the CFG 3 recovery control.",
+      "sampling_condition": "k0",
+      "sampling_label": "$\\widetilde{\\mu}_{c_{\\mathrm{uc}}}$",
+      "sampling_rank": 0,
+      "reconstruction_condition": "cfg3",
+      "reconstruction_label": "CFG 3",
+      "recon_rank": 3,
+      "overrides": {
+        "gen_recon": {
+          "guidance_scale": 3.0
+        },
+        "ktilde": {
+          "name": "Ktilde_SD15__fft__k0_512x512_S10000_ns20"
+        },
+        "reconstruction": {
+          "prompt": "sunset beach",
+          "prompts": null
+        }
+      }
+    },
+    {
+      "name": "sample_k0_unconditioned__recover_prompt_sunset_beach_cfg5",
+      "description": "Prompt-Matched In-Range recovery with fixed k0 CFG-7.5 Christoffel sampling and the CFG 5 recovery control.",
+      "sampling_condition": "k0",
+      "sampling_label": "$\\widetilde{\\mu}_{c_{\\mathrm{uc}}}$",
+      "sampling_rank": 0,
+      "reconstruction_condition": "cfg5",
+      "reconstruction_label": "CFG 5",
+      "recon_rank": 4,
+      "overrides": {
+        "gen_recon": {
+          "guidance_scale": 5.0
+        },
+        "ktilde": {
+          "name": "Ktilde_SD15__fft__k0_512x512_S10000_ns20"
+        },
+        "reconstruction": {
+          "prompt": "sunset beach",
+          "prompts": null
+        }
+      }
+    },
+    {
+      "name": "sample_k0_unconditioned__recover_prompt_sunset_beach_cfg7p5",
+      "description": "Prompt-Matched In-Range recovery with fixed k0 CFG-7.5 Christoffel sampling and the CFG 7.5 recovery control.",
+      "sampling_condition": "k0",
+      "sampling_label": "$\\widetilde{\\mu}_{c_{\\mathrm{uc}}}$",
+      "sampling_rank": 0,
+      "reconstruction_condition": "cfg7p5",
+      "reconstruction_label": "CFG 7.5",
+      "recon_rank": 5,
+      "overrides": {
+        "gen_recon": {
+          "guidance_scale": 7.5
+        },
+        "ktilde": {
+          "name": "Ktilde_SD15__fft__k0_512x512_S10000_ns20"
+        },
+        "reconstruction": {
+          "prompt": "sunset beach",
+          "prompts": null
+        }
+      }
+    }
+  ]
+}

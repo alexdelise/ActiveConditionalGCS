@@ -343,7 +343,7 @@ def _run_trial_mode(
     if int(definition.seed) != int(manifest["reference_seed"]):
         raise ValueError("Reference catalog seed does not match the trial manifest.")
 
-    reference_path = root / "ktilde" / "weighted" / "reference" / f"{definition.name}.npz"
+    reference_path = root / "ktilde" / "weighted" / f"{definition.name}.npz"
     if not reference_path.is_file():
         raise FileNotFoundError(f"Final S10000 reference not found: {reference_path}")
     reference_sha256 = sha256_file(reference_path)
@@ -586,7 +586,7 @@ def _run_legacy_mode(
     from src.utils import collect_env_info
 
     definition = catalog[args.name]
-    reference_path = ktilde_npz_path(root / "ktilde" / "weighted" / "reference", definition.name)
+    reference_path = ktilde_npz_path(root / "ktilde" / "weighted", definition.name)
     if not reference_path.is_file():
         raise FileNotFoundError(
             f"Final reference K-tilde not found: {reference_path}. "
@@ -696,7 +696,7 @@ def main() -> None:
     parser.add_argument("--name", required=True, help="Exact fixed-reference K-tilde name.")
     parser.add_argument(
         "--output-dir",
-        default="results/weighted/figures/ktilde_convergence",
+        default="results/weighted/ktilde/figures",
         help="Legacy deterministic-trace output directory.",
     )
     parser.add_argument(

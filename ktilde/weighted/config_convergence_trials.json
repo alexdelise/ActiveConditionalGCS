@@ -7,7 +7,7 @@
   "expected_trials": 5,
   "probability_regularization_zeta": 0.5,
   "artifact_root": "ktilde/weighted/convergence_trials",
-  "trace_root": "results/weighted/ktilde_convergence/traces",
+  "trace_root": "results/weighted/ktilde/traces",
   "priors": {
     "k0": {
       "role": "k0",

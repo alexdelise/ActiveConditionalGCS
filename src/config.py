@@ -182,6 +182,7 @@ class ReconstructionSolverConfig:
     lr_decay_start_iteration: int = 0
     lr_min_factor: float = 0.0
     latent_l2_penalty: float = 0.0
+    backward_loss_divisor: float = 1.0
     normalize_grad: bool = False
     grad_clip: float = 0.0
     early_stop_patience: int = 0
@@ -297,6 +298,7 @@ class KtildeBuildConfig:
     prompt_bank: Optional[List[str]] = None
     prompt_template: str = ""
     pair_same_prompt: bool = True
+    pair_prompt: Optional[str] = None
 
 
 def _construct(cls, payload: Dict[str, Any]):
@@ -379,6 +381,7 @@ def from_run_dict(payload: Dict[str, Any]) -> RunConfig:
         "lr_decay_start_iteration": int(solver_payload.get("lr_decay_start_iteration", 0)),
         "lr_min_factor": float(solver_payload.get("lr_min_factor", solver_payload.get("minimum_learning_rate_factor", 0.0))),
         "latent_l2_penalty": float(solver_payload.get("latent_l2_penalty", 0.0)),
+        "backward_loss_divisor": float(solver_payload.get("backward_loss_divisor", 1.0)),
         "normalize_grad": bool(solver_payload.get("normalize_grad", False)),
         "grad_clip": float(solver_payload.get("grad_clip", 0.0)),
         "early_stop_patience": int(solver_payload.get("early_stop_patience", 0)),
@@ -460,6 +463,8 @@ def _build_ktilde_entry(name: str, payload: Mapping[str, Any]) -> KtildeBuildCon
     # set instead of a single text condition
     prompt_bank_raw = payload.get("prompt_bank")
     prompt_bank = None if prompt_bank_raw is None else [str(item) for item in prompt_bank_raw]
+    pair_prompt_raw = payload.get("pair_prompt")
+    pair_prompt = None if pair_prompt_raw is None else str(pair_prompt_raw)
     return KtildeBuildConfig(
         name=str(name),
         height=int(payload["height"]),
@@ -475,6 +480,7 @@ def _build_ktilde_entry(name: str, payload: Mapping[str, Any]) -> KtildeBuildCon
         prompt_bank=prompt_bank,
         prompt_template=str(payload.get("prompt_template", "")),
         pair_same_prompt=bool(payload.get("pair_same_prompt", True)),
+        pair_prompt=pair_prompt,
     )
 
 

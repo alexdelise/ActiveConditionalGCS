@@ -67,7 +67,8 @@ required when exporting figures.
 │
 ├── 📁 <a href="src/">src/</a>                              ← Core reconstruction package
 ├── 📁 <a href="configs/">configs/</a>                          ← Experiment configurations and manifests
-│   └── 📁 <a href="configs/unweighted/">unweighted/</a>                   ← Reported experiments and CFG ablations
+│   ├── 📁 <a href="configs/unweighted/">unweighted/</a>                   ← Unweighted experiments and CFG ablations
+│   └── 📁 <a href="configs/weighted/">weighted/</a>                     ← Weighted unitary experiments and diagnostics
 │
 ├── 📁 <a href="datasets/">datasets/</a>                         ← Fixed images and generation metadata
 ├── 📁 <a href="ktilde/">ktilde/</a>                          ← Empirical Christoffel artifacts
@@ -76,15 +77,15 @@ required when exporting figures.
 │
 ├── 📁 <a href="scripts/">scripts/</a>                          ← Experiment launchers and validation utilities
 │   ├── 📁 <a href="scripts/unweighted/">unweighted/</a>                   ← Unweighted experiments and baselines
-│   └── 📁 <a href="scripts/weighted/ktilde_convergence/">weighted/ktilde_convergence/</a> ← S10000 convergence launchers
+│   └── 📁 <a href="scripts/weighted/">weighted/</a>                     ← Weighted reconstruction and K-tilde launchers
 │
 ├── 📁 <a href="analyze_results/">analyze_results/</a>                  ← Shared analysis helpers and notebooks
 │   ├── 📁 <a href="analyze_results/unweighted/">unweighted/</a>                   ← Main and CFG-ablation analyses
-│   └── 📁 <a href="analyze_results/weighted/main/">weighted/main/</a>               ← S10000 convergence analysis
+│   └── 📁 <a href="analyze_results/weighted/">weighted/</a>                     ← Main, ablation, diagnostic, and K-tilde analyses
 │
 └── 📁 <a href="results/">results/</a>                          ← Local run artifacts and generated figures
-    ├── 📁 <a href="results/unweighted/">unweighted/</a>
-    └── 📁 <a href="results/weighted/">weighted/</a>
+    ├── 📁 <a href="results/unweighted/">unweighted/</a>                   ← Per-experiment artifacts and figures
+    └── 📁 <a href="results/weighted/">weighted/</a>                     ← Per-experiment artifacts and figures
 </pre>
 
 Each major folder has a README describing its contents and local workflows:
@@ -131,7 +132,12 @@ sampling provide additional reconstruction baselines.
 
 ### Weighted reconstruction experiments
 
-Work in progress.
+The weighted experiments use the unitary Fourier operator, the probability
+weights associated with each sampling design, sampling ratios from 1% through
+5%, and resumable 2,000-iteration Adam recovery. The current main studies are
+the [out-of-range](configs/weighted/out_of_range/) and
+[prompt-matched](configs/weighted/prompt_matched/) experiments. Recovery-CFG
+ablations are under [configs/weighted/ablation/](configs/weighted/ablation/).
 
 ### Empirical Christoffel convergence study
 

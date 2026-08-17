@@ -17,5 +17,5 @@ PYTHON_BIN="${PYTHON_BIN:-python}"
 "$PYTHON_BIN" build_ktilde.py \
   --config ktilde/weighted/config_convergence.json \
   --name "$KTILDE_NAME" \
-  --output-dir ktilde/weighted/reference \
+  --output-dir ktilde/weighted \
   "$@"

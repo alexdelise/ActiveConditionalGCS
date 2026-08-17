@@ -21,7 +21,7 @@ def resolve_ktilde_npz_path(ktilde_dir: str | Path, ktilde_name: str) -> Path:
     root = Path(ktilde_dir)
     filename = f"{str(ktilde_name).strip()}.npz"
     candidates = (
-        root / "weighted" / "reference" / filename,
+        root / "weighted" / filename,
         root / "unweighted" / filename,
         root / filename,
     )

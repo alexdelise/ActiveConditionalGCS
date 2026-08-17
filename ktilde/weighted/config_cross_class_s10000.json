@@ -1,0 +1,58 @@
+{
+  "ktilde": {
+    "Ktilde_SD15__fft__cross_k4cat_minus_k2sunsetbeach_512x512_S10000_ns20": {
+      "height": 512,
+      "width": 512,
+      "num_steps": 20,
+      "guidance_scale": 7.5,
+      "seed": 12345,
+      "max_samples": 10000,
+      "prompt": "cat",
+      "prompt_bank": [],
+      "prompt_template": "",
+      "pair_same_prompt": false,
+      "pair_prompt": "sunset beach",
+      "role": "cross_cat_sunset_beach",
+      "sampling_rank": 0,
+      "christoffel_law": "ordered_cross_class",
+      "label": "$\\widetilde K(\\mathbb F_{c_{\\mathrm{ca}}}-\\mathbb F_{c_{\\mathrm{sb}}})$",
+      "description": "Ordered S10000 cross-class estimate with cat first and sunset beach second."
+    },
+    "Ktilde_SD15__fft__cross_k0unconditioned_minus_k2sunsetbeach_512x512_S10000_ns20": {
+      "height": 512,
+      "width": 512,
+      "num_steps": 20,
+      "guidance_scale": 7.5,
+      "seed": 12345,
+      "max_samples": 10000,
+      "prompt": "",
+      "prompt_bank": [],
+      "prompt_template": "",
+      "pair_same_prompt": false,
+      "pair_prompt": "sunset beach",
+      "role": "cross_unconditioned_sunset_beach",
+      "sampling_rank": 1,
+      "christoffel_law": "ordered_cross_class",
+      "label": "$\\widetilde K(\\mathbb F_{c_{\\mathrm{uc}}}-\\mathbb F_{c_{\\mathrm{sb}}})$",
+      "description": "Ordered S10000 cross-class estimate with the unconditioned class first and sunset beach second."
+    },
+    "Ktilde_SD15__fft__cross_k1daytimebeach_minus_k2sunsetbeach_512x512_S10000_ns20": {
+      "height": 512,
+      "width": 512,
+      "num_steps": 20,
+      "guidance_scale": 7.5,
+      "seed": 12345,
+      "max_samples": 10000,
+      "prompt": "daytime beach",
+      "prompt_bank": [],
+      "prompt_template": "",
+      "pair_same_prompt": false,
+      "pair_prompt": "sunset beach",
+      "role": "cross_daytime_beach_sunset_beach",
+      "sampling_rank": 2,
+      "christoffel_law": "ordered_cross_class",
+      "label": "$\\widetilde K(\\mathbb F_{c_{\\mathrm{db}}}-\\mathbb F_{c_{\\mathrm{sb}}})$",
+      "description": "Ordered S10000 cross-class estimate with daytime beach first and sunset beach second."
+    }
+  }
+}

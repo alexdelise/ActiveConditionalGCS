@@ -1,27 +1,20 @@
 # Experiment Launchers
 
-[unweighted/](unweighted/) contains launchers for the reported main
-experiments, CFG ablations, uniform and inverse-square baselines, and S500
-empirical Christoffel estimation. Scenario wrappers call the same public
-split launcher, so commands have consistent arguments and resume behavior.
+[unweighted/](unweighted/) contains launchers for the unweighted main
+experiments, recovery-CFG ablations, uniform and inverse-square baselines, and
+S500 empirical Christoffel estimation.
 
-[weighted/ktilde_convergence/](weighted/ktilde_convergence/) contains the
-S10000 reference and five-trial convergence launchers. Corrected weighted
-reconstruction launchers will be added after the new study is complete.
+[weighted/](weighted/) contains launchers for the weighted experiments:
 
-The reconstruction launchers use a compact split interface:
+- [out_of_range/](weighted/out_of_range/)
+- [prompt_matched/](weighted/prompt_matched/)
+- [ablation/](weighted/ablation/)
+- [diagnostics/](weighted/diagnostics/)
+- [ktilde_convergence/](weighted/ktilde_convergence/)
+- [ktilde_cfg_ablation/](weighted/ktilde_cfg_ablation/)
+- [ktilde_cross_class/](weighted/ktilde_cross_class/)
 
-```bash
-./scripts/unweighted/run_split.sh main prompt_matched first4 sunset_beach
-```
-
-Run one independent convergence trial with:
-
-```bash
-./scripts/weighted/ktilde_convergence/run_trial.sh k2 1
-```
-
-All launchers resolve the project root from their own location, use the active
-environment's Python, honor `PYTHON_BIN`, and forward additional arguments to
-the corresponding runner. Repeating an interrupted reconstruction command
-loads completed reconstructions and continues with the remaining work.
+All launchers resolve the project root from their physical location, use the
+active environment's Python, and honor `PYTHON_BIN`. Reconstruction commands
+are safe to repeat: complete rows are skipped and an incomplete row resumes
+from its latest optimizer checkpoint.

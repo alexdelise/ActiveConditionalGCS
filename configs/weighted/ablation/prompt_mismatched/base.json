@@ -1,0 +1,89 @@
+{
+  "dataset": {
+    "name": "sunset_sandy_coast_signal_sd15_512x512"
+  },
+  "gen_recon": {
+    "eta": 0.0,
+    "guidance_scale": 1.0,
+    "num_steps": 20
+  },
+  "image": {
+    "height": 512,
+    "width": 512
+  },
+  "ktilde": {
+    "name": "Ktilde_SD15__fft__k0_512x512_S10000_ns20"
+  },
+  "optim": {
+    "adam_beta1": 0.9,
+    "adam_beta2": 0.999,
+    "adam_eps": 1e-08,
+    "adam_stepsize": 100.0,
+    "early_stop_loss": 1e-08,
+    "log_every": 10,
+    "lr_scale": 0.1,
+    "nb_epochs": 2000
+  },
+  "output": {
+    "plot_images": false,
+    "save_images": true,
+    "save_json": true,
+    "save_mat": false,
+    "save_npz": true
+  },
+  "reconstruction": {
+    "prompt": "",
+    "prompts": null
+  },
+  "reconstruction_solver": {
+    "backproj_init_strength": 1.0,
+    "checkpoint_denoiser": true,
+    "early_stop_min_rel_improvement": 0.0,
+    "early_stop_patience": 0,
+    "grad_clip": 0.0,
+    "init_from_meas_backproj": true,
+    "latent_l2_penalty": 0.0,
+    "learning_rate": 0.1,
+    "log_every": 5,
+    "loss_reduction": "measurement_sum_channel_mean",
+    "lr_decay_start_iteration": 400,
+    "lr_min_factor": 0.01,
+    "lr_schedule": "cosine_decay",
+    "lr_warmup_iterations": 0,
+    "normalize_grad": false,
+    "outer_iterations": 2000,
+    "sigma_y": 0.0,
+    "trace_save_every": 5
+  },
+  "repro": {
+    "cudnn_benchmark": false,
+    "deterministic": false,
+    "seed": 12345
+  },
+  "runtime": {
+    "attention_slicing": "auto",
+    "gradient_checkpointing": true,
+    "torch_dtype": "float16"
+  },
+  "sampling": {
+    "fft_normalization": "ortho",
+    "methods_enabled": {
+      "cs": true,
+      "mcs": false,
+      "inverse_square": false
+    },
+    "probability_regularization_zeta": 0.5,
+    "weighted_ls": true
+  },
+  "sweep": {
+    "repeats_per_setting": 2,
+    "sampling_perc_list": [
+      0.01,
+      0.02,
+      0.03,
+      0.04,
+      0.05
+    ],
+    "save_per_run_artifacts": true
+  }
+}

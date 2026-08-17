@@ -1013,13 +1013,23 @@ def _sampling_tick_labels(values: Sequence[float]) -> List[str]:
     return labels
 
 
-def _apply_sampling_axis(ax: Any, values: Sequence[float]) -> None:
-    from matplotlib.ticker import FixedFormatter, FixedLocator, NullFormatter
+def _apply_sampling_axis(
+    ax: Any,
+    values: Sequence[float],
+    *,
+    xscale: str = "log",
+) -> None:
+    from matplotlib.ticker import FixedFormatter, FixedLocator, NullFormatter, NullLocator
 
     ticks = sorted({float(value) for value in values if np.isfinite(value)})
-    ax.set_xscale("log")
+    scale = str(xscale).strip().lower()
+    if scale not in {"linear", "log"}:
+        raise ValueError("xscale must be 'linear' or 'log'")
+    ax.set_xscale(scale)
     ax.xaxis.set_major_locator(FixedLocator(ticks))
     ax.xaxis.set_major_formatter(FixedFormatter(_sampling_tick_labels(ticks)))
+    if scale == "linear":
+        ax.xaxis.set_minor_locator(NullLocator())
     ax.xaxis.set_minor_formatter(NullFormatter())
     ax.tick_params(axis="x", which="minor", labelbottom=False)
     ax.tick_params(axis="x", which="major", labelrotation=35)
@@ -1089,6 +1099,7 @@ def plot_metric_curves(
     show: bool = True,
     band: str = "ci",
     confidence_level: float = DEFAULT_CONFIDENCE_LEVEL,
+    xscale: str = "log",
 ) -> Dict[str, Path]:
     """Plot combined PSNR, SSIM, and LPIPS curves for all distributions."""
 
@@ -1177,7 +1188,11 @@ def plot_metric_curves(
                 if col_idx == 0:
                     ax.set_ylabel(metric_label)
                 if row_idx == len(PLOT_METRIC_SPECS) - 1:
-                    _apply_sampling_axis(ax, dist_subset["samp_perc"].tolist())
+                    _apply_sampling_axis(
+                        ax,
+                        dist_subset["samp_perc"].tolist(),
+                        xscale=xscale,
+                    )
                 else:
                     ax.grid(True, which="major", axis="both", alpha=0.28, linestyle="--")
 
@@ -1261,9 +1276,14 @@ def _best_panel_row(frame: pd.DataFrame, *, distribution_key: str, line_key: str
     ].copy()
     if subset.empty:
         return None
-    sort_cols = [column for column in ["psnr_db", "ssim"] if column in subset.columns]
+    sort_cols = [column for column in ["lpips", "psnr_db"] if column in subset.columns]
     if sort_cols:
-        subset = subset.sort_values(sort_cols, ascending=[False] * len(sort_cols), kind="stable")
+        subset = subset.sort_values(
+            sort_cols,
+            ascending=[column == "lpips" for column in sort_cols],
+            na_position="last",
+            kind="stable",
+        )
     return subset.iloc[0]
 
 
@@ -1278,9 +1298,14 @@ def _best_zero_filled_panel_row(frame: pd.DataFrame, *, distribution_key: str, s
         subset=["distribution_key", "item_id", "repeat_id", "samp_perc"],
         keep="last",
     )
-    sort_cols = [column for column in ["zero_filled_psnr_db", "zero_filled_ssim"] if column in subset.columns]
+    sort_cols = [column for column in ["zero_filled_lpips", "zero_filled_psnr_db"] if column in subset.columns]
     if sort_cols:
-        subset = subset.sort_values(sort_cols, ascending=[False] * len(sort_cols), kind="stable")
+        subset = subset.sort_values(
+            sort_cols,
+            ascending=[column == "zero_filled_lpips" for column in sort_cols],
+            na_position="last",
+            kind="stable",
+        )
     return subset.iloc[0]
 
 

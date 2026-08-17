@@ -373,7 +373,7 @@ def load_ktilde_bank(
             raise KeyError(f"Unknown k-tilde '{name}'.")
         artifact_candidates = (
             root / "ktilde" / "unweighted" / f"{name}.npz",
-            root / "ktilde" / "weighted" / "reference" / f"{name}.npz",
+            root / "ktilde" / "weighted" / f"{name}.npz",
         )
         artifact_matches = [path for path in artifact_candidates if path.is_file()]
         if len(artifact_matches) > 1:
@@ -436,7 +436,7 @@ def load_ktilde_convergence_traces(
     config_file = Path(config_path or "ktilde/weighted/config_convergence.json")
     if not config_file.is_absolute():
         config_file = root / config_file
-    trace_root = Path(results_dir or "results/unweighted/ktilde_convergence/traces")
+    trace_root = Path(results_dir or "results/unweighted/ktilde/traces")
     if not trace_root.is_absolute():
         trace_root = root / trace_root
 
