@@ -286,7 +286,7 @@ LINE_MARKERS: Dict[str, str] = {
 ZERO_FILLED_LABEL = "Zero-Filled"
 ZERO_FILLED_COLOR = "#111111"
 ZERO_FILLED_MARKER = "x"
-SWEEP_LEGEND_Y = 1.08
+SWEEP_LEGEND_Y = 1.17
 ZERO_FILLED_METRIC_COLUMNS: Dict[str, str] = {
     "psnr_db": "zero_filled_psnr_db",
     "ssim": "zero_filled_ssim",
@@ -1088,6 +1088,8 @@ def _ablation_context_slug(output_dir: str | Path | None) -> str:
         parts = parts[parts.index("ablation") + 1 :]
     else:
         parts = parts[-2:]
+    if parts and str(parts[-1]).lower() == "figures":
+        parts = parts[:-1]
     slug_parts = [_figure_slug(part) for part in parts]
     return "_".join(part for part in slug_parts if part) or "cfg_ablation"
 
@@ -1100,25 +1102,32 @@ def plot_metric_curves(
     band: str = "ci",
     confidence_level: float = DEFAULT_CONFIDENCE_LEVEL,
     xscale: str = "log",
+    metrics: Optional[Sequence[str]] = None,
 ) -> Dict[str, Path]:
-    """Plot combined PSNR, SSIM, and LPIPS curves for all distributions."""
+    """Plot the requested reconstruction metrics for all sampling distributions."""
 
     import matplotlib.pyplot as plt
 
     if frame.empty:
         raise ValueError("No CFG-ablation rows were found.")
+    requested = [str(metric) for metric in (metrics or [item[0] for item in PLOT_METRIC_SPECS])]
+    known_metrics = dict(METRIC_SPECS)
+    unknown = [metric for metric in requested if metric not in known_metrics]
+    if unknown:
+        raise KeyError(f"Unknown CFG-ablation metrics: {', '.join(unknown)}")
+    metric_specs = [(metric, known_metrics[metric]) for metric in requested]
     summary = build_metric_summary(frame, confidence_level=confidence_level)
     line_specs = _line_specs_from_frame(frame)
     zero_summaries = {
         metric: build_zero_filled_metric_summary(frame, metric, confidence_level=confidence_level)
-        for metric, _ in PLOT_METRIC_SPECS
+        for metric, _ in metric_specs
     }
     distributions = _distributions_from_frame(frame)
     with plt.rc_context(PRESENTATION_RC):
         fig, axes = plt.subplots(
-            len(PLOT_METRIC_SPECS),
+            len(metric_specs),
             len(distributions),
-            figsize=(4.9 * len(distributions), 3.7 * len(PLOT_METRIC_SPECS)),
+            figsize=(4.9 * len(distributions), 3.7 * len(metric_specs)),
             sharex="col",
             sharey=False,
             squeeze=False,
@@ -1130,7 +1139,7 @@ def plot_metric_curves(
         for col_idx, distribution in enumerate(distributions):
             dist_key = str(distribution["key"])
             dist_subset = summary[summary["distribution_key"] == dist_key]
-            for row_idx, (metric, metric_label) in enumerate(PLOT_METRIC_SPECS):
+            for row_idx, (metric, metric_label) in enumerate(metric_specs):
                 ax = axes_array[row_idx, col_idx]
                 for line in line_specs:
                     line_key = str(line["key"])
@@ -1187,7 +1196,7 @@ def plot_metric_curves(
                     ax.set_title(str(distribution["label"]))
                 if col_idx == 0:
                     ax.set_ylabel(metric_label)
-                if row_idx == len(PLOT_METRIC_SPECS) - 1:
+                if row_idx == len(metric_specs) - 1:
                     _apply_sampling_axis(
                         ax,
                         dist_subset["samp_perc"].tolist(),
@@ -1196,7 +1205,7 @@ def plot_metric_curves(
                 else:
                     ax.grid(True, which="major", axis="both", alpha=0.28, linestyle="--")
 
-        for row_idx, _ in enumerate(PLOT_METRIC_SPECS):
+        for row_idx, _ in enumerate(metric_specs):
             _synchronize_christoffel_y_limits(
                 list(axes_array[row_idx, :]),
                 distributions,
@@ -1224,7 +1233,8 @@ def plot_metric_curves(
                 borderaxespad=0.2,
             )
         context = _ablation_context_slug(output_dir)
-        stem = f"cfg_ablation_{context}_psnr_ssim_lpips_vs_sampling_ratio"
+        metric_stem = "_".join(requested)
+        stem = f"cfg_ablation_{context}_{metric_stem}_vs_sampling_ratio"
         return _save_figure(fig, output_dir, stem, show=show)
 
 

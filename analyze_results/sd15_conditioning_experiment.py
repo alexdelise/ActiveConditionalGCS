@@ -7,10 +7,18 @@ import json
 import hashlib
 from pathlib import Path
 from statistics import NormalDist
+import sys
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence
 
 import numpy as np
 import pandas as pd
+
+# Keep package imports stable when this module is loaded from a notebook path
+_PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+from src.utils import resolve_ktilde_npz_path
 
 
 _LOCAL_TEX_ROOT = Path(__file__).resolve().parent / "tex"
@@ -578,7 +586,13 @@ def ktilde_convergence_trial_completion_table(
     rows: List[Dict[str, Any]] = []
     for alias, raw_prior in dict(manifest["priors"]).items():
         prior = dict(raw_prior)
-        reference_path = root / "ktilde" / f"{prior['reference_name']}.npz"
+        try:
+            reference_path = resolve_ktilde_npz_path(
+                root / "ktilde",
+                str(prior["reference_name"]),
+            )
+        except FileNotFoundError:
+            reference_path = root / "ktilde" / "weighted" / f"{prior['reference_name']}.npz"
         reference_sha256 = _sha256_path(reference_path) if reference_path.is_file() else ""
         for raw_trial in list(manifest["trials"]):
             trial = dict(raw_trial)
@@ -1581,7 +1595,7 @@ def plot_ktilde_trial_convergence_grid(
     output_path: Optional[str | Path] = None,
     show: bool = False,
 ) -> Optional[Path]:
-    """Plot the four trial-mean convergence curves as a shared 2x2 panel."""
+    """Plot the four trial-mean convergence curves in one shared row."""
 
     import matplotlib.pyplot as plt
 
@@ -1592,15 +1606,15 @@ def plot_ktilde_trial_convergence_grid(
         raise ValueError("The K-tilde convergence grid supports at most four priors.")
     with plt.rc_context(SD15_PRESENTATION_RC):
         fig, axes = plt.subplots(
-            2,
-            2,
-            figsize=(13.2, 10.0),
+            1,
+            4,
+            figsize=(19.0, 4.9),
             constrained_layout=True,
             sharex=True,
             sharey=True,
         )
         axes_flat = np.asarray(axes, dtype=object).reshape(-1)
-        fig.set_constrained_layout_pads(w_pad=0.04, h_pad=0.04, wspace=0.04, hspace=0.04)
+        fig.set_constrained_layout_pads(w_pad=0.04, h_pad=0.04, wspace=0.02, hspace=0.02)
         for ax, info in zip(axes_flat, infos):
             _style_ktilde_trial_convergence_axis(ax, info, metric=metric)
         for ax in axes_flat[len(infos) :]:

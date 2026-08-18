@@ -1944,11 +1944,24 @@ def sample_tag(value: float) -> str:
     return f"samp_{float(value):.5f}".replace(".", "p")
 
 
+def resolve_run_result_dir(sd15_root: str | Path, run_tag: str | Path) -> Path:
+    """Resolve legacy and namespaced run tags against the repository root."""
+
+    root = Path(sd15_root).resolve()
+    stored = Path(run_tag)
+    if stored.is_absolute():
+        return stored
+    # Migrated loaders store repository-relative tags such as
+    # results/weighted/prompt_matched/..., while legacy tables store the path
+    # relative to the results directory
+    if stored.parts and stored.parts[0] == "results":
+        return root / stored
+    return root / "results" / stored
+
+
 def run_artifact_dir(sd15_root: str | Path, row: pd.Series) -> Path:
     return (
-        Path(sd15_root)
-        / "results"
-        / str(row["run_tag"])
+        resolve_run_result_dir(sd15_root, str(row["run_tag"]))
         / str(row["sampling_method"])
         / f"item_{int(row['item_id']):03d}"
         / sample_tag(float(row["samp_perc"]))
@@ -1966,7 +1979,7 @@ def zero_filled_path_for(sd15_root: str | Path, row: pd.Series) -> Path:
 
 def load_target_path(sd15_root: str | Path, frame: pd.DataFrame, *, item_id: int = 0) -> Path:
     run_tag = str(frame["run_tag"].iloc[0])
-    dataset_ref_path = Path(sd15_root) / "results" / run_tag / "dataset_ref.json"
+    dataset_ref_path = resolve_run_result_dir(sd15_root, run_tag) / "dataset_ref.json"
     with dataset_ref_path.open("r", encoding="utf-8") as handle:
         dataset_ref = json.load(handle)
     item = next(item for item in dataset_ref["items"] if int(item["item_id"]) == int(item_id))

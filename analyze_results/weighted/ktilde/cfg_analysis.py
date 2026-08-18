@@ -224,7 +224,7 @@ def plot_distribution_grid(
                 ax.set_yticks([])
                 if row == 0:
                     ax.set_title(
-                        rf"Sampling CFG $g={cfg:g}$",
+                        rf"CFG {cfg:g}",
                         fontsize=22,
                         pad=6,
                         **cfg_style.PANEL_TITLE_FONT,
@@ -252,7 +252,6 @@ def plot_distribution_grid(
             colorbar.ax.yaxis.set_major_formatter(LogFormatterMathtext())
             colorbar.ax.tick_params(labelsize=cfg_style.PRESENTATION_RC["ytick.labelsize"], width=0.9, length=4)
             colorbar.outline.set_linewidth(0.8)
-            colorbar.set_label(r"Sampling Probability $\widetilde{\mu}_{c,g}$")
         path = None
         if output_path is not None:
             path = Path(output_path)
