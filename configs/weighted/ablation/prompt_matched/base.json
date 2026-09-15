@@ -62,7 +62,7 @@
   },
   "runtime": {
     "attention_slicing": "auto",
-    "gradient_checkpointing": true,
+    "gradient_checkpointing": false,
     "torch_dtype": "float16"
   },
   "sampling": {
@@ -76,7 +76,7 @@
     "weighted_ls": true
   },
   "sweep": {
-    "repeats_per_setting": 2,
+    "repeats_per_setting": 5,
     "sampling_perc_list": [
       0.01,
       0.02,
