@@ -12,6 +12,12 @@ Each dataset folder contains a ground-truth image, dataset index, and metadata.
 
 The suite runner loads these artifacts directly. Regenerating the SD1.5-generated datasets is possible through:
 
+```text
+python build_dataset.py --name [dataset-name]
+```
+
+Examples:
+
 ```bash
 python build_dataset.py --name sunset_beach_signal_sd15_512x512
 python build_dataset.py --name sunset_sandy_coast_signal_sd15_512x512

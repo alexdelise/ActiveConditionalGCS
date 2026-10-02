@@ -15,6 +15,16 @@ shared [source package](../src/), [datasets](../datasets/), and
 
 Run these commands from the repository root in the configured Python environment:
 
+```text
+./unweighted/scripts/run_suite.sh [experiment-type] [scenario] [sampling-law]
+```
+
+Here, `[experiment-type]` is `main` or `ablation`, `[scenario]` is
+`prompt_matched`, `prompt_mismatched`, or `out_of_range`, and `[sampling-law]`
+is `k0`, `k1`, `k2`, or `k4`. Omit the brackets when running a command.
+
+Examples:
+
 ```bash
 ./unweighted/scripts/run_suite.sh main prompt_matched k0
 ./unweighted/scripts/run_suite.sh ablation prompt_matched k0

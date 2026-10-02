@@ -40,10 +40,17 @@ python scripts/release/download_results.py
 ```
 
 The downloader checks each archive and every file inside it before installing
-the data. It does not replace different existing local files. Use an empty destination when verifying data separately to prevent overwrites:
+the data. It does not replace different existing local files. To select a
+separate destination, use:
+
+```text
+python scripts/release/download_results.py --destination [checkout-path]
+```
+
+Example:
 
 ```bash
-python scripts/release/download_results.py --destination /path/to/checkout
+python scripts/release/download_results.py --destination results/download_verification
 ```
 
 The [analysis guide](../../analyze_results/weighted/README.md) lists the

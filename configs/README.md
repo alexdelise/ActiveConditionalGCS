@@ -7,6 +7,13 @@ sampling ratios, trials, optimizer, and Fourier convention.
 
 Inspect a main or ablation setting from the repository root:
 
+```text
+./scripts/weighted/run_main.sh [scenario] [sampling-law] [recovery-prompt] --dry-run
+./scripts/weighted/run_ablation.sh [scenario] [sampling-law] [cfg] --dry-run
+```
+
+Examples:
+
 ```bash
 ./scripts/weighted/run_main.sh prompt_matched k2 sunset_beach --dry-run
 ./scripts/weighted/run_ablation.sh out_of_range k2 3 --dry-run

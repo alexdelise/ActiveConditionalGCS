@@ -21,6 +21,14 @@ forest plots. Shaded sweep bands are 95% confidence intervals. Figures and
 summary tables are written under
 [results/weighted/ablation/](../../../results/weighted/ablation/).
 
+Command template:
+
+```text
+./scripts/weighted/run_ablation.sh [scenario] [sampling-law] [cfg]
+```
+
+Example:
+
 ```bash
 ./scripts/weighted/run_ablation.sh prompt_matched k2 3
 ./scripts/weighted/run_ablation.sh prompt_matched k2 3 --dry-run

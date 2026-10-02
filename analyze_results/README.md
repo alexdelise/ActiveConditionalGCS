@@ -10,8 +10,13 @@ Run each notebook from its own directory or the repository root. Figures use
 the shared Computer Modern/LaTeX style and are saved as PDFs under each
 experiment's results folder.
 
-To execute all nine public notebooks from the repository root and keep their
-execution outputs outside Git:
+To execute a notebook and save its execution output outside Git, use:
+
+```text
+jupyter nbconvert --to notebook --execute --ExecutePreprocessor.timeout=-1 --output-dir=[output-directory] [notebook-path]
+```
+
+Example that executes all nine public notebooks from the repository root:
 
 ```bash
 mkdir -p results/notebook_runs

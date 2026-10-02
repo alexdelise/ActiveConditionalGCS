@@ -17,6 +17,12 @@ Christoffel sampling uses $\zeta=1/2$ regularization.
 
 Run one law and recovery prompt from the repository root:
 
+```text
+./scripts/weighted/run_main.sh prompt_matched [sampling-law] [recovery-prompt]
+```
+
+Example:
+
 ```bash
 ./scripts/weighted/run_main.sh prompt_matched k2 sunset_beach
 ./scripts/weighted/run_main.sh prompt_matched k2 sunset_beach --dry-run

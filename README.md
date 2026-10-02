@@ -117,7 +117,15 @@ under [results/weighted/](results/weighted/).
 
 Reconstruction is expensive. It is recommended to use the saved data from the release to reproduce figures without rerunning recovery.
 
-To run one sampling law and recovery prompt across all five ratios and trials, the commands have the form:
+To run one sampling law and recovery prompt across all five ratios and trials,
+use the following template. Names in square brackets are placeholders. Replace
+them with the desired values and omit the brackets when running a command.
+
+```text
+./scripts/weighted/run_main.sh [scenario] [sampling-law] [recovery-prompt]
+```
+
+Examples:
 
 ```bash
 ./scripts/weighted/run_main.sh prompt_matched k2 sunset_beach
@@ -126,6 +134,12 @@ To run one sampling law and recovery prompt across all five ratios and trials, t
 ```
 
 Run one recovery-CFG setting across all five ratios and trials:
+
+```text
+./scripts/weighted/run_ablation.sh [scenario] [sampling-law] [cfg]
+```
+
+Example:
 
 ```bash
 ./scripts/weighted/run_ablation.sh prompt_matched k2 3
