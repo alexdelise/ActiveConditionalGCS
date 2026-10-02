@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "repository": "alexdelise/ActiveConditionalGCS",
+  "release_tag": "paper-results-v1",
+  "published": true,
+  "main_reconstructions": 1800,
+  "new_ablation_reconstructions": 900,
+  "reused_main_ablation_rows": 300,
+  "assets": [
+    {
+      "name": "prompt_matched",
+      "filename": "prompt_matched.tar.gz",
+      "archive_size_bytes": 590367283,
+      "sha256": "2ebc1ae683bf521499f3eacd06cc3faeb10e7c58a68380f77aeef5a2c551698e",
+      "file_count": 4288,
+      "unpacked_size_bytes": 607222058,
+      "reconstruction_count": 600
+    },
+    {
+      "name": "prompt_mismatched",
+      "filename": "prompt_mismatched.tar.gz",
+      "archive_size_bytes": 549255090,
+      "sha256": "ccada23a7561e7346b0d2b87f8bb9d9480d80edf72aaa36219453f623f3ca4c9",
+      "file_count": 4288,
+      "unpacked_size_bytes": 566116081,
+      "reconstruction_count": 600
+    },
+    {
+      "name": "out_of_range",
+      "filename": "out_of_range.tar.gz",
+      "archive_size_bytes": 673726716,
+      "sha256": "c65a0bdec4af0fdcb336577776b530447a64c0948d1c29b7c6763e083a5660b1",
+      "file_count": 4288,
+      "unpacked_size_bytes": 690624193,
+      "reconstruction_count": 600
+    },
+    {
+      "name": "ablation_prompt_matched",
+      "filename": "ablation_prompt_matched.tar.gz",
+      "archive_size_bytes": 317949241,
+      "sha256": "516a4b71b9e62af830bad15ef590caf1563a353d8c16155da9e89a39168905cd",
+      "file_count": 2148,
+      "unpacked_size_bytes": 326272895,
+      "reconstruction_count": 300
+    },
+    {
+      "name": "ablation_prompt_mismatched",
+      "filename": "ablation_prompt_mismatched.tar.gz",
+      "archive_size_bytes": 299472836,
+      "sha256": "705a22c94633acf10434fd2d7a5579501bc1eb280831a526a1d5a3af1a714368",
+      "file_count": 2148,
+      "unpacked_size_bytes": 307811322,
+      "reconstruction_count": 300
+    },
+    {
+      "name": "ablation_out_of_range",
+      "filename": "ablation_out_of_range.tar.gz",
+      "archive_size_bytes": 366387733,
+      "sha256": "15dc92270852780e13374e65262da23bd1ded97b6cd1bb6ebbcc0f7068d4e87d",
+      "file_count": 2148,
+      "unpacked_size_bytes": 374785237,
+      "reconstruction_count": 300
+    },
+    {
+      "name": "christoffel",
+      "filename": "christoffel.tar.gz",
+      "archive_size_bytes": 145567504,
+      "sha256": "64ff97464f78aac2f01d002e84fcde9c371b088788c0a6f4ac7601e966d3d688",
+      "file_count": 127,
+      "unpacked_size_bytes": 145618809,
+      "reconstruction_count": 0
+    }
+  ]
+}

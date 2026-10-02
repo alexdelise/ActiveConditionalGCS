@@ -924,15 +924,7 @@ def run_single_reconstruction(
     image_true_display = chw_to_hwc_for_display(np.nan_to_num(image_true_np, nan=0.0, posinf=1.0, neginf=0.0))
     image_rec_display = chw_to_hwc_for_display(np.nan_to_num(image_rec, nan=0.0, posinf=1.0, neginf=0.0))
     psnr_value = calculate_psnr(255.0 * image_true_display, 255.0 * image_rec_display, max_value=255.0)
-    try:
-        from skimage.metrics import structural_similarity as skimage_ssim
-
-        try:
-            ssim_value = float(skimage_ssim(image_true_display, image_rec_display, multichannel=True, data_range=1.0))
-        except TypeError:
-            ssim_value = float(skimage_ssim(image_true_display, image_rec_display, channel_axis=2, data_range=1.0))
-    except Exception:
-        ssim_value = calculate_ssim(255.0 * image_true_display, 255.0 * image_rec_display, max_value=255.0)
+    ssim_value = calculate_ssim(image_true_display, image_rec_display, max_value=1.0)
     grain_value = grain_score(image_rec_display)
     pixel_mae_value = float(np.mean(np.abs(image_true_display - image_rec_display)))
 
@@ -953,10 +945,7 @@ def run_single_reconstruction(
     )
     zero_filled_display = np.clip(zero_filled_display, 0.0, 1.0)
     zf_psnr_value = calculate_psnr(255.0 * image_true_display, 255.0 * zero_filled_display, max_value=255.0)
-    try:
-        zf_ssim_value = float(skimage_ssim(image_true_display, zero_filled_display, channel_axis=2, data_range=1.0))
-    except Exception:
-        zf_ssim_value = calculate_ssim(255.0 * image_true_display, 255.0 * zero_filled_display, max_value=255.0)
+    zf_ssim_value = calculate_ssim(image_true_display, zero_filled_display, max_value=1.0)
     zf_grain_value = grain_score(zero_filled_display)
     zf_pixel_mae_value = float(np.mean(np.abs(image_true_display - zero_filled_display)))
     # LPIPS runs on CPU after optimization to avoid competing with the reconstruction model for GPU memory
@@ -991,6 +980,7 @@ def run_single_reconstruction(
         "runtime_sec": float(runtime),
         "psnr_db": float(psnr_value),
         "ssim": float(ssim_value),
+        "ssim_definition": "windowed_rgb_7x7_sample_covariance_v1",
         "lpips": float(lpips_value),
         "pixel_mae": float(pixel_mae_value),
         "grain": float(grain_value),

@@ -18,7 +18,7 @@ _PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
-from src.utils import resolve_ktilde_npz_path
+from src.utils import resolve_ktilde_npz_path, resolve_results_path
 
 
 _LOCAL_TEX_ROOT = Path(__file__).resolve().parent / "tex"
@@ -114,6 +114,7 @@ SD15_METRIC_LABELS = {
     "ssim": r"$\mathrm{SSIM}$",
     "lpips": r"$\mathrm{LPIPS}$",
     "pixel_mae": r"$\mathrm{Per\!-\!Pixel\ MAE}$",
+    "bp_best_loss": r"$\mathrm{Best\ Weighted\ Loss}$",
     "grain": r"$\mathrm{Grain}$",
     "runtime_sec": r"$\mathrm{Runtime\ (s)}$",
 }
@@ -153,6 +154,7 @@ REGRESSION_ROW_COLUMNS = [
     "ssim",
     "lpips",
     "pixel_mae",
+    "bp_best_loss",
     "grain",
     "runtime_sec",
     "_result_source",
@@ -171,10 +173,19 @@ MEAN_METRIC_COLUMNS = [
     "ssim",
     "lpips",
     "pixel_mae",
+    "bp_best_loss",
     "grain",
     "runtime_sec",
 ]
-SUMMARY_METRICS = ["psnr_db", "ssim", "lpips", "pixel_mae", "grain", "runtime_sec"]
+SUMMARY_METRICS = [
+    "psnr_db",
+    "ssim",
+    "lpips",
+    "pixel_mae",
+    "bp_best_loss",
+    "grain",
+    "runtime_sec",
+]
 DEFAULT_CONFIDENCE_LEVEL = 0.95
 UNPROMPTED_DISPLAY_LABEL = "Unconditioned"
 RESOLVED_SUITE_MANIFEST_FILENAME = "resolved_suite_manifest.json"
@@ -191,7 +202,7 @@ def find_sd15_root(start: str | Path | None = None) -> Path:
 
     begin = Path.cwd() if start is None else Path(start)
     for candidate in _candidate_roots(begin.resolve()):
-        if (candidate / "ktilde" / "unweighted" / "config.json").is_file() and (candidate / "src").is_dir():
+        if (candidate / "run_conditioning_regression.py").is_file() and (candidate / "src").is_dir():
             return candidate
     raise FileNotFoundError("Could not resolve the sd1.5 project root from the current working directory.")
 
@@ -330,7 +341,7 @@ def load_ktilde_catalog(
     catalog_path = (
         Path(config_path)
         if config_path is not None
-        else root / "ktilde" / "unweighted" / "config.json"
+        else root / "unweighted" / "ktilde" / "config.json"
     )
     if not catalog_path.is_absolute():
         catalog_path = root / catalog_path
@@ -380,7 +391,7 @@ def load_ktilde_bank(
         if name not in catalog:
             raise KeyError(f"Unknown k-tilde '{name}'.")
         artifact_candidates = (
-            root / "ktilde" / "unweighted" / f"{name}.npz",
+            root / "unweighted" / "ktilde" / f"{name}.npz",
             root / "ktilde" / "weighted" / f"{name}.npz",
         )
         artifact_matches = [path for path in artifact_candidates if path.is_file()]
@@ -444,7 +455,7 @@ def load_ktilde_convergence_traces(
     config_file = Path(config_path or "ktilde/weighted/config_convergence.json")
     if not config_file.is_absolute():
         config_file = root / config_file
-    trace_root = Path(results_dir or "results/unweighted/ktilde/traces")
+    trace_root = Path(results_dir or "unweighted/results/ktilde/traces")
     if not trace_root.is_absolute():
         trace_root = root / trace_root
 
@@ -1713,7 +1724,7 @@ def load_regression_rows(
     root = find_sd15_root(sd15_root)
     sampling_filter = {str(item) for item in (sampling_methods or [])}
     rows: List[pd.DataFrame] = []
-    tag_root = root / "results" / str(tag)
+    tag_root = resolve_results_path(root, str(tag))
     if not tag_root.is_dir():
         available = discover_regression_tags(root)
         hint = f" Available tags: {', '.join(available)}." if available else ""
@@ -1730,7 +1741,7 @@ def load_regression_rows(
         case_tag = str(case.get("tag", "")).strip()
         if not case_tag:
             continue
-        case_root = root / "results" / case_tag
+        case_root = resolve_results_path(root, case_tag)
         if (
             not case_root.is_dir()
             and manifest_suite_tag
@@ -1748,7 +1759,7 @@ def load_regression_rows(
             effective_case_tag = "/".join(
                 part for part in (requested_suite_tag, suffix) if part
             )
-            rebased_root = root / "results" / effective_case_tag
+            rebased_root = resolve_results_path(root, effective_case_tag)
             if rebased_root.is_dir():
                 case_tag = effective_case_tag
                 case_root = rebased_root
@@ -1804,6 +1815,7 @@ def load_regression_rows(
         "ssim",
         "lpips",
         "pixel_mae",
+        "bp_best_loss",
         "grain",
         "zero_filled_psnr_db",
         "zero_filled_ssim",
@@ -1834,6 +1846,7 @@ def sweep_rows_to_dataframe(rows: Sequence[Mapping[str, Any]] | pd.DataFrame) ->
         "ssim",
         "lpips",
         "pixel_mae",
+        "bp_best_loss",
         "grain",
         "runtime_sec",
         "zero_filled_psnr_db",

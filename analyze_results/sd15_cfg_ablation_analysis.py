@@ -13,6 +13,8 @@ from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence
 import numpy as np
 import pandas as pd
 
+from sd15_conditioning_experiment import resolve_results_path
+
 
 _LOCAL_TEX_ROOT = Path(__file__).resolve().parent / "tex"
 _texinputs = os.environ.get("TEXINPUTS", "")
@@ -264,16 +266,17 @@ METRIC_SPECS: List[tuple[str, str]] = [
     ("ssim", "SSIM"),
     ("lpips", "LPIPS"),
     ("pixel_mae", "Per-Pixel MAE"),
+    ("bp_best_loss", "Best Weighted Loss"),
 ]
 PLOT_METRIC_SPECS: List[tuple[str, str]] = METRIC_SPECS[:3]
 
 LINE_COLORS: Dict[str, str] = {
     "unconditioned": "#4C78A8",
-    "cfg1": "#54A24B",
-    "cfg1p5": "#B279A2",
-    "cfg3": "#F58518",
-    "cfg5": "#6A3D9A",
-    "cfg7p5": "#E45756",
+    "cfg1": "#4C78A8",
+    "cfg1p5": "#F58518",
+    "cfg3": "#54A24B",
+    "cfg5": "#E45756",
+    "cfg7p5": "#6A3D9A",
 }
 LINE_MARKERS: Dict[str, str] = {
     "unconditioned": "o",
@@ -295,7 +298,7 @@ ZERO_FILLED_METRIC_COLUMNS: Dict[str, str] = {
 }
 LPIPS_METRICS_RELATIVE_PATHS = {
     "weighted": Path("results/weighted/metrics/lpips.csv"),
-    "unweighted": Path("results/unweighted/metrics/lpips.csv"),
+    "unweighted": Path("unweighted/results/metrics/lpips.csv"),
 }
 
 RUN_DATA_KEYS = {
@@ -334,7 +337,7 @@ def find_sd15_root(start: str | Path | None = None) -> Path:
 
     begin = Path.cwd() if start is None else Path(start)
     for candidate in _candidate_roots(begin.resolve()):
-        if (candidate / "ktilde" / "unweighted" / "config.json").is_file() and (candidate / "src").is_dir():
+        if (candidate / "run_conditioning_regression.py").is_file() and (candidate / "src").is_dir():
             return candidate
     raise FileNotFoundError("Could not resolve the sd1.5 project root.")
 
@@ -400,6 +403,26 @@ def _line_specs_from_frame(frame: pd.DataFrame) -> List[Dict[str, Any]]:
     return [dict(spec) for spec in LINE_SPECS if str(spec["key"]) in available]
 
 
+def _order_cfg_legend(
+    handles: Sequence[Any],
+    labels: Sequence[str],
+) -> tuple[List[Any], List[str]]:
+    """Order recovery-CFG legend entries independently of panel availability."""
+
+    first_handle = {
+        str(label): handle
+        for handle, label in zip(handles, labels)
+        if str(label)
+    }
+    desired_labels = [str(spec["label"]) for spec in LINE_SPECS]
+    desired_labels.append(ZERO_FILLED_LABEL)
+    ordered_labels = [label for label in desired_labels if label in first_handle]
+    ordered_labels.extend(
+        label for label in first_handle if label not in ordered_labels
+    )
+    return [first_handle[label] for label in ordered_labels], ordered_labels
+
+
 def _new_case_name(distribution: Mapping[str, Any], line_key: str) -> str:
     prefix = str(distribution["prefix"])
     if line_key == "cfg1":
@@ -422,10 +445,10 @@ def case_root_candidate_groups(
 
     root = find_sd15_root(sd15_root)
     prefix = str(distribution["prefix"])
-    new_roots = [root / "results" / str(tag) for tag in distribution["new_tags"]]
+    new_roots = [resolve_results_path(root, str(tag)) for tag in distribution["new_tags"]]
     sampling_method = str(distribution.get("sampling_method", "cs"))
     if sampling_method != "cs":
-        result_root = root / "results" / str(distribution["result_root"])
+        result_root = resolve_results_path(root, str(distribution["result_root"]))
         split_names = tuple(distribution.get("split_names", ("first4", "last3")))
         if line_key == "unconditioned":
             return [
@@ -448,18 +471,16 @@ def case_root_candidate_groups(
         case_name = _new_case_name(distribution, line_key)
         return [
             [
-                root
-                / "results"
-                / str(EXPERIMENT_SPECS[str(distribution["experiment"])]["ablation_root"])
+                resolve_results_path(root, str(EXPERIMENT_SPECS[str(distribution["experiment"])]["ablation_root"]))
                 / f"{split_name}_{sampling_method}_{line_key}"
                 / case_name
                 for split_name in split_names
             ]
         ]
 
-    old_roots = [root / "results" / str(tag) for tag in distribution["old_tags"]]
-    unsplit_new_root = root / "results" / str(distribution["new_tag"])
-    unsplit_old_root = root / "results" / str(distribution["old_tag"])
+    old_roots = [resolve_results_path(root, str(tag)) for tag in distribution["old_tags"]]
+    unsplit_new_root = resolve_results_path(root, str(distribution["new_tag"]))
+    unsplit_old_root = resolve_results_path(root, str(distribution["old_tag"]))
 
     if line_key == "unconditioned":
         return [
@@ -529,7 +550,7 @@ def sync_main_references(
                     "status": "archived_no_sync",
                     "copied_files": 0,
                     "source": "",
-                    "destination": str(root / "results" / str(distribution["new_tag"])),
+                    "destination": str(resolve_results_path(root, str(distribution["new_tag"]))),
                 }
                 for distribution in experiment_distributions(key)
             ]
@@ -557,8 +578,8 @@ def sync_main_references(
                     "sampling_dir": "",
                     "status": "loaded_in_place",
                     "copied_files": 0,
-                    "source": str(root / "results" / str(distribution["result_root"])),
-                    "destination": str(root / "results" / str(spec["ablation_root"])),
+                    "source": str(resolve_results_path(root, str(distribution["result_root"]))),
+                    "destination": str(resolve_results_path(root, str(spec["ablation_root"]))),
                 }
             )
             continue
@@ -567,8 +588,8 @@ def sync_main_references(
             tag_roots = [
                 (
                     split_name,
-                    root / "results" / str(spec["result_root"]) / f"{split_name}_{prefix}",
-                    root / "results" / str(spec["ablation_root"]) / f"{split_name}_{prefix}",
+                    resolve_results_path(root, str(spec["result_root"])) / f"{split_name}_{prefix}",
+                    resolve_results_path(root, str(spec["ablation_root"])) / f"{split_name}_{prefix}",
                 )
                 for split_name in tuple(spec.get("split_names", ("first4", "last3")))
             ]
@@ -576,8 +597,8 @@ def sync_main_references(
             tag_roots = [
                 (
                     "unsplit",
-                    root / "results" / str(spec["result_root"]) / prefix,
-                    root / "results" / str(spec["ablation_root"]) / prefix,
+                    resolve_results_path(root, str(spec["result_root"])) / prefix,
+                    resolve_results_path(root, str(spec["ablation_root"])) / prefix,
                 )
             ]
 
@@ -620,7 +641,7 @@ def sync_main_references(
                     "status": "missing_source",
                     "copied_files": 0,
                     "source": str(root / "results"),
-                    "destination": str(root / "results" / str(spec["ablation_root"])),
+                    "destination": str(resolve_results_path(root, str(spec["ablation_root"]))),
                 }
             )
 
@@ -702,7 +723,7 @@ def attach_lpips_metrics(
     *,
     result_namespace: str,
 ) -> pd.DataFrame:
-    """Join the same incremental LPIPS sidecar used by the main notebooks."""
+    """Attach the shared incremental LPIPS sidecar."""
 
     result = frame.copy()
     for column in ("lpips", "zero_filled_lpips"):
@@ -1007,7 +1028,7 @@ def _sampling_tick_labels(values: Sequence[float]) -> List[str]:
         if value < 0.01:
             labels.append(f"{value:.5f}")
         elif value < 0.1:
-            labels.append(f"{value:.3f}")
+            labels.append(f"{value:.2f}")
         else:
             labels.append(f"{value:.2f}".rstrip("0").rstrip("."))
     return labels
@@ -1116,7 +1137,11 @@ def plot_metric_curves(
     if unknown:
         raise KeyError(f"Unknown CFG-ablation metrics: {', '.join(unknown)}")
     metric_specs = [(metric, known_metrics[metric]) for metric in requested]
-    summary = build_metric_summary(frame, confidence_level=confidence_level)
+    summary = build_metric_summary(
+        frame,
+        metrics=requested,
+        confidence_level=confidence_level,
+    )
     line_specs = _line_specs_from_frame(frame)
     zero_summaries = {
         metric: build_zero_filled_metric_summary(frame, metric, confidence_level=confidence_level)
@@ -1221,6 +1246,7 @@ def plot_metric_curves(
                     handles.append(handle)
                     labels.append(label)
         if handles:
+            handles, labels = _order_cfg_legend(handles, labels)
             fig.legend(
                 handles,
                 labels,

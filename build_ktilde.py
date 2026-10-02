@@ -18,13 +18,13 @@ def main() -> None:
     parser.add_argument(
         "--config",
         type=str,
-        default="ktilde/unweighted/config.json",
+        default="ktilde/weighted/config_convergence.json",
         help="Path to the k-tilde catalog JSON.",
     )
     parser.add_argument(
         "--output-dir",
         type=str,
-        default="ktilde/unweighted",
+        default="ktilde/weighted",
         help="Artifact directory.",
     )
     parser.add_argument("--name", type=str, required=True, help="Exact k-tilde name to build.")

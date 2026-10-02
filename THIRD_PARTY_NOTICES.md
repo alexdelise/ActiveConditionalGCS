@@ -1,5 +1,13 @@
 # Third-Party Notices
 
+## Target Images
+
+The out-of-range sunset photograph is from Magnific,
+[Sunset Time Tropical Beach Sea with Coconut Palm Tree](https://www.magnific.com/free-photo/sunset-time-tropical-beach-sea-with-coconut-palm-tree_3531881.htm),
+accessed May 2, 2026. Its use remains subject to the image provider's terms.
+The two in-range targets were generated with Stable Diffusion 1.5. The README
+panel displays these same three fixed targets.
+
 ## Stable Diffusion v1.5 Model Weights
 
 This package uses Stable Diffusion v1.5 through Hugging Face Diffusers. The

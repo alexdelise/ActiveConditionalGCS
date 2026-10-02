@@ -1,16 +1,47 @@
-# Weighted Launchers
+# Weighted Experiment Commands
 
-Reconstruction launchers are grouped by experiment:
+## Main Reconstructions
 
-- [out_of_range/](out_of_range/)
-- [prompt_matched/](prompt_matched/)
-- [ablation/](ablation/)
-- [diagnostics/](diagnostics/)
+```bash
+./scripts/weighted/run_main.sh <scenario> <sampling-law> <recovery-prompt>
+```
 
-K-tilde launchers are grouped under
-[ktilde_convergence/](ktilde_convergence/),
-[ktilde_cfg_ablation/](ktilde_cfg_ablation/), and
-[ktilde_cross_class/](ktilde_cross_class/).
+Scenarios: `prompt_matched`, `prompt_mismatched`, `out_of_range`.
+Sampling laws: `k0`, `k1`, `k2`, `k4`, `mcs`, `inverse_square`.
+Recovery prompts: `unprompted`, `daytime_beach`, `sunset_beach`, `cat`.
 
-Every reconstruction launcher is safe to repeat. Completed rows are skipped,
-and an incomplete reconstruction resumes from its latest optimizer checkpoint.
+One command runs five sampling ratios and five trials, giving 25
+reconstructions. Different law/recovery settings can run independently.
+
+## Recovery-CFG Ablation
+
+```bash
+./scripts/weighted/run_ablation.sh <scenario> <sampling-law> <cfg>
+```
+
+Use the same scenarios, the four Christoffel laws, and CFG `1`, `3`,
+`5`, or `7.5`. The recovery prompt is `"sunset beach"`. One setting
+contains 25 reconstructions. CFG 1 uses the main-study reference instead
+of writing a duplicate ablation result.
+
+Both commands support `--dry-run`, use the active environment's Python,
+and honor `PYTHON_BIN`. Run an interrupted command again to resume.
+
+## Christoffel Studies
+
+Run one independent convergence trial:
+
+```bash
+./scripts/weighted/ktilde_convergence/run_trial.sh k0 1
+```
+
+Build a sampling-CFG estimate or a cross-class estimate:
+
+```bash
+./scripts/weighted/ktilde_cfg_ablation/run.sh k2 3
+./scripts/weighted/ktilde_cross_class/run.sh ca
+```
+
+See [the artifact guide](../../ktilde/weighted/README.md) for the definitions.
+The saved results are sufficient for visualization without rerunning these
+expensive computations.

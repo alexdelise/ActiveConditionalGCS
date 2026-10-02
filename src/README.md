@@ -17,7 +17,7 @@ reconstruction, metric evaluation, and result serialization.
 | [metrics.py](metrics.py) | PSNR, SSIM, LPIPS, and image-shape conversion |
 | [reconstruction.py](reconstruction.py) | Measurement construction, latent optimization, initialization, metrics, and per-reconstruction artifacts |
 | [runner.py](runner.py) | Sampling sweeps, deterministic repeats, resume behavior, and aggregate result tables |
-| [sampling.py](sampling.py) | Christoffel, uniform, and inverse-square masks plus weighted and unweighted measurement operators |
+| [sampling.py](sampling.py) | Christoffel, uniform, and inverse-square masks plus Fourier measurement operators |
 | [utils.py](utils.py) | Artifact paths, hashing, reproducibility, environment metadata, JSON output, and CUDA cleanup |
 
 ## Reconstruction flow

@@ -1,15 +1,8 @@
 # Empirical Christoffel Artifacts and Fourier Operators
 
-[unweighted/](unweighted/) contains the S500 empirical Christoffel estimates
-used by the reported reconstruction experiments. [weighted/](weighted/)
-contains the four S10000 reference estimates and the independent trials used
-for the convergence study.
-
-Build or validate the S500 artifacts with
-[../scripts/unweighted/ktilde/main/build_all.sh](../scripts/unweighted/ktilde/main/build_all.sh)
-and
-[../scripts/unweighted/ktilde/cfg_ablation/build_all.sh](../scripts/unweighted/ktilde/cfg_ablation/build_all.sh).
-S10000 reference and convergence launchers are under
+[weighted/](weighted/) contains the four 10,000-secant reference estimates,
+sampling-CFG and cross-class estimates, and the independent trials used for
+the convergence study. Reference and convergence launchers are under
 [../scripts/weighted/ktilde_convergence/](../scripts/weighted/ktilde_convergence/).
 
 ## Empirical Christoffel sampling
@@ -75,7 +68,7 @@ remaining frequencies without replacement from the DC-excluded,
 renormalized proposal. Reconstruction weights still use the original law
 $\mu$, not the proposal used for the conditional draw.
 
-The unweighted experiments use an unweighted Fourier residual. The  weighted reconstruction study uses the unitary operator above with
+The reconstruction experiments use the unitary operator above with
 the probability law associated with each sampling design. Uniform sampling
 uses $\mu(i)=1/n$, while inverse-square sampling uses
 

@@ -12,11 +12,20 @@ from typing import Any, Iterable, Optional, Sequence
 
 import matplotlib.pyplot as plt
 from matplotlib import image as mpimg
-from matplotlib.ticker import FixedFormatter, FixedLocator, NullFormatter, NullLocator
+from matplotlib.lines import Line2D
+from matplotlib.ticker import (
+    FixedFormatter,
+    FixedLocator,
+    LogFormatterSciNotation,
+    NullFormatter,
+    NullLocator,
+)
 import numpy as np
 import pandas as pd
 
 import sd15_conditioning_experiment as exp
+
+resolve_results_path = exp.resolve_results_path
 
 
 DEFAULT_DISTRIBUTION_TAG_SUFFIXES: tuple[str, ...] = (
@@ -86,6 +95,7 @@ METRIC_LABELS = {
     "ssim": "SSIM",
     "lpips": "LPIPS",
     "pixel_mae": "Per-Pixel MAE",
+    "bp_best_loss": "Best Weighted Loss",
 }
 SHOW_METRIC_CONFIDENCE_INTERVALS = True
 METRIC_CONFIDENCE_LEVEL = 0.95
@@ -96,7 +106,7 @@ try:
     cfg_ablation = importlib.reload(cfg_ablation)
     ABLATION_RECON_COLORS = [
         cfg_ablation.LINE_COLORS[key]
-        for key in ["unconditioned", "cfg1", "cfg7p5", "cfg5", "cfg3"]
+        for key in ["cfg1", "cfg3", "cfg5", "cfg7p5", "cfg1p5"]
     ]
 except Exception:
     ABLATION_RECON_COLORS = ["#4C78A8", "#54A24B", "#E45756", "#6A3D9A", "#F58518"]
@@ -108,14 +118,14 @@ RECON_COLOR_BY_CONDITION = {
 }
 SWEEP_FIGSIZE_PER_COL = 4.9
 SWEEP_FIGSIZE_PER_ROW = 4.0
-SWEEP_SINGLE_FIGSIZE_HEIGHT = 5.25
+SWEEP_SINGLE_FIGSIZE_HEIGHT = 4.3
 SWEEP_SINGLE_LEGEND_Y = 0.985
 SWEEP_SINGLE_TOP = 0.76
-SWEEP_SINGLE_BOTTOM = 0.28
+SWEEP_SINGLE_BOTTOM = 0.16
 SWEEP_SINGLE_LEFT = 0.065
 SWEEP_SINGLE_RIGHT = 0.995
 SWEEP_SINGLE_WSPACE = 0.18
-SWEEP_SINGLE_XLABEL_Y = 0.15
+SWEEP_SINGLE_XLABEL_Y = 0.03
 SWEEP_LEGEND_Y = 1.08
 SWEEP_LINEWIDTH = 2.4
 SWEEP_MARKERSIZE = 7.0
@@ -129,8 +139,16 @@ ZERO_FILLED_METRIC_COLUMNS = {
 }
 LPIPS_METRICS_RELATIVE_PATHS = {
     "weighted": Path("results/weighted/metrics/lpips.csv"),
-    "unweighted": Path("results/unweighted/metrics/lpips.csv"),
+    "unweighted": Path("unweighted/results/metrics/lpips.csv"),
 }
+
+AGGREGATE_FOREST_METRICS: tuple[tuple[str, str, str], ...] = (
+    ("lpips", r"LPIPS $\downarrow$", "linear"),
+    ("psnr_db", r"PSNR (dB) $\uparrow$", "linear"),
+    ("ssim", r"SSIM $\uparrow$", "linear"),
+    ("bp_best_loss", r"Best Weighted Loss $\downarrow$", "log"),
+)
+AGGREGATE_FOREST_LOWER_IS_BETTER = {"lpips", "bp_best_loss"}
 
 
 def _figure_slug(value: object) -> str:
@@ -806,7 +824,7 @@ def load_recovery_analysis(
             # Avoid the expensive global tag-discovery scan performed while
             # formatting a missing-tag error. Weighted notebooks routinely
             # probe 32 split tags and are expected to work during partial runs.
-            if not (root / "results" / str(tag)).is_dir():
+            if not (resolve_results_path(root, str(tag))).is_dir():
                 continue
             try:
                 candidate_rows = exp.load_regression_rows(
@@ -841,7 +859,10 @@ def load_recovery_analysis(
         and output_tag.parts[0] == resolved_output_root.parent.name
     ):
         output_tag = Path(*output_tag.parts[1:])
-    output_dir = resolved_output_root / output_tag
+    if str(active_tag).startswith("unweighted/") and resolved_output_root == root / "results":
+        output_dir = resolve_results_path(root, active_tag)
+    else:
+        output_dir = resolved_output_root / output_tag
     output_dir.mkdir(parents=True, exist_ok=True)
 
     if not rows.empty and allowed_sampling_percentages:
@@ -924,6 +945,9 @@ def sampling_tick_labels(values: Sequence[float]) -> list[str]:
         value = float(value)
         if value < 0.01:
             labels.append(f"{value:.5f}")
+        elif np.isclose(value * 100.0, round(value * 100.0), rtol=0.0, atol=1e-10):
+            # Use two decimals for integer-percentage grids such as 1%--5%
+            labels.append(f"{value:.2f}")
         elif value < 0.1:
             labels.append(f"{value:.3f}")
         else:
@@ -931,11 +955,18 @@ def sampling_tick_labels(values: Sequence[float]) -> list[str]:
     return labels
 
 
-def style_sampling_ratio_axis(ax: Any, ticks: Sequence[float]) -> None:
-    """Use explicit decimal labels on a linear sampling-ratio axis."""
+def style_sampling_ratio_axis(
+    ax: Any,
+    ticks: Sequence[float],
+    *,
+    xscale: str = "linear",
+) -> None:
+    """Use explicit decimal labels on a linear or logarithmic sampling axis."""
 
     tick_values = sorted({float(value) for value in ticks})
-    ax.set_xscale("linear")
+    if xscale not in {"linear", "log"}:
+        raise ValueError("Sampling-ratio xscale must be 'linear' or 'log'.")
+    ax.set_xscale(xscale)
     ax.xaxis.set_major_locator(FixedLocator(tick_values))
     ax.xaxis.set_major_formatter(FixedFormatter(sampling_tick_labels(tick_values)))
     ax.xaxis.set_minor_locator(NullLocator())
@@ -964,7 +995,7 @@ def attach_lpips_metrics(
     result_namespace: str = "weighted",
     metrics_path: str | Path | None = None,
 ) -> pd.DataFrame:
-    """Join incremental LPIPS values without modifying run artifacts."""
+    """Attach LPIPS measurements to the saved reconstruction metrics."""
 
     result = frame.copy()
     for column in ("lpips", "zero_filled_lpips"):
@@ -1156,7 +1187,7 @@ def ensure_lpips_metrics(
     search_roots = (
         [Path(path) for path in artifact_roots]
         if artifact_roots is not None
-        else [root / "results" / namespace]
+        else [resolve_results_path(root, namespace)]
     )
     run_dirs = sorted(
         {
@@ -1209,10 +1240,19 @@ def ensure_lpips_metrics(
     if limit is not None:
         pending = pending[: max(0, int(limit))]
     if verbose:
+        scoped_artifacts = {
+            str(run_dir.relative_to(root))
+            for run_dir in run_dirs
+        }
+        scoped_measured = sum(
+            artifact_relpath in records
+            for artifact_relpath in scoped_artifacts
+        )
         print(
             f"LPIPS: {len(run_dirs)} reconstruction artifacts discovered; "
-            f"{len(records)} measured; {reused_saved_metrics} loaded from run data; "
-            f"{len(pending)} pending."
+            f"{scoped_measured} measured in this scope; "
+            f"{reused_saved_metrics} loaded from run data; {len(pending)} pending; "
+            f"{len(records)} measurements cached globally."
         )
     if reused_saved_metrics:
         _atomic_write_lpips_records(output_path, records)
@@ -1304,6 +1344,570 @@ def reconstruction_color(condition_or_idx: str | int, idx: Optional[int] = None)
         if idx is not None:
             return colors[int(idx) % len(colors)]
     return colors[int(condition_or_idx) % len(colors)]
+
+
+def build_aggregate_forest_summary(
+    frame: pd.DataFrame,
+    *,
+    row_column: str,
+    line_column: str,
+    row_keys: Sequence[str],
+    line_keys: Sequence[str],
+    expected_sampling_ratios: Sequence[float],
+    metrics: Sequence[str] = tuple(item[0] for item in AGGREGATE_FOREST_METRICS),
+    confidence_level: float = 0.95,
+) -> pd.DataFrame:
+    """Average available ratios within trials and summarize uncertainty across trials."""
+
+    from scipy.stats import t as student_t
+
+    required = {
+        row_column,
+        line_column,
+        "samp_perc",
+        "repeat_id",
+        *metrics,
+    }
+    missing = sorted(required.difference(frame.columns))
+    if missing:
+        raise KeyError(f"Forest summary is missing columns: {missing}")
+    if not 0.0 < float(confidence_level) < 1.0:
+        raise ValueError("confidence_level must lie in (0, 1)")
+
+    expected_ratios = np.asarray(expected_sampling_ratios, dtype=float)
+    selected = frame[
+        frame[row_column].astype(str).isin([str(value) for value in row_keys])
+        & frame[line_column].astype(str).isin([str(value) for value in line_keys])
+    ].copy()
+    selected["samp_perc"] = pd.to_numeric(selected["samp_perc"], errors="coerce")
+    for metric in metrics:
+        selected[metric] = pd.to_numeric(selected[metric], errors="coerce")
+
+    trial_records: list[dict[str, Any]] = []
+    trial_group_columns = [row_column, line_column, "repeat_id"]
+    for values, trial in selected.groupby(trial_group_columns, sort=False, dropna=False):
+        trial = trial.dropna(subset=["samp_perc", *metrics])
+        matched_rows: list[pd.Series] = []
+        for ratio in expected_ratios:
+            matches = trial[np.isclose(trial["samp_perc"], ratio, rtol=0.0, atol=5e-10)]
+            if len(matches) > 1:
+                raise ValueError(
+                    "Forest summary found duplicate rows for one trial and sampling ratio"
+                )
+            if len(matches) == 1:
+                matched_rows.append(matches.iloc[0])
+        if not matched_rows:
+            continue
+        record = dict(zip(trial_group_columns, values))
+        record["sampling_ratio_count"] = len(matched_rows)
+        for metric in metrics:
+            record[metric] = float(np.mean([float(row[metric]) for row in matched_rows]))
+        trial_records.append(record)
+
+    if not trial_records:
+        return pd.DataFrame()
+    trial_means = pd.DataFrame.from_records(trial_records)
+    records: list[dict[str, Any]] = []
+    for values, group in trial_means.groupby([row_column, line_column], sort=False):
+        record = {row_column: values[0], line_column: values[1]}
+        count = int(group["repeat_id"].nunique())
+        record["trial_count"] = count
+        for metric in metrics:
+            observations = group[metric].to_numpy(dtype=float)
+            mean = float(observations.mean())
+            std = float(observations.std(ddof=1)) if count > 1 else 0.0
+            critical = (
+                float(student_t.ppf(0.5 + 0.5 * confidence_level, count - 1))
+                if count > 1
+                else 0.0
+            )
+            record[f"{metric}_mean"] = mean
+            record[f"{metric}_std"] = std
+            record[f"{metric}_ci"] = critical * std / np.sqrt(float(count))
+        records.append(record)
+
+    summary = pd.DataFrame.from_records(records)
+    for metric in metrics:
+        values = summary[f"{metric}_mean"]
+        target = values.min() if metric in AGGREGATE_FOREST_LOWER_IS_BETTER else values.max()
+        summary[f"{metric}_winner"] = np.isclose(
+            values.to_numpy(dtype=float), float(target), rtol=0.0, atol=1e-12
+        )
+    return summary
+
+
+def plot_aggregate_metric_forest(
+    frame: pd.DataFrame,
+    *,
+    row_column: str,
+    line_column: str,
+    row_specs: Sequence[dict[str, Any]],
+    line_specs: Sequence[dict[str, Any]],
+    expected_sampling_ratios: Sequence[float],
+    output_path: str | Path | None = None,
+    metrics: Sequence[tuple[str, str, str]] = AGGREGATE_FOREST_METRICS,
+    confidence_level: float = 0.95,
+    show: bool = True,
+) -> Optional[Path]:
+    """Plot ratio-aggregated reconstruction metrics as a four-panel forest plot."""
+
+    row_keys = [str(spec["key"]) for spec in row_specs]
+    line_keys = [str(spec["key"]) for spec in line_specs]
+    metric_keys = [str(spec[0]) for spec in metrics]
+    summary = build_aggregate_forest_summary(
+        frame,
+        row_column=row_column,
+        line_column=line_column,
+        row_keys=row_keys,
+        line_keys=line_keys,
+        expected_sampling_ratios=expected_sampling_ratios,
+        metrics=metric_keys,
+        confidence_level=confidence_level,
+    )
+    if summary.empty:
+        print("No trial data are available for the aggregate forest plot.")
+        return None
+
+    available_lines = set(summary[line_column].astype(str))
+    active_line_specs = [
+        spec for spec in line_specs if str(spec["key"]) in available_lines
+    ]
+    row_positions = np.arange(len(row_specs), dtype=float)
+    point_offsets = np.linspace(-0.30, 0.30, len(active_line_specs))
+    with plt.rc_context(exp.SD15_PRESENTATION_RC):
+        # Preserve the original row proportions for standalone notebook figures
+        figure, axes = plt.subplots(1, 4, figsize=(28.0, 7.2), squeeze=False)
+        for axis, (metric, title, xscale) in zip(axes.ravel(), metrics):
+            for row_index in range(len(row_specs)):
+                if row_index % 2 == 0:
+                    axis.axhspan(
+                        row_index - 0.46,
+                        row_index + 0.46,
+                        color="#f2f2f2",
+                        zorder=0,
+                    )
+            for line_index, line_spec in enumerate(active_line_specs):
+                line_key = str(line_spec["key"])
+                line_rows = summary[summary[line_column].astype(str).eq(line_key)].set_index(
+                    row_column
+                )
+                available_keys = [key for key in row_keys if key in line_rows.index]
+                if not available_keys:
+                    continue
+                positions = np.asarray(
+                    [row_keys.index(key) for key in available_keys], dtype=float
+                )
+                plot_rows = line_rows.loc[available_keys]
+                x_values = plot_rows[f"{metric}_mean"].to_numpy(dtype=float)
+                x_errors = plot_rows[f"{metric}_ci"].to_numpy(dtype=float)
+                plot_errors: np.ndarray = x_errors
+                if xscale == "log":
+                    # A finite-sample symmetric interval can cross zero even
+                    # though the loss itself is nonnegative
+                    lower_errors = np.minimum(x_errors, x_values * (1.0 - 1e-6))
+                    plot_errors = np.vstack([lower_errors, x_errors])
+                y_values = positions + point_offsets[line_index]
+                color = str(line_spec["color"])
+                axis.errorbar(
+                    x_values,
+                    y_values,
+                    xerr=plot_errors,
+                    fmt="none",
+                    ecolor=color,
+                    elinewidth=1.7,
+                    capsize=3.0,
+                    capthick=1.4,
+                    alpha=0.95,
+                    zorder=2,
+                )
+                winners = plot_rows[f"{metric}_winner"].astype(bool).to_numpy()
+                axis.scatter(
+                    x_values[~winners],
+                    y_values[~winners],
+                    marker=str(line_spec.get("marker", "o")),
+                    s=48,
+                    facecolor=color,
+                    edgecolor="white",
+                    linewidth=0.7,
+                    zorder=3,
+                )
+                if winners.any():
+                    axis.scatter(
+                        x_values[winners],
+                        y_values[winners],
+                        marker="*",
+                        s=125,
+                        facecolor=color,
+                        edgecolor="black",
+                        linewidth=0.8,
+                        zorder=4,
+                    )
+            axis.set_xlabel(
+                title,
+                fontsize=exp.SD15_PRESENTATION_RC["xtick.labelsize"],
+                labelpad=5.0,
+            )
+            axis.set_xscale(xscale)
+            axis.set_yticks(row_positions)
+            axis.set_yticklabels([str(spec["label"]) for spec in row_specs])
+            axis.set_ylim(len(row_specs) - 0.53, -0.53)
+            axis.grid(axis="x", alpha=0.28)
+            axis.tick_params(direction="out")
+
+        handles = [
+            Line2D(
+                [0],
+                [0],
+                marker=str(spec.get("marker", "o")),
+                linestyle="none",
+                markersize=7.5,
+                markerfacecolor=str(spec["color"]),
+                markeredgecolor="white",
+                label=str(spec["label"]),
+            )
+            for spec in active_line_specs
+        ]
+        handles.append(
+            Line2D(
+                [0],
+                [0],
+                marker="*",
+                linestyle="none",
+                markersize=10.5,
+                markerfacecolor="#d9d9d9",
+                markeredgecolor="black",
+                label="Best Observed Mean",
+            )
+        )
+        figure.legend(
+            handles=handles,
+            loc="upper center",
+            bbox_to_anchor=(0.5, 0.975),
+            ncol=len(handles),
+            frameon=False,
+            columnspacing=1.25,
+            handletextpad=0.4,
+        )
+        figure.subplots_adjust(
+            left=0.055,
+            right=0.992,
+            bottom=0.16,
+            top=0.82,
+            wspace=0.24,
+        )
+        resolved_path = Path(output_path) if output_path is not None else None
+        if resolved_path is not None:
+            resolved_path.parent.mkdir(parents=True, exist_ok=True)
+            figure.savefig(resolved_path, bbox_inches="tight", pad_inches=0.03)
+        if show:
+            plt.show()
+        plt.close(figure)
+    return resolved_path
+
+
+def plot_aggregate_recovery_forest(
+    frame: pd.DataFrame,
+    *,
+    expected_sampling_ratios: Sequence[float],
+    output_path: str | Path | None = None,
+    show: bool = True,
+) -> Optional[Path]:
+    """Plot the aggregate forest summary used by weighted recovery notebooks."""
+
+    sampling_cases = (
+        frame[["sampling_condition", "sampling_rank"]]
+        .drop_duplicates()
+        .sort_values("sampling_rank", kind="stable")
+    )
+    recovery_cases = (
+        frame[["reconstruction_condition", "reconstruction_label", "recon_rank"]]
+        .drop_duplicates()
+        .sort_values("recon_rank", kind="stable")
+    )
+    row_specs = [
+        {"key": str(row.sampling_condition), "label": sampling_mu_label(row.sampling_condition)}
+        for row in sampling_cases.itertuples(index=False)
+    ]
+    line_specs = [
+        {
+            "key": str(row.reconstruction_condition),
+            "label": recovery_math_label(row.reconstruction_condition, row.reconstruction_label),
+            "color": reconstruction_color(str(row.reconstruction_condition), index),
+            "marker": "o",
+        }
+        for index, row in enumerate(recovery_cases.itertuples(index=False))
+    ]
+    return plot_aggregate_metric_forest(
+        frame,
+        row_column="sampling_condition",
+        line_column="reconstruction_condition",
+        row_specs=row_specs,
+        line_specs=line_specs,
+        expected_sampling_ratios=expected_sampling_ratios,
+        output_path=output_path,
+        show=show,
+    )
+
+
+def plot_combined_aggregate_metric_forest(
+    frames: Sequence[pd.DataFrame],
+    *,
+    row_column: str,
+    line_column: str,
+    row_specs: Sequence[dict[str, Any]],
+    line_specs: Sequence[dict[str, Any]],
+    expected_sampling_ratios: Sequence[float],
+    output_path: str | Path | None = None,
+    show: bool = True,
+) -> Optional[Path]:
+    """Plot three experiments as a shared-legend 3-by-4 forest grid."""
+
+    active_frames = [frame for frame in frames if not frame.empty]
+    if len(active_frames) != 3:
+        raise ValueError("The combined forest plot requires three nonempty experiment frames.")
+
+    row_keys = [str(spec["key"]) for spec in row_specs]
+    line_keys = [str(spec["key"]) for spec in line_specs]
+    summaries = [
+        build_aggregate_forest_summary(
+            frame,
+            row_column=row_column,
+            line_column=line_column,
+            row_keys=row_keys,
+            line_keys=line_keys,
+            expected_sampling_ratios=expected_sampling_ratios,
+            metrics=[str(metric[0]) for metric in AGGREGATE_FOREST_METRICS],
+            confidence_level=0.95,
+        )
+        for frame in active_frames
+    ]
+    if any(summary.empty for summary in summaries):
+        print("At least one experiment has no trial data for the combined forest plot.")
+        return None
+
+    row_positions = np.arange(len(row_specs), dtype=float)
+    point_offsets = np.linspace(-0.32, 0.32, len(line_specs))
+    combined_forest_rc = dict(exp.SD15_PRESENTATION_RC)
+    combined_forest_rc.update(
+        {
+            "font.size": 44,
+            "axes.labelsize": 44,
+            "legend.fontsize": 44,
+            "xtick.labelsize": 44,
+            "ytick.labelsize": 44,
+        }
+    )
+    with plt.rc_context(combined_forest_rc):
+        # Match the wider usable aspect of a landscape manuscript page
+        # Give each experiment row enough height for its offset markers and labels
+        figure, axes = plt.subplots(3, 4, figsize=(32.0, 18.8), squeeze=False)
+        for experiment_index, summary in enumerate(summaries):
+            for column_index, (axis, (metric, label, xscale)) in enumerate(
+                zip(axes[experiment_index], AGGREGATE_FOREST_METRICS)
+            ):
+                for row_index in range(len(row_specs)):
+                    if row_index % 2 == 0:
+                        axis.axhspan(
+                            row_index - 0.46,
+                            row_index + 0.46,
+                            color="#f2f2f2",
+                            zorder=0,
+                        )
+                for line_index, line_spec in enumerate(line_specs):
+                    line_key = str(line_spec["key"])
+                    line_rows = summary[
+                        summary[line_column].astype(str).eq(line_key)
+                    ].set_index(row_column)
+                    available_keys = [key for key in row_keys if key in line_rows.index]
+                    if not available_keys:
+                        continue
+                    positions = np.asarray(
+                        [row_keys.index(key) for key in available_keys], dtype=float
+                    )
+                    plot_rows = line_rows.loc[available_keys]
+                    x_values = plot_rows[f"{metric}_mean"].to_numpy(dtype=float)
+                    x_errors = plot_rows[f"{metric}_ci"].to_numpy(dtype=float)
+                    plot_errors: np.ndarray = x_errors
+                    if xscale == "log":
+                        lower_errors = np.minimum(x_errors, x_values * (1.0 - 1e-6))
+                        plot_errors = np.vstack([lower_errors, x_errors])
+                    y_values = positions + point_offsets[line_index]
+                    color = str(line_spec["color"])
+                    axis.errorbar(
+                        x_values,
+                        y_values,
+                        xerr=plot_errors,
+                        fmt="none",
+                        ecolor=color,
+                        elinewidth=3.5,
+                        capsize=5.5,
+                        capthick=3.0,
+                        alpha=0.95,
+                        zorder=2,
+                    )
+                    winners = plot_rows[f"{metric}_winner"].astype(bool).to_numpy()
+                    axis.scatter(
+                        x_values[~winners],
+                        y_values[~winners],
+                        marker=str(line_spec.get("marker", "o")),
+                        s=110,
+                        facecolor=color,
+                        edgecolor="white",
+                        linewidth=1.2,
+                        zorder=3,
+                    )
+                    if winners.any():
+                        axis.scatter(
+                            x_values[winners],
+                            y_values[winners],
+                            marker="*",
+                            s=220,
+                            facecolor=color,
+                            edgecolor="black",
+                            linewidth=1.3,
+                            zorder=4,
+                        )
+                # One set of column labels is sufficient for the shared grid
+                if experiment_index == len(summaries) - 1:
+                    axis.set_xlabel(
+                        label,
+                        fontsize=combined_forest_rc["axes.labelsize"],
+                        labelpad=5.0,
+                    )
+                axis.set_xscale(xscale)
+                if xscale == "log" and experiment_index in (1, 2) and column_index == 3:
+                    x_min, x_max = axis.get_xlim()
+                    exponent_min = int(np.floor(np.log10(x_min))) - 1
+                    exponent_max = int(np.ceil(np.log10(x_max))) + 1
+                    candidates = sorted(
+                        value
+                        for exponent in range(exponent_min, exponent_max + 1)
+                        for multiplier in (1.0, 2.0, 5.0)
+                        if x_min <= (value := multiplier * 10.0**exponent) <= x_max
+                    )
+                    if len(candidates) >= 2:
+                        tick_values = [candidates[0], candidates[-1]]
+                        axis.xaxis.set_major_locator(FixedLocator(tick_values))
+                        axis.xaxis.set_major_formatter(
+                            LogFormatterSciNotation(
+                                base=10.0,
+                                labelOnlyBase=False,
+                                minor_thresholds=(np.inf, np.inf),
+                            )
+                        )
+                        axis.xaxis.set_minor_locator(NullLocator())
+                axis.set_yticks(row_positions)
+                if column_index == 0:
+                    axis.set_yticklabels([str(spec["label"]) for spec in row_specs])
+                else:
+                    axis.set_yticklabels([])
+                    axis.tick_params(axis="y", left=False)
+                axis.set_ylim(len(row_specs) - 0.53, -0.53)
+                axis.grid(axis="x", alpha=0.28)
+                axis.tick_params(direction="out")
+
+        handles = [
+            Line2D(
+                [0],
+                [0],
+                marker=str(spec.get("marker", "o")),
+                linestyle="none",
+                markersize=11.5,
+                markerfacecolor=str(spec["color"]),
+                markeredgecolor="white",
+                label=str(spec["label"]),
+            )
+            for spec in line_specs
+        ]
+        handles.append(
+            Line2D(
+                [0],
+                [0],
+                marker="*",
+                linestyle="none",
+                markersize=14.5,
+                markerfacecolor="#d9d9d9",
+                markeredgecolor="black",
+                label="Best Observed Mean",
+            )
+        )
+        figure.legend(
+            handles=handles,
+            loc="upper center",
+            bbox_to_anchor=(0.5, 0.985),
+            ncol=len(handles),
+            frameon=False,
+            columnspacing=0.45,
+            handletextpad=0.2,
+            borderaxespad=0.1,
+        )
+        figure.subplots_adjust(
+            left=0.045,
+            right=0.995,
+            bottom=0.065,
+            top=0.935,
+            hspace=0.13,
+            wspace=0.18,
+        )
+        resolved_path = Path(output_path) if output_path is not None else None
+        if resolved_path is not None:
+            resolved_path.parent.mkdir(parents=True, exist_ok=True)
+            figure.savefig(resolved_path, bbox_inches="tight", pad_inches=0.03)
+        if show:
+            plt.show()
+        plt.close(figure)
+    return resolved_path
+
+
+def plot_combined_aggregate_recovery_forest(
+    frames: Sequence[pd.DataFrame],
+    *,
+    expected_sampling_ratios: Sequence[float],
+    output_path: str | Path | None = None,
+    show: bool = True,
+) -> Optional[Path]:
+    """Plot three main recovery experiments in the combined forest layout."""
+
+    template = next((frame for frame in frames if not frame.empty), pd.DataFrame())
+    if template.empty:
+        print("No trial data are available for the combined forest plot.")
+        return None
+    sampling_cases = (
+        template[["sampling_condition", "sampling_rank"]]
+        .drop_duplicates()
+        .sort_values("sampling_rank", kind="stable")
+    )
+    recovery_cases = (
+        template[["reconstruction_condition", "reconstruction_label", "recon_rank"]]
+        .drop_duplicates()
+        .sort_values("recon_rank", kind="stable")
+    )
+    row_specs = [
+        {"key": str(row.sampling_condition), "label": sampling_mu_label(row.sampling_condition)}
+        for row in sampling_cases.itertuples(index=False)
+    ]
+    line_specs = [
+        {
+            "key": str(row.reconstruction_condition),
+            "label": recovery_math_label(
+                row.reconstruction_condition,
+                row.reconstruction_label,
+            ),
+            "color": reconstruction_color(str(row.reconstruction_condition), index),
+            "marker": "o",
+        }
+        for index, row in enumerate(recovery_cases.itertuples(index=False))
+    ]
+    return plot_combined_aggregate_metric_forest(
+        frames,
+        row_column="sampling_condition",
+        line_column="reconstruction_condition",
+        row_specs=row_specs,
+        line_specs=line_specs,
+        expected_sampling_ratios=expected_sampling_ratios,
+        output_path=output_path,
+        show=show,
+    )
 
 
 def legend_zero_filled_last(handles: Sequence[Any], labels: Sequence[str]) -> tuple[list[Any], list[str]]:
@@ -1406,6 +2010,7 @@ def plot_metric_curves(
     metric: str,
     output_path: str | Path | None = None,
     show: bool = True,
+    sampling_xscale: str = "linear",
 ) -> Optional[Path]:
     """Plot one metric across sampling ratios for each recovery prompt."""
 
@@ -1434,6 +2039,18 @@ def plot_metric_curves(
     num_cases = int(len(sampling_cases))
     num_columns = min(4, max(1, num_cases))
     num_rows = int(np.ceil(float(num_cases) / float(num_columns)))
+    cs_only_single_row = num_cases <= 4 and num_rows == 1
+
+    # Reserve independent bands for the legend, panel titles, ticks, and global x label
+    figure_height = (
+        max(SWEEP_SINGLE_FIGSIZE_HEIGHT, 4.8)
+        if cs_only_single_row
+        else SWEEP_SINGLE_FIGSIZE_HEIGHT * num_rows
+    )
+    figure_top = min(SWEEP_SINGLE_TOP, 0.70) if cs_only_single_row else 0.88
+    figure_bottom = max(SWEEP_SINGLE_BOTTOM, 0.22) if cs_only_single_row else SWEEP_SINGLE_BOTTOM
+    legend_y = max(SWEEP_SINGLE_LEGEND_Y, 0.98) if cs_only_single_row else SWEEP_SINGLE_LEGEND_Y
+    xlabel_y = min(SWEEP_SINGLE_XLABEL_Y, 0.025) if cs_only_single_row else SWEEP_SINGLE_XLABEL_Y
 
     with plt.rc_context(exp.SD15_PRESENTATION_RC):
         fig, axes = plt.subplots(
@@ -1441,7 +2058,7 @@ def plot_metric_curves(
             num_columns,
             figsize=(
                 SWEEP_FIGSIZE_PER_COL * num_columns,
-                SWEEP_SINGLE_FIGSIZE_HEIGHT * num_rows,
+                figure_height,
             ),
             sharey=False,
             constrained_layout=False,
@@ -1534,7 +2151,7 @@ def plot_metric_curves(
                         linewidth=0,
                     )
             ticks = sorted({float(value) for value in subset["samp_perc"].tolist()})
-            style_sampling_ratio_axis(ax, ticks)
+            style_sampling_ratio_axis(ax, ticks, xscale=sampling_xscale)
             ax.set_xlabel("")
             ax.set_title(sampling_mu_label(sampling_case["sampling_condition"]))
             ax.grid(True, which="major", axis="both", alpha=0.28, linestyle="--")
@@ -1550,8 +2167,8 @@ def plot_metric_curves(
         fig.subplots_adjust(
             left=SWEEP_SINGLE_LEFT,
             right=SWEEP_SINGLE_RIGHT,
-            bottom=SWEEP_SINGLE_BOTTOM,
-            top=SWEEP_SINGLE_TOP if num_rows == 1 else 0.88,
+            bottom=figure_bottom,
+            top=figure_top,
             wspace=SWEEP_SINGLE_WSPACE,
             hspace=0.48 if num_rows > 1 else 0.0,
         )
@@ -1563,7 +2180,7 @@ def plot_metric_curves(
         fig.supxlabel(
             GLOBAL_SAMPLING_X_LABEL,
             fontsize=exp.SD15_PRESENTATION_RC.get("axes.labelsize", 30),
-            y=SWEEP_SINGLE_XLABEL_Y,
+            y=xlabel_y,
         )
         legend_handles: list[Any] = []
         legend_labels: list[str] = []
@@ -1591,7 +2208,7 @@ def plot_metric_curves(
                     legend_handles,
                     legend_labels,
                     loc="upper center",
-                    bbox_to_anchor=(0.5, SWEEP_SINGLE_LEGEND_Y),
+                    bbox_to_anchor=(0.5, legend_y),
                     ncol=min(len(legend_labels), 5),
                     frameon=False,
                     fontsize=exp.SD15_PRESENTATION_RC.get("legend.fontsize", 22),
@@ -1611,6 +2228,7 @@ def plot_combined_metric_curves(
     metrics: Sequence[str],
     output_path: str | Path | None = None,
     show: bool = True,
+    sampling_xscale: str = "linear",
 ) -> Optional[Path]:
     """Plot a multi-row metric sweep across sampling ratios and recovery prompts."""
 
@@ -1641,6 +2259,10 @@ def plot_combined_metric_curves(
     reverse_pyramid = (
         num_cases in (5, 6) and case_rows == 2 and case_columns == 4
     )
+    cs_only_rows = num_cases <= 4 and case_rows == 1
+    combined_top = 0.86 if cs_only_rows else 0.95
+    combined_bottom = 0.18 if cs_only_rows else 0.14
+    combined_legend_y = max(SWEEP_LEGEND_Y, 1.02) if cs_only_rows else SWEEP_LEGEND_Y
     with plt.rc_context(exp.SD15_PRESENTATION_RC):
         fig, axes = plt.subplots(
             n_rows,
@@ -1732,7 +2354,7 @@ def plot_combined_metric_curves(
                             linewidth=0,
                         )
                 ticks = sorted({float(value) for value in subset["samp_perc"].tolist()})
-                style_sampling_ratio_axis(ax, ticks)
+                style_sampling_ratio_axis(ax, ticks, xscale=sampling_xscale)
                 ax.set_xlabel("")
                 ax.set_title(sampling_mu_label(sampling_case["sampling_condition"]))
                 ax.grid(True, which="major", axis="both", alpha=0.28, linestyle="--")
@@ -1755,8 +2377,8 @@ def plot_combined_metric_curves(
         fig.subplots_adjust(
             left=0.06,
             right=0.99,
-            bottom=0.14,
-            top=0.95,
+            bottom=combined_bottom,
+            top=combined_top,
             wspace=0.22,
             hspace=0.70,
         )
@@ -1859,7 +2481,7 @@ def plot_combined_metric_curves(
                     legend_handles,
                     legend_labels,
                     loc="upper center",
-                    bbox_to_anchor=(0.5, SWEEP_LEGEND_Y),
+                    bbox_to_anchor=(0.5, combined_legend_y),
                     ncol=min(len(legend_labels), 5),
                     frameon=False,
                     fontsize=exp.SD15_PRESENTATION_RC.get("legend.fontsize", 22),
@@ -1881,6 +2503,7 @@ def export_metric_figures(
     sweep_metrics: Sequence[str] = ("psnr_db", "ssim", "lpips", "pixel_mae"),
     combined_metrics: Sequence[str] = ("psnr_db", "ssim"),
     combine_sampling_methods: bool = False,
+    sampling_xscale: str = "linear",
     show: bool = True,
 ) -> list[Path]:
     """Export the metric PDFs produced by the recovery-result notebooks."""
@@ -1917,6 +2540,7 @@ def export_metric_figures(
                     "vs_sampling_ratio_by_recovery_prompt",
                 ),
                 show=show,
+                sampling_xscale=sampling_xscale,
             )
             if output is not None:
                 outputs.append(output)
@@ -1934,6 +2558,7 @@ def export_metric_figures(
                     "vs_sampling_ratio_by_recovery_prompt",
                 ),
                 show=show,
+                sampling_xscale=sampling_xscale,
             )
             if output is not None:
                 outputs.append(output)
@@ -1947,16 +2572,7 @@ def sample_tag(value: float) -> str:
 def resolve_run_result_dir(sd15_root: str | Path, run_tag: str | Path) -> Path:
     """Resolve legacy and namespaced run tags against the repository root."""
 
-    root = Path(sd15_root).resolve()
-    stored = Path(run_tag)
-    if stored.is_absolute():
-        return stored
-    # Migrated loaders store repository-relative tags such as
-    # results/weighted/prompt_matched/..., while legacy tables store the path
-    # relative to the results directory
-    if stored.parts and stored.parts[0] == "results":
-        return root / stored
-    return root / "results" / stored
+    return resolve_results_path(Path(sd15_root).resolve(), run_tag)
 
 
 def run_artifact_dir(sd15_root: str | Path, row: pd.Series) -> Path:

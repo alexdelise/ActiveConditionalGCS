@@ -342,7 +342,7 @@ def plot_lambda_matrix(
             axis,
             table,
             cmap=cmap,
-            colorbar_label=r"$\widetilde{\Lambda}$",
+            colorbar_label=r"$\widetilde{\Lambda}(c_r,c_{\mathrm{sb}},c_s)$",
             annotation_scale_power=shared_analysis._annotation_scale_power(values),
             tick_labelsize=14.0,
             show_ylabels=True,

@@ -1,4 +1,4 @@
-"""Generate the manifests and output-free notebooks for this isolated study."""
+"""Generate the weighted CFG-ablation manifests and output-free notebooks."""
 
 from __future__ import annotations
 
@@ -54,12 +54,10 @@ LAWS = {
 }
 
 LINES = {
-    "unconditioned": {"prompt": "", "cfg": 1.0, "label": "Unconditioned", "rank": 0},
-    "cfg1": {"prompt": "sunset beach", "cfg": 1.0, "label": "CFG 1", "rank": 1},
-    "cfg1p5": {"prompt": "sunset beach", "cfg": 1.5, "label": "CFG 1.5", "rank": 2},
-    "cfg3": {"prompt": "sunset beach", "cfg": 3.0, "label": "CFG 3", "rank": 3},
-    "cfg5": {"prompt": "sunset beach", "cfg": 5.0, "label": "CFG 5", "rank": 4},
-    "cfg7p5": {"prompt": "sunset beach", "cfg": 7.5, "label": "CFG 7.5", "rank": 5},
+    "cfg1": {"prompt": "sunset beach", "cfg": 1.0, "label": "CFG 1", "rank": 0},
+    "cfg3": {"prompt": "sunset beach", "cfg": 3.0, "label": "CFG 3", "rank": 1},
+    "cfg5": {"prompt": "sunset beach", "cfg": 5.0, "label": "CFG 5", "rank": 2},
+    "cfg7p5": {"prompt": "sunset beach", "cfg": 7.5, "label": "CFG 7.5", "rank": 3},
 }
 
 
@@ -129,7 +127,7 @@ def base_config(dataset: str) -> dict[str, object]:
             "weighted_ls": True,
         },
         "sweep": {
-            "repeats_per_setting": 2,
+            "repeats_per_setting": 5,
             "sampling_perc_list": [0.01, 0.02, 0.03, 0.04, 0.05],
             "save_per_run_artifacts": True,
         },
@@ -137,7 +135,7 @@ def base_config(dataset: str) -> dict[str, object]:
 
 
 def suite_config(scenario: str, law: str) -> dict[str, object]:
-    """Return all six recovery controls for one fixed CFG-7.5 sampling law."""
+    """Return the four recovery-CFG settings for one fixed sampling law."""
 
     info = LAWS[law]
     cases = []
@@ -192,8 +190,10 @@ def notebook(scenario: str) -> dict[str, object]:
         notebook_cell(
             "markdown",
             f"# SD1.5 {title} Weighted Recovery-CFG Ablation\n\n"
-            "This two-trial study fixes each Christoffel sampling distribution at its "
-            "CFG-7.5 S10000 estimate and varies only the recovery conditioning. All runs "
+            "This study fixes each Christoffel sampling distribution at its "
+            "CFG-7.5 estimate and varies only the recovery conditioning. The CFG 1 control "
+            "reuses all five compatible main-study trials; CFG 3, 5, and 7.5 use five "
+            "new trials. All runs "
             "use the weighted unitary Fourier operator, $\\zeta=1/2$, and the 2,000-step "
             "main weighted learning-rate schedule.\n",
         ),
@@ -222,32 +222,50 @@ def notebook(scenario: str) -> dict[str, object]:
         notebook_cell(
             "markdown",
             "## Load Results\n\n"
-            "LPIPS is stored during new reconstructions and is also filled incrementally "
-            "for any compatible legacy artifact. The completion table contains every "
-            "expected sampling-law, recovery-CFG, ratio, and trial cell.\n",
+            "LPIPS is stored during reconstruction and filled incrementally when needed. "
+            "The completion table distinguishes the five-trial reused controls from the "
+            "five-trial CFG-ablation lines.\n",
         ),
         notebook_cell(
             "code",
             "LPIPS_TABLE = diagnostic.ensure_lpips(SCENARIO, device='cpu')\n"
             "ROWS = diagnostic.load_rows(SCENARIO)\n"
             "COMPLETION = diagnostic.completion_table(ROWS)\n"
-            "print(f'Loaded {len(ROWS)} / {diagnostic.EXPECTED_ROWS_PER_SCENARIO} reconstructions')\n"
+            "print(f'Loaded {len(ROWS)} / {diagnostic.EXPECTED_ROWS_PER_SCENARIO} analysis rows')\n"
+            "print(f'New ablation target: {diagnostic.EXPECTED_NEW_ROWS_PER_SCENARIO} rows')\n"
             "display(diagnostic.count_table(ROWS))\n"
             "display(COMPLETION.groupby(['sampling_law', 'recovery_line'], as_index=False)[['observed', 'expected', 'left']].sum())\n"
-            "display(ROWS[['distribution_key', 'line_condition', 'samp_perc', 'repeat_id', 'psnr_db', 'ssim', 'lpips', 'pixel_mae']].head())\n",
+            "display(ROWS[['distribution_key', 'line_condition', 'source_kind', 'samp_perc', 'repeat_id', 'psnr_db', 'ssim', 'lpips', 'bp_best_loss']].head())\n",
         ),
         notebook_cell(
             "markdown",
             "## Metric Curves\n\n"
-            "The TeX-styled figure matches the established ablation layout. Solid lines "
-            "show two-trial arithmetic means and shading shows one sample standard "
-            "deviation; with only two trials, this is more transparent than presenting a "
-            "nominal confidence interval based on one degree of freedom.\n",
+            "Following the main notebooks, PSNR, SSIM, LPIPS, and best weighted loss are "
+            "rendered as separate TeX-styled sampling-ratio figures. Solid lines show "
+            "trial means and shading shows one sample standard deviation.\n",
         ),
         notebook_cell(
             "code",
             "METRIC_OUTPUTS = diagnostic.plot_metric_curves(ROWS, output_dir=OUTPUT_DIR, show=True)\n"
             "METRIC_OUTPUTS\n",
+        ),
+        notebook_cell(
+            "markdown",
+            "## Optimization Trajectories and Trial Uncertainty\n\n"
+            "Each figure fixes one sampling distribution and separates the five sampling "
+            "ratios into subplots. Colors denote recovery CFG, faint curves are individual "
+            "trials, bold curves are arithmetic means, and shading is one sample standard "
+            "deviation.\n",
+        ),
+        notebook_cell(
+            "code",
+            "TRACES = diagnostic.load_optimization_traces(SCENARIO)\n"
+            "TRACE_SUMMARY = diagnostic.optimization_trace_summary(TRACES)\n"
+            "TRACE_OUTPUTS = diagnostic.export_optimization_trace_figures(\n"
+            "    TRACES, OUTPUT_DIR, show_uncertainty=True, show=True\n"
+            ")\n"
+            "print(f'Loaded {len(TRACES):,} saved optimization points')\n"
+            "TRACE_OUTPUTS\n",
         ),
         notebook_cell(
             "markdown",
@@ -267,7 +285,25 @@ def notebook(scenario: str) -> dict[str, object]:
             ")\n"
             "PANEL_OUTPUTS\n",
         ),
+        notebook_cell(
+            "markdown",
+            "## Aggregate Metric Forest Plot\n\n"
+            "Horizontal intervals are 95% confidence intervals; stars mark the best "
+            "observed sampling-law and recovery-CFG pair for each metric.\n",
+        ),
+        notebook_cell(
+            "code",
+            "ROWS = diagnostic.load_rows(SCENARIO)\n"
+            "FOREST_OUTPUT = diagnostic.plot_aggregate_forest(\n"
+            "    ROWS,\n"
+            "    output_dir=OUTPUT_DIR,\n"
+            "    show=True,\n"
+            ")\n"
+            "FOREST_OUTPUT\n",
+        ),
     ]
+    # Match the main notebooks: setup, trajectories, completion, sweeps, panels
+    cells = [cells[index] for index in (0, 1, 6, 7, 2, 3, 4, 5, 8, 9, 10, 11)]
     return {
         "cells": cells,
         "metadata": {

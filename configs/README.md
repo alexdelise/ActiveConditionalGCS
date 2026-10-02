@@ -1,25 +1,15 @@
 # Experiment Configurations
 
-[unweighted/](unweighted/) contains the seven-rate unweighted main experiments,
-recovery-CFG ablations, uniform baselines, and inverse-square baselines.
+[weighted/](weighted/) contains the three main reconstruction experiments and
+the recovery-CFG ablation. Each suite selects a base configuration, sampling
+law, recovery condition, and output tag. The base configuration specifies the
+sampling ratios, trials, optimizer, and Fourier convention.
 
-[weighted/](weighted/) contains the weighted unitary experiments:
-
-- [out_of_range/](weighted/out_of_range/)
-- [prompt_matched/](weighted/prompt_matched/)
-- [ablation/](weighted/ablation/)
-- [diagnostics/](weighted/diagnostics/)
-
-A suite manifest points to a base configuration and supplies the sampling law,
-recovery condition, sampling ratios, repeat count, and case-specific
-overrides. [example_run.json](example_run.json) is a compact single-run
-example.
-
-Inspect a manifest without loading Stable Diffusion:
+Inspect a main or ablation setting from the repository root:
 
 ```bash
-python run_conditioning_regression.py \
-  --suite-config configs/weighted/out_of_range/k2_suite.json \
-  --sampling-methods cs \
-  --list-cases
+./scripts/weighted/run_main.sh prompt_matched k2 sunset_beach --dry-run
+./scripts/weighted/run_ablation.sh out_of_range k2 3 --dry-run
 ```
+
+[example_run.json](example_run.json) illustrates a single-run configuration.

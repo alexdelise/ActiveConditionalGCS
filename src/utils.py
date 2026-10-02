@@ -22,7 +22,7 @@ def resolve_ktilde_npz_path(ktilde_dir: str | Path, ktilde_name: str) -> Path:
     filename = f"{str(ktilde_name).strip()}.npz"
     candidates = (
         root / "weighted" / filename,
-        root / "unweighted" / filename,
+        root.parent / "unweighted" / "ktilde" / filename,
         root / filename,
     )
     matches = [path for path in candidates if path.is_file()]
@@ -36,6 +36,22 @@ def resolve_ktilde_npz_path(ktilde_dir: str | Path, ktilde_name: str) -> Path:
     # Prefer the namespaced path when a local compatibility symlink points to
     # the same physical artifact
     return matches[0]
+
+
+def resolve_results_path(project_root: str | Path, tag: str | Path) -> Path:
+    """Resolve public result tags and archived experiment tags."""
+
+    root = Path(project_root)
+    stored = Path(tag)
+    if stored.is_absolute():
+        return stored
+    if stored.parts[:2] == ("unweighted", "results"):
+        return root / stored
+    if stored.parts and stored.parts[0] == "unweighted":
+        return root / "unweighted" / "results" / Path(*stored.parts[1:])
+    if stored.parts and stored.parts[0] == "results":
+        return root / stored
+    return root / "results" / stored
 
 
 def set_reproducibility(cfg: "ReproConfig") -> Dict[str, Any]:

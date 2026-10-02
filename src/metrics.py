@@ -26,7 +26,7 @@ def calculate_ssim(
     k1: float = 0.01,
     k2: float = 0.03,
 ) -> float:
-    """Compute a global SSIM score between two images.
+    """Compute windowed SSIM for HxW or HxWxC images.
 
     Args:
         image_a: First image to compare.
@@ -39,26 +39,19 @@ def calculate_ssim(
         The scalar SSIM score.
     """
 
-    # This global form matches the scalar metric used by the original experiments
-    x = np.asarray(image_a, dtype=np.float64).ravel()
-    y = np.asarray(image_b, dtype=np.float64).ravel()
-    if x.size == 0 or y.size == 0:
-        return float("nan")
+    from skimage.metrics import structural_similarity
 
-    mu_x = float(x.mean())
-    mu_y = float(y.mean())
-    sigma_x2 = float(((x - mu_x) ** 2).mean())
-    sigma_y2 = float(((y - mu_y) ** 2).mean())
-    sigma_xy = float(((x - mu_x) * (y - mu_y)).mean())
-
-    # Stabilizers keep constant or nearly constant images numerically defined
-    c1 = (k1 * max_value) ** 2
-    c2 = (k2 * max_value) ** 2
-    numerator = (2.0 * mu_x * mu_y + c1) * (2.0 * sigma_xy + c2)
-    denominator = (mu_x**2 + mu_y**2 + c1) * (sigma_x2 + sigma_y2 + c2)
-    if denominator == 0.0:
-        return 1.0 if numerator == 0.0 else 0.0
-    return float(numerator / denominator)
+    x = np.asarray(image_a, dtype=np.float64)
+    y = np.asarray(image_b, dtype=np.float64)
+    if x.shape != y.shape or x.ndim not in (2, 3):
+        raise ValueError(f"SSIM expects matching HxW or HxWxC arrays: {x.shape}, {y.shape}")
+    if not np.isfinite(x).all() or not np.isfinite(y).all():
+        raise ValueError("SSIM inputs must be finite")
+    # Keep one explicit local-window definition for reconstruction and zero filling
+    return float(structural_similarity(
+        x, y, data_range=max_value, channel_axis=-1 if x.ndim == 3 else None,
+        win_size=7, gaussian_weights=False, use_sample_covariance=True, K1=k1, K2=k2,
+    ))
 
 
 def _lpips_hwc_rgb(image: np.ndarray) -> np.ndarray:

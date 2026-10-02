@@ -1,40 +1,27 @@
 # Weighted Recovery-CFG Ablation
 
-This two-trial ablation recreates the paper's recovery-conditioning study for
-the weighted unitary reconstruction problem. It covers prompt-matched,
-prompt-mismatched, and out-of-range targets. The sampling laws are the four
-S10000 Christoffel estimates generated with sampling CFG 7.5; the ablated
-quantity is the recovery condition.
+Open the [prompt-matched](prompt_matched_cfg_ablation.ipynb),
+[prompt-mismatched](prompt_mismatched_cfg_ablation.ipynb), or
+[out-of-range](out_of_range_cfg_ablation.ipynb) notebook.
+[weighted_ablation_forest.ipynb](weighted_ablation_forest.ipynb) combines the
+three scenarios.
 
-Each scenario uses recovery lines `unconditioned`, `cfg1`, `cfg1p5`,
-`cfg3`, `cfg5`, and `cfg7p5`, sampling ratios from 1% through 5%, and two
-trials. CFG 1 is text-conditioned without classifier-free amplification and is
-distinct from the empty-prompt unconditioned control. Reconstruction uses
-weighted least squares, the unitary Fourier operator, $\zeta=1/2$, 20 DDIM
-steps, 2,000 Adam iterations, and the same learning-rate schedule as the main
-weighted experiments.
+The recovery prompt is `"sunset beach"`, with CFG 1, 3, 5, and 7.5.
+Sampling uses the four fixed Christoffel laws generated with CFG 7.5.
+Every setting uses ratios 1% through 5%, five trials, the weighted unitary
+operator, and the main experiment's 2,000-iteration learning-rate schedule.
 
-- [Configurations](../../../configs/weighted/ablation/)
-- [Launchers](../../../scripts/weighted/ablation/)
-- [Results and per-scenario figures](../../../results/weighted/ablation/)
-- [Prompt-matched notebook](prompt_matched_cfg_ablation.ipynb)
-- [Prompt-mismatched notebook](prompt_mismatched_cfg_ablation.ipynb)
-- [Out-of-range notebook](out_of_range_cfg_ablation.ipynb)
+Each scenario contains 400 analysis rows: 100 CFG 1 references read directly
+from the main results and 300 new CFG 3, 5, and 7.5 reconstructions. The full
+study contains 1,200 analysis rows, including 900 new reconstructions.
 
-Validate all 144 commands without launching work:
+The notebooks show separate metric sweeps for LPIPS, PSNR, SSIM, and best
+weighted loss, optimization traces, reconstruction panels, and aggregate
+forest plots. Shaded sweep bands are 95% confidence intervals. Figures and
+summary tables are written under
+[results/weighted/ablation/](../../../results/weighted/ablation/).
 
 ```bash
-./scripts/weighted/ablation/list_all.sh
+./scripts/weighted/run_ablation.sh prompt_matched k2 3
+./scripts/weighted/run_ablation.sh prompt_matched k2 3 --dry-run
 ```
-
-Run or resume one shard:
-
-```bash
-./scripts/weighted/ablation/run_shard.sh \
-  <prompt_matched|prompt_mismatched|out_of_range> \
-  <k0|k1|k2|k4> \
-  <unconditioned|cfg1|cfg1p5|cfg3|cfg5|cfg7p5> \
-  <first3|last2|all>
-```
-
-The complete design contains 720 reconstructions, or 240 per scenario.

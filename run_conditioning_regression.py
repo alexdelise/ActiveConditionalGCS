@@ -107,7 +107,7 @@ def main() -> None:
     parser.add_argument(
         "--suite-config",
         type=str,
-        default="configs/unweighted/prompt_mismatched/sunset/sample_k0_unconditioned_suite.json",
+        default="configs/weighted/prompt_matched/k0_suite.json",
         help="Path to the suite manifest JSON.",
     )
     parser.add_argument(
