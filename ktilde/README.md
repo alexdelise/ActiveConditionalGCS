@@ -31,7 +31,7 @@ $$
 (1-\zeta)\widetilde\mu_c(i)+\frac{\zeta}{n}.
 $$
 
-The S10000 convergence study uses $\zeta=1/2$. Regularization is applied after
+The 10,000 secant convergence study uses $\zeta=1/2$. Regularization is applied after
 normalizing $\widetilde K_c$, so a stored empirical Christoffel estimate can
 be evaluated with different values of $\zeta$ without regenerating secants.
 
@@ -44,7 +44,7 @@ $$
 $$
 
 with the cat image always generated first and the sunset-beach image second.
-The three S10000 cross-class definitions are in
+The three 10,000 secant cross-class definitions are in
 [weighted/config_cross_class_s10000.json](weighted/config_cross_class_s10000.json).
 
 ## Reconstruction operators
@@ -80,8 +80,8 @@ $$
 
 ## Convergence artifacts
 
-The fixed S10000 estimates serve as references for five independent trials
+The fixed 10000 secant estimates serve as references for five independent trials
 per prompt. Trial traces record relative $\ell^2$ error and the reference
-compatibility statistic every ten iterations. Only each final S10000
-empirical Christoffel array is retained. See
+compatibility statistic every ten iterations. Only each final 10000 secant
+empirical Christoffel distribution is retained. See
 [weighted/README.md](weighted/README.md) for commands and paths.

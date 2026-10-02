@@ -33,8 +33,7 @@ loaded on subsequent invocations, allowing an interrupted command to resume.
 `metrics.py` computes PSNR, SSIM, LPIPS, and per-pixel MAE for new
 reconstructions and their zero-filled inverses. LPIPS is evaluated on CPU
 after latent optimization so metric evaluation does not compete with the
-diffusion model for GPU memory. Analysis-time LPIPS backfilling remains
-available for artifacts created before LPIPS became a standard saved metric.
+diffusion model for GPU memory.
 
 The sampling laws and reconstruction operators are described in
 [../ktilde/README.md](../ktilde/README.md).

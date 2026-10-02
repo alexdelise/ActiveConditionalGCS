@@ -115,11 +115,9 @@ under [results/weighted/](results/weighted/).
 
 ## Run Reconstructions
 
-Reconstruction is expensive. A single reconstruction can take hours, and the
-complete experimental study took approximately two months on the available
-hardware. Use the saved data to reproduce figures without rerunning recovery.
+Reconstruction is expensive. It is recommended to use the saved data from the release to reproduce figures without rerunning recovery.
 
-Run one sampling law and recovery prompt across all five ratios and trials:
+To run one sampling law and recovery prompt across all five ratios and trials, the commands have the form:
 
 ```bash
 ./scripts/weighted/run_main.sh prompt_matched k2 sunset_beach
@@ -138,7 +136,7 @@ Recovery prompts are `unprompted`, `daytime_beach`, `sunset_beach`, and `cat`.
 The ablation accepts the four Christoffel laws and CFG `1`, `3`, `5`, or `7.5`.
 Append `--dry-run` to inspect a command without starting reconstruction.
 
-If a command is interrupted, run it again. Completed reconstructions are
+If a command is interrupted, you can run it again. Completed reconstructions are
 reused, and unfinished optimization resumes from its latest saved checkpoint.
 The data release includes completed artifacts for figure reproduction, not
 optimizer checkpoints for continuing those reconstructions.

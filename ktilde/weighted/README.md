@@ -1,7 +1,7 @@
 # Weighted K-Tilde Artifacts
 
 This directory is the single artifact bank for weighted experiments. It holds
-the four fixed S10000 self-difference estimates, sampling-CFG estimates, and
+the four fixed 10000 secant self-difference estimates, sampling-CFG estimates, and
 ordered cross-class estimates. Their build definitions are in the adjacent
 `config_*.json` files.
 
