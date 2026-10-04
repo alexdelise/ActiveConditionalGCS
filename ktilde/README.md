@@ -5,6 +5,14 @@ sampling-CFG and cross-class estimates, and the independent trials used for
 the convergence study. Reference and convergence launchers are under
 [../scripts/weighted/ktilde_convergence/](../scripts/weighted/ktilde_convergence/).
 
+The artifact, configuration, and launcher identifiers correspond to the
+sampling prompts as follows:
+
+- `k0`: unconditioned, $c_{\mathrm{uc}}=\texttt{""}$
+- `k1`: $c_{\mathrm{db}}=\texttt{"daytime beach"}$
+- `k2`: $c_{\mathrm{sb}}=\texttt{"sunset beach"}$
+- `k4`: $c_{\mathrm{ca}}=\texttt{"cat"}$
+
 ## Empirical Christoffel sampling
 
 For a sampling prompt $c$, the estimator generates independent pairs of
@@ -14,22 +22,12 @@ $\widetilde K_c$ approximates the generalized Christoffel function of the
 self-difference class $\mathbb F_c-\mathbb F_c$. Its normalized sampling law
 is
 
-$$
-\widetilde\mu_c(i)
-=
-\frac{\widetilde K_c(i)}
-{\sum_{\ell=1}^{n}\widetilde K_c(\ell)},
-\qquad i\in D.
-$$
+$$\widetilde\mu_c(i)=\frac{\widetilde K_c(i)}{\sum_{\ell=1}^{n}\widetilde{K}_c(\ell)}, \qquad i\in D.$$
 
 When probability smoothing is enabled, the implementation forms the uniform
 mixture
 
-$$
-\widetilde\mu_{c,\zeta}(i)
-=
-(1-\zeta)\widetilde\mu_c(i)+\frac{\zeta}{n}.
-$$
+$$\widetilde\mu_{c,\zeta}(i)=(1-\zeta)\widetilde\mu_c(i)+\frac{\zeta}{n}.$$
 
 The 10,000 secant convergence study uses $\zeta=1/2$. Regularization is applied after
 normalizing $\widetilde K_c$, so a stored empirical Christoffel estimate can
@@ -53,14 +51,7 @@ Let $F_{\mathrm u}$ denote the unitary two-dimensional Fourier transform and
 let $I_1,\ldots,I_m$ be sampled frequencies. The theory-aligned weighted
 operator is
 
-$$
-A_\Omega x
-=
-\left[
-\frac{(F_{\mathrm u}x)(I_j)}
-{\sqrt{m\,\mu(I_j)}}
-\right]_{j=1}^{m}.
-$$
+$$A_{\Omega}x=\left[\frac{(F_{\mathrm u}x)(I_j)}{\sqrt{m\,\mu(I_j)}}\right]_{j=1}^{m}.$$
 
 The same spatial mask and weight are applied independently to each color
 channel. Christoffel sampling forces the DC coefficient and draws the

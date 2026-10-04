@@ -84,12 +84,21 @@ the sampling laws.
 
 The sampling and recovery prompt family consists of `""`, `"daytime beach"`, `"sunset beach"`, and `"cat"`,
 denoted by $c_{\mathrm{uc}}$, $c_{\mathrm{db}}$, $c_{\mathrm{sb}}$, and
-$c_{\mathrm{ca}}$. The main experiments use six sampling laws, four recovery
-prompts, ratios $m/n=0.01,0.02,0.03,0.04,0.05$, and five trials, giving 1,800
-reconstructions. Recovery uses the weighted unitary Fourier operator and
-2,000 Adam iterations. The learning rate is $0.1$ for the first 400 iterations,
-then decreases by cosine decay to $0.001$. The empirical Christoffel laws use
-$\zeta=1/2$ regularization.
+$c_{\mathrm{ca}}$. The Christoffel sampling-law identifiers used by the
+commands and configuration files are:
+
+- `k0`: unconditioned, $c_{\mathrm{uc}}=\texttt{""}$
+- `k1`: $c_{\mathrm{db}}=\texttt{"daytime beach"}$
+- `k2`: $c_{\mathrm{sb}}=\texttt{"sunset beach"}$
+- `k4`: $c_{\mathrm{ca}}=\texttt{"cat"}$
+
+The main experiments use these four laws together with uniform sampling
+(`mcs`) and inverse-square variable-density sampling (`inverse_square`). They
+use four recovery prompts, ratios $m/n=0.01,0.02,0.03,0.04,0.05$, and five
+trials, giving 1,800 reconstructions. Recovery uses the weighted unitary
+Fourier operator and 2,000 Adam iterations. The learning rate is $0.1$ for the
+first 400 iterations, then decreases by cosine decay to $0.001$. The empirical
+Christoffel laws use $\zeta=1/2$ regularization.
 
 The recovery-CFG ablation fixes the recovery prompt to `"sunset beach"` and
 compares CFG 1, 3, 5, and 7.5 under the four Christoffel laws. It uses the same
@@ -165,7 +174,7 @@ allow the notebooks to reproduce the reported figures without generating new
 images or rerunning latent optimization.
 
 ## Citation
-
+If you use this code in your work, please consider citing:
 ```bibtex
 @article{delise2026active,
   title={Active Learning for Conditional Generative Compressed Sensing},
