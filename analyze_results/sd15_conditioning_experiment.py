@@ -78,6 +78,29 @@ SD15_PRESENTATION_RC: Dict[str, Any] = {
 SD15_PLOT_EXCLUDED_ROLES: set[str] = set()
 SD15_EXPORT_DPI = 800
 
+# Keep typography consistent across Christoffel distributions and diagnostics
+KTILDE_PRESENTATION_RC = {
+    **SD15_PRESENTATION_RC,
+    "font.size": 28,
+    "axes.labelsize": 32,
+    "axes.titlesize": 32,
+    "legend.fontsize": 26,
+    "xtick.labelsize": 26,
+    "ytick.labelsize": 26,
+}
+KTILDE_HEATMAP_FIGSIZE = (11.5, 10.8)
+KTILDE_HEATMAP_NUMERATOR_LABELSIZE = 24
+
+
+def style_ktilde_colorbar(colorbar) -> None:
+    """Apply the shared Christoffel figure style to colorbar ticks and labels."""
+
+    colorbar.ax.tick_params(labelsize=KTILDE_PRESENTATION_RC["ytick.labelsize"], width=1.15, length=5)
+    colorbar.ax.tick_params(which="minor", width=0.9, length=3)
+    colorbar.ax.yaxis.label.set_size(KTILDE_PRESENTATION_RC["axes.labelsize"])
+    colorbar.ax.yaxis.get_offset_text().set_size(KTILDE_PRESENTATION_RC["ytick.labelsize"])
+    colorbar.outline.set_linewidth(1.15)
+
 SD15_X_LABEL = r"Sampling Ratio $m/n$"
 KTILDE_CONVERGENCE_X_LABEL = r"Iterations ($M$)"
 KTILDE_CONVERGENCE_METRICS: Dict[str, Dict[str, str]] = {
@@ -1117,8 +1140,9 @@ def _draw_publication_heatmap(
     cmap,
     colorbar_label: str,
     annotation_scale_power: int = 0,
-    annotation_fontsize: float = 16.0,
+    annotation_fontsize: float = 26.0,
     tick_labelsize: Optional[float] = None,
+    x_tick_labelsize: Optional[float] = None,
     show_ylabels: bool = True,
     x_rotation: float = 34.0,
 ) -> None:
@@ -1151,6 +1175,9 @@ def _draw_publication_heatmap(
     if tick_labelsize is not None:
         ax.tick_params(axis="x", labelsize=tick_labelsize)
         ax.tick_params(axis="y", labelsize=tick_labelsize)
+    # Use smaller type for the longer Christoffel numerator labels
+    if x_tick_labelsize is not None:
+        ax.tick_params(axis="x", labelsize=x_tick_labelsize)
     for label in ax.get_xticklabels():
         if abs(float(x_rotation)) < 1.0e-9:
             label.set_horizontalalignment("center")
@@ -1193,10 +1220,9 @@ def _draw_publication_heatmap(
         )
 
     colorbar = ax.figure.colorbar(image, ax=ax, fraction=0.046, pad=0.03)
-    colorbar.ax.tick_params(labelsize=12, width=0.8, length=3)
     colorbar.set_label(colorbar_label)
     colorbar.ax.yaxis.set_major_formatter(LogFormatterMathtext())
-    colorbar.outline.set_linewidth(0.8)
+    style_ktilde_colorbar(colorbar)
 
 
 def plot_lambda_heatmap(
@@ -1213,8 +1239,8 @@ def plot_lambda_heatmap(
     cmap = _make_linear_cmap("lambda_heatmap", SD15_LAMBDA_CMAP_COLORS)
     label = r"$\widetilde{\Lambda}(c_r,c_r,c_s)$"
 
-    with plt.rc_context(SD15_PRESENTATION_RC):
-        fig, ax = plt.subplots(figsize=(7.2, 6.8), constrained_layout=True)
+    with plt.rc_context(KTILDE_PRESENTATION_RC):
+        fig, ax = plt.subplots(figsize=KTILDE_HEATMAP_FIGSIZE, constrained_layout=True)
         fig.set_constrained_layout_pads(w_pad=0.04, h_pad=0.04, wspace=0.02, hspace=0.02)
         scale_power = _annotation_scale_power(lambda_table.to_numpy(dtype=float))
         _draw_publication_heatmap(
@@ -1223,7 +1249,8 @@ def plot_lambda_heatmap(
             cmap=cmap,
             colorbar_label=label,
             annotation_scale_power=scale_power,
-            tick_labelsize=14.0,
+            tick_labelsize=KTILDE_PRESENTATION_RC["xtick.labelsize"],
+            x_tick_labelsize=KTILDE_HEATMAP_NUMERATOR_LABELSIZE,
             show_ylabels=True,
             x_rotation=0.0,
         )
@@ -1289,7 +1316,7 @@ def plot_sampling_distribution(
     norm_vmax = float(10 ** vmax)
     cmap = _make_linear_cmap("sampling_distribution", SD15_DISTRIBUTION_CMAP_COLORS)
 
-    with plt.rc_context(SD15_PRESENTATION_RC):
+    with plt.rc_context(KTILDE_PRESENTATION_RC):
         fig, ax = plt.subplots(figsize=(5.8, 5.4), constrained_layout=True)
         fig.set_constrained_layout_pads(w_pad=0.03, h_pad=0.03, wspace=0.02, hspace=0.02)
         image = ax.imshow(
@@ -1306,8 +1333,7 @@ def plot_sampling_distribution(
             spine.set_visible(False)
         colorbar = fig.colorbar(image, ax=ax, fraction=0.046, pad=0.03)
         colorbar.ax.yaxis.set_major_formatter(LogFormatterMathtext())
-        colorbar.ax.tick_params(labelsize=12, width=0.8, length=3)
-        colorbar.outline.set_linewidth(0.8)
+        style_ktilde_colorbar(colorbar)
         return _save_plot(fig, output_path, show=show)
 
 
@@ -1330,7 +1356,7 @@ def plot_sampling_distribution_row(
     vmin, vmax = limits or distribution_log_limits(tables, roles=ordered_roles)
     norm = LogNorm(vmin=float(10 ** vmin), vmax=float(10 ** vmax))
 
-    with plt.rc_context(SD15_PRESENTATION_RC):
+    with plt.rc_context(KTILDE_PRESENTATION_RC):
         fig, axes = plt.subplots(
             2,
             2,
@@ -1359,8 +1385,7 @@ def plot_sampling_distribution_row(
         assert image is not None
         colorbar = fig.colorbar(image, ax=list(axes), fraction=0.05, pad=0.02, shrink=0.96, aspect=28)
         colorbar.ax.yaxis.set_major_formatter(LogFormatterMathtext())
-        colorbar.ax.tick_params(labelsize=13, width=0.9, length=4)
-        colorbar.outline.set_linewidth(0.8)
+        style_ktilde_colorbar(colorbar)
         return _save_plot(fig, output_path, show=show)
 
 
@@ -1454,7 +1479,7 @@ def plot_ktilde_convergence_trace(
 
     metric_info = _ktilde_convergence_metric_info(metric)
     info = dict(traces[str(role)])
-    with plt.rc_context(SD15_PRESENTATION_RC):
+    with plt.rc_context(KTILDE_PRESENTATION_RC):
         fig, ax = plt.subplots(figsize=(7.4, 5.8), constrained_layout=True)
         fig.set_constrained_layout_pads(w_pad=0.04, h_pad=0.04, wspace=0.02, hspace=0.02)
         _style_ktilde_convergence_axis(ax, info, metric=metric)
@@ -1481,7 +1506,7 @@ def plot_ktilde_convergence_grid(
     if len(infos) > 4:
         raise ValueError("The k-tilde convergence grid supports at most four traces.")
 
-    with plt.rc_context(SD15_PRESENTATION_RC):
+    with plt.rc_context(KTILDE_PRESENTATION_RC):
         fig, axes = plt.subplots(2, 2, figsize=(13.2, 10.0), constrained_layout=True, sharex=True, sharey=True)
         axes_flat = np.asarray(axes, dtype=object).reshape(-1)
         fig.set_constrained_layout_pads(w_pad=0.04, h_pad=0.04, wspace=0.04, hspace=0.04)
@@ -1489,8 +1514,8 @@ def plot_ktilde_convergence_grid(
             _style_ktilde_convergence_axis(ax, info, metric=metric)
         for ax in axes_flat[len(infos) :]:
             ax.set_visible(False)
-        fig.supxlabel(KTILDE_CONVERGENCE_X_LABEL, fontsize=SD15_PRESENTATION_RC["axes.labelsize"])
-        fig.supylabel(metric_info["label"], fontsize=SD15_PRESENTATION_RC["axes.labelsize"])
+        fig.supxlabel(KTILDE_CONVERGENCE_X_LABEL, fontsize=KTILDE_PRESENTATION_RC["axes.labelsize"])
+        fig.supylabel(metric_info["label"], fontsize=KTILDE_PRESENTATION_RC["axes.labelsize"])
         return _save_plot(fig, output_path, show=show)
 
 
@@ -1589,7 +1614,7 @@ def plot_ktilde_trial_convergence_trace(
 
     metric_info = _ktilde_trial_metric_info(metric)
     info = dict(summaries[str(role)])
-    with plt.rc_context(SD15_PRESENTATION_RC):
+    with plt.rc_context(KTILDE_PRESENTATION_RC):
         fig, ax = plt.subplots(figsize=(7.4, 5.8), constrained_layout=True)
         fig.set_constrained_layout_pads(w_pad=0.04, h_pad=0.04, wspace=0.02, hspace=0.02)
         _style_ktilde_trial_convergence_axis(ax, info, metric=metric)
@@ -1615,7 +1640,7 @@ def plot_ktilde_trial_convergence_grid(
     infos = [dict(summaries[role]) for role in ordered_roles]
     if len(infos) > 4:
         raise ValueError("The K-tilde convergence grid supports at most four priors.")
-    with plt.rc_context(SD15_PRESENTATION_RC):
+    with plt.rc_context(KTILDE_PRESENTATION_RC):
         fig, axes = plt.subplots(
             1,
             4,
@@ -1630,8 +1655,48 @@ def plot_ktilde_trial_convergence_grid(
             _style_ktilde_trial_convergence_axis(ax, info, metric=metric)
         for ax in axes_flat[len(infos) :]:
             ax.set_visible(False)
-        fig.supxlabel(KTILDE_CONVERGENCE_X_LABEL, fontsize=SD15_PRESENTATION_RC["axes.labelsize"])
-        fig.supylabel(metric_info["label"], fontsize=SD15_PRESENTATION_RC["axes.labelsize"])
+        fig.supxlabel(KTILDE_CONVERGENCE_X_LABEL, fontsize=KTILDE_PRESENTATION_RC["axes.labelsize"])
+        fig.supylabel(metric_info["label"], fontsize=KTILDE_PRESENTATION_RC["axes.labelsize"])
+        return _save_plot(fig, output_path, show=show)
+
+
+def plot_ktilde_trial_convergence_combined(
+    summaries: Mapping[str, Mapping[str, Any]],
+    *,
+    roles: Optional[Sequence[str]] = None,
+    output_path: Optional[str | Path] = None,
+    show: bool = False,
+) -> Optional[Path]:
+    """Combine compatibility and relative error with shared distribution headings."""
+
+    import matplotlib.pyplot as plt
+
+    ordered_roles = [str(role) for role in (roles or summaries.keys())]
+    if not 1 <= len(ordered_roles) <= 4:
+        raise ValueError("The combined convergence figure requires one to four priors")
+    metrics = ("lambda_ref_over_mu_m", "relative_l2_error")
+    with plt.rc_context(KTILDE_PRESENTATION_RC):
+        fig, axes = plt.subplots(
+            2, len(ordered_roles), figsize=(19.0, 8.2),
+            sharex=True, sharey="row", squeeze=False, constrained_layout=True,
+        )
+        fig.set_constrained_layout_pads(w_pad=0.06, h_pad=0.04, wspace=0.03, hspace=0.04)
+        for row, metric in enumerate(metrics):
+            for col, role in enumerate(ordered_roles):
+                ax = axes[row, col]
+                info = dict(summaries[role])
+                _style_ktilde_trial_convergence_axis(ax, info, metric=metric)
+                if row > 0:
+                    ax.set_title("")
+                end = int(np.asarray(info["iteration"]).max())
+                ax.set_xticks([0, end // 2, end])
+                if row == len(metrics) - 1:
+                    # Keep boundary tick labels within their own panel
+                    labels = ax.get_xticklabels()
+                    labels[0].set_horizontalalignment("left")
+                    labels[-1].set_horizontalalignment("right")
+            axes[row, 0].set_ylabel(_ktilde_trial_metric_info(metric)["label"])
+        fig.supxlabel(KTILDE_CONVERGENCE_X_LABEL, fontsize=KTILDE_PRESENTATION_RC["axes.labelsize"])
         return _save_plot(fig, output_path, show=show)
 
 
@@ -1687,6 +1752,8 @@ def export_ktilde_convergence_trial_figure_set(
     requested_metrics = [
         str(metric) for metric in (metrics or KTILDE_TRIAL_CONVERGENCE_METRICS.keys())
     ]
+    combined_metrics = {"lambda_ref_over_mu_m", "relative_l2_error"}
+    show_combined = combined_metrics.issubset(requested_metrics)
     for metric in requested_metrics:
         metric_info = _ktilde_trial_metric_info(metric)
         stem = str(metric_info["filename"])
@@ -1694,7 +1761,7 @@ def export_ktilde_convergence_trial_figure_set(
             summaries,
             metric=metric,
             output_path=root / f"ktilde_convergence_five_trial_{stem}_grid.{suffix}",
-            show=show,
+            show=show and not (show_combined and metric in combined_metrics),
         )
         for role in summaries:
             outputs[f"{metric}_{role}"] = plot_ktilde_trial_convergence_trace(
@@ -1704,6 +1771,12 @@ def export_ktilde_convergence_trial_figure_set(
                 output_path=root / f"ktilde_convergence_five_trial_{stem}_{role}.{suffix}",
                 show=show_individual,
             )
+    if show_combined:
+        outputs["combined_lambda_l2"] = plot_ktilde_trial_convergence_combined(
+            summaries,
+            output_path=root / f"ktilde_convergence_five_trial_combined.{suffix}",
+            show=show,
+        )
     return outputs
 
 

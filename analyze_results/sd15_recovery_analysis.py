@@ -2011,6 +2011,9 @@ def plot_metric_curves(
     output_path: str | Path | None = None,
     show: bool = True,
     sampling_xscale: str = "linear",
+    *,
+    figure: Any = None,
+    show_sampling_label: bool = True,
 ) -> Optional[Path]:
     """Plot one metric across sampling ratios for each recovery prompt."""
 
@@ -2053,17 +2056,21 @@ def plot_metric_curves(
     xlabel_y = min(SWEEP_SINGLE_XLABEL_Y, 0.025) if cs_only_single_row else SWEEP_SINGLE_XLABEL_Y
 
     with plt.rc_context(exp.SD15_PRESENTATION_RC):
-        fig, axes = plt.subplots(
-            num_rows,
-            num_columns,
-            figsize=(
-                SWEEP_FIGSIZE_PER_COL * num_columns,
-                figure_height,
-            ),
-            sharey=False,
-            constrained_layout=False,
-            squeeze=False,
-        )
+        if figure is None:
+            fig, axes = plt.subplots(
+                num_rows,
+                num_columns,
+                figsize=(SWEEP_FIGSIZE_PER_COL * num_columns, figure_height),
+                sharey=False,
+                constrained_layout=False,
+                squeeze=False,
+            )
+        else:
+            # Reuse the same panels within one combined experiment figure
+            fig = figure
+            axes = fig.subplots(num_rows, num_columns, sharey=False, squeeze=False)
+            figure_top = 0.90 if num_rows > 1 else 0.72
+            figure_bottom = 0.12
         flat_axes = axes.ravel()
         reverse_pyramid = (
             num_cases in (5, 6) and num_rows == 2 and num_columns == 4
@@ -2177,11 +2184,12 @@ def plot_metric_curves(
                 [*panel_axes[4:], legend_axis],
                 list(axes[0, :4]),
             )
-        fig.supxlabel(
-            GLOBAL_SAMPLING_X_LABEL,
-            fontsize=exp.SD15_PRESENTATION_RC.get("axes.labelsize", 30),
-            y=xlabel_y,
-        )
+        if show_sampling_label:
+            fig.supxlabel(
+                GLOBAL_SAMPLING_X_LABEL,
+                fontsize=exp.SD15_PRESENTATION_RC.get("axes.labelsize", 30),
+                y=xlabel_y,
+            )
         legend_handles: list[Any] = []
         legend_labels: list[str] = []
         for legend_ax in panel_axes:
@@ -2213,6 +2221,8 @@ def plot_metric_curves(
                     frameon=False,
                     fontsize=exp.SD15_PRESENTATION_RC.get("legend.fontsize", 22),
                 )
+        if figure is not None:
+            return None
         resolved_output_path = Path(output_path) if output_path is not None else None
         if resolved_output_path is not None:
             resolved_output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -2221,6 +2231,38 @@ def plot_metric_curves(
             plt.show()
         plt.close(fig)
         return resolved_output_path
+
+
+def plot_stacked_metric_curves(
+    frames: Sequence[pd.DataFrame],
+    *,
+    metric: str = "lpips",
+    output_path: str | Path | None = None,
+    show: bool = True,
+) -> Optional[Path]:
+    """Stack experiment sweeps with per-experiment legends and one x-axis label."""
+
+    if not frames:
+        raise ValueError("At least one experiment is required")
+    with plt.rc_context(exp.SD15_PRESENTATION_RC):
+        fig = plt.figure(figsize=(4 * SWEEP_FIGSIZE_PER_COL, 7.4 * len(frames)))
+        subfigures = np.asarray(fig.subfigures(len(frames), 1, hspace=0.02), dtype=object).reshape(-1)
+        for subfigure, frame in zip(subfigures, frames):
+            plot_metric_curves(frame, metric, show=False, figure=subfigure, show_sampling_label=False)
+        # Reserve space only below the full figure for the rotated tick labels
+        fig.supxlabel(
+            GLOBAL_SAMPLING_X_LABEL,
+            y=-0.4 / fig.get_size_inches()[1],
+            fontsize=exp.SD15_PRESENTATION_RC["axes.labelsize"],
+        )
+        path = Path(output_path) if output_path is not None else None
+        if path is not None:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            fig.savefig(path, dpi=exp.SD15_EXPORT_DPI, bbox_inches="tight")
+        if show:
+            plt.show()
+        plt.close(fig)
+        return path
 
 
 def plot_combined_metric_curves(
@@ -2781,13 +2823,13 @@ def plot_recovery_grid(
                         fontsize=22,
                         pad=6,
                     )
-                best_objective = pd.to_numeric(
-                    pd.Series([record.get("bp_best_loss", np.nan)]),
+                image_objective = pd.to_numeric(
+                    pd.Series([record.get("final_data_loss", np.nan)]),
                     errors="coerce",
                 ).iloc[0]
                 objective_line = (
-                    f"Objective {float(best_objective):.3e}\n"
-                    if pd.notna(best_objective)
+                    f"Objective {float(image_objective):.3e}\n"
+                    if pd.notna(image_objective)
                     else ""
                 )
                 lpips_value = pd.to_numeric(

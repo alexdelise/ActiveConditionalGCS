@@ -325,8 +325,10 @@ def plot_lambda_matrix(
         columns="sampling_condition",
         values="lambda_hat",
     ).reindex(index=RECOVERY_ORDER, columns=SAMPLING_ORDER)
-    table.index = [NUMERATOR_TICK_LABELS[key] for key in RECOVERY_ORDER]
-    table.columns = [SAMPLING_LABELS[key] for key in SAMPLING_ORDER]
+    # Match the self-class heatmap with sampling rows and numerator columns
+    table = table.T
+    table.index = [SAMPLING_LABELS[key] for key in SAMPLING_ORDER]
+    table.columns = [NUMERATOR_TICK_LABELS[key] for key in RECOVERY_ORDER]
     values = table.to_numpy(dtype=float)
     positive = values[np.isfinite(values) & (values > 0.0)]
     if positive.size != values.size:
@@ -335,8 +337,8 @@ def plot_lambda_matrix(
         "cross_class_lambda",
         shared_analysis.SD15_LAMBDA_CMAP_COLORS,
     )
-    with plt.rc_context(shared_analysis.SD15_PRESENTATION_RC):
-        fig, axis = plt.subplots(figsize=(7.2, 6.8), constrained_layout=True)
+    with plt.rc_context(shared_analysis.KTILDE_PRESENTATION_RC):
+        fig, axis = plt.subplots(figsize=shared_analysis.KTILDE_HEATMAP_FIGSIZE, constrained_layout=True)
         fig.set_constrained_layout_pads(w_pad=0.04, h_pad=0.04, wspace=0.02, hspace=0.02)
         shared_analysis._draw_publication_heatmap(
             axis,
@@ -344,7 +346,8 @@ def plot_lambda_matrix(
             cmap=cmap,
             colorbar_label=r"$\widetilde{\Lambda}(c_r,c_{\mathrm{sb}},c_s)$",
             annotation_scale_power=shared_analysis._annotation_scale_power(values),
-            tick_labelsize=14.0,
+            tick_labelsize=shared_analysis.KTILDE_PRESENTATION_RC["xtick.labelsize"],
+            x_tick_labelsize=shared_analysis.KTILDE_HEATMAP_NUMERATOR_LABELSIZE,
             show_ylabels=True,
             x_rotation=0.0,
         )
@@ -489,7 +492,7 @@ def plot_cross_class_laws(
         "cross_class_distribution",
         shared_analysis.SD15_DISTRIBUTION_CMAP_COLORS,
     )
-    with plt.rc_context(shared_analysis.SD15_PRESENTATION_RC):
+    with plt.rc_context(shared_analysis.KTILDE_PRESENTATION_RC):
         fig, axes = plt.subplots(2, 2, figsize=(10.0, 9.2), constrained_layout=True)
         axes = np.asarray(axes, dtype=object).reshape(-1)
         fig.set_constrained_layout_pads(w_pad=0.03, h_pad=0.03, wspace=0.02, hspace=0.02)
@@ -517,8 +520,7 @@ def plot_cross_class_laws(
                 aspect=28,
             )
             colorbar.ax.yaxis.set_major_formatter(LogFormatterMathtext())
-            colorbar.ax.tick_params(labelsize=13, width=0.9, length=4)
-            colorbar.outline.set_linewidth(0.8)
+            shared_analysis.style_ktilde_colorbar(colorbar)
         path = None
         if output_path is not None:
             path = Path(output_path)

@@ -206,7 +206,7 @@ def plot_distribution_grid(
     )
     cmap.set_bad(shared_analysis.SD15_DISTRIBUTION_CMAP_COLORS[0])
     cmap.set_under(shared_analysis.SD15_DISTRIBUTION_CMAP_COLORS[0])
-    with plt.rc_context(cfg_style.PRESENTATION_RC):
+    with plt.rc_context(shared_analysis.KTILDE_PRESENTATION_RC):
         fig, axes = plt.subplots(3, 4, figsize=(16.5, 10.8), constrained_layout=True)
         fig.set_constrained_layout_pads(w_pad=0.04, h_pad=0.03, wspace=0.05, hspace=0.02)
         image = None
@@ -225,14 +225,14 @@ def plot_distribution_grid(
                 if row == 0:
                     ax.set_title(
                         rf"CFG {cfg:g}",
-                        fontsize=22,
+                        fontsize=shared_analysis.KTILDE_PRESENTATION_RC["axes.titlesize"],
                         pad=6,
                         **cfg_style.PANEL_TITLE_FONT,
                     )
                 if col == 0:
                     ax.set_ylabel(
                         sampling_label,
-                        fontsize=26,
+                        fontsize=shared_analysis.KTILDE_PRESENTATION_RC["axes.labelsize"],
                         rotation=0,
                         labelpad=34,
                         va="center",
@@ -250,8 +250,7 @@ def plot_distribution_grid(
                 aspect=28,
             )
             colorbar.ax.yaxis.set_major_formatter(LogFormatterMathtext())
-            colorbar.ax.tick_params(labelsize=cfg_style.PRESENTATION_RC["ytick.labelsize"], width=0.9, length=4)
-            colorbar.outline.set_linewidth(0.8)
+            shared_analysis.style_ktilde_colorbar(colorbar)
         path = None
         if output_path is not None:
             path = Path(output_path)
@@ -292,7 +291,7 @@ def plot_lambda_panels(
         "cfg_ktilde_lambda",
         shared_analysis.SD15_LAMBDA_CMAP_COLORS,
     )
-    with plt.rc_context(cfg_style.PRESENTATION_RC):
+    with plt.rc_context(shared_analysis.KTILDE_PRESENTATION_RC):
         fig, axes = plt.subplots(1, 3, figsize=(15.5, 5.1), constrained_layout=True)
         fig.set_constrained_layout_pads(w_pad=0.04, h_pad=0.04, wspace=0.03, hspace=0.02)
         image = None
@@ -324,7 +323,7 @@ def plot_lambda_panels(
                             annotation,
                             ha="center",
                             va="center",
-                            fontsize=13,
+                            fontsize=shared_analysis.KTILDE_PRESENTATION_RC["font.size"],
                             fontweight="semibold",
                             color="#111827",
                             bbox={
@@ -337,8 +336,7 @@ def plot_lambda_panels(
             colorbar = fig.colorbar(image, ax=axes.ravel().tolist(), fraction=0.025, pad=0.02, aspect=28)
             colorbar.set_label(r"$\widetilde{\Lambda}$")
             colorbar.ax.yaxis.set_major_formatter(LogFormatterMathtext())
-            colorbar.ax.tick_params(labelsize=cfg_style.PRESENTATION_RC["ytick.labelsize"], width=0.9, length=4)
-            colorbar.outline.set_linewidth(0.8)
+            shared_analysis.style_ktilde_colorbar(colorbar)
         path = None
         if output_path is not None:
             path = Path(output_path)

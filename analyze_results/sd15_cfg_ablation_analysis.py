@@ -1124,6 +1124,9 @@ def plot_metric_curves(
     confidence_level: float = DEFAULT_CONFIDENCE_LEVEL,
     xscale: str = "log",
     metrics: Optional[Sequence[str]] = None,
+    figure: Any = None,
+    show_sampling_label: bool = True,
+    show_legend: bool = True,
 ) -> Dict[str, Path]:
     """Plot the requested reconstruction metrics for all sampling distributions."""
 
@@ -1149,15 +1152,24 @@ def plot_metric_curves(
     }
     distributions = _distributions_from_frame(frame)
     with plt.rc_context(PRESENTATION_RC):
-        fig, axes = plt.subplots(
-            len(metric_specs),
-            len(distributions),
-            figsize=(4.9 * len(distributions), 3.7 * len(metric_specs)),
-            sharex="col",
-            sharey=False,
-            squeeze=False,
-            constrained_layout=True,
-        )
+        if figure is None:
+            fig, axes = plt.subplots(
+                len(metric_specs),
+                len(distributions),
+                figsize=(4.9 * len(distributions), 3.7 * len(metric_specs)),
+                sharex="col",
+                sharey=False,
+                squeeze=False,
+                constrained_layout=True,
+            )
+        else:
+            fig = figure
+            axes = fig.subplots(len(metric_specs), len(distributions), sharex="col", sharey=False, squeeze=False)
+            # Reserve a separate band for the per-experiment CFG legend
+            fig.subplots_adjust(
+                left=0.065, right=0.995, bottom=0.16,
+                top=0.72 if show_legend else 0.84, wspace=0.18,
+            )
         axes_array = np.asarray(axes, dtype=object)
         band_suffix = _band_suffix(band)
 
@@ -1236,7 +1248,8 @@ def plot_metric_curves(
                 distributions,
             )
 
-        fig.supxlabel(SAMPLING_X_LABEL, fontsize=PRESENTATION_RC["axes.labelsize"])
+        if show_sampling_label:
+            fig.supxlabel(SAMPLING_X_LABEL, fontsize=PRESENTATION_RC["axes.labelsize"])
         handles: List[Any] = []
         labels: List[str] = []
         for ax in axes_array.ravel():
@@ -1245,7 +1258,7 @@ def plot_metric_curves(
                 if label and label not in labels:
                     handles.append(handle)
                     labels.append(label)
-        if handles:
+        if handles and show_legend:
             handles, labels = _order_cfg_legend(handles, labels)
             fig.legend(
                 handles,
@@ -1253,15 +1266,62 @@ def plot_metric_curves(
                 loc="upper center",
                 ncol=len(handles),
                 frameon=False,
-                bbox_to_anchor=(0.5, SWEEP_LEGEND_Y),
+                bbox_to_anchor=(0.5, SWEEP_LEGEND_Y if figure is None else 0.98),
                 columnspacing=0.9,
                 handletextpad=0.35,
                 borderaxespad=0.2,
             )
+        if figure is not None:
+            return {}
         context = _ablation_context_slug(output_dir)
         metric_stem = "_".join(requested)
         stem = f"cfg_ablation_{context}_{metric_stem}_vs_sampling_ratio"
         return _save_figure(fig, output_dir, stem, show=show)
+
+
+def plot_stacked_metric_curves(
+    frames: Sequence[pd.DataFrame],
+    *,
+    metric: str = "lpips",
+    output_dir: str | Path | None = None,
+    show: bool = True,
+) -> Dict[str, Path]:
+    """Stack CFG sweeps with one shared legend and one x-axis label."""
+
+    import matplotlib.pyplot as plt
+
+    if not frames:
+        raise ValueError("At least one experiment is required")
+    with plt.rc_context(PRESENTATION_RC):
+        fig = plt.figure(figsize=(19.6, 3.4 * len(frames)))
+        subfigures = np.asarray(fig.subfigures(len(frames), 1, hspace=0.02), dtype=object).reshape(-1)
+        for subfigure, frame in zip(subfigures, frames):
+            plot_metric_curves(
+                frame, metrics=(metric,), band="ci", xscale="linear",
+                show=False, figure=subfigure, show_sampling_label=False, show_legend=False,
+            )
+        # Collect each CFG entry once across the completed experiment panels
+        handles: List[Any] = []
+        labels: List[str] = []
+        for ax in fig.axes:
+            axis_handles, axis_labels = ax.get_legend_handles_labels()
+            for handle, label in zip(axis_handles, axis_labels):
+                if label and label not in labels:
+                    handles.append(handle)
+                    labels.append(label)
+        if handles:
+            handles, labels = _order_cfg_legend(handles, labels)
+            fig.legend(
+                handles, labels, loc="upper center", ncol=len(handles),
+                bbox_to_anchor=(0.5, 1.08), frameon=False,
+                columnspacing=0.9, handletextpad=0.35, borderaxespad=0.2,
+            )
+        fig.supxlabel(
+            SAMPLING_X_LABEL,
+            y=-0.6 / fig.get_size_inches()[1],
+            fontsize=PRESENTATION_RC["axes.labelsize"],
+        )
+        return _save_figure(fig, output_dir, f"cfg_ablation_{metric}_sweeps_combined", show=show)
 
 
 def _read_image(path: Path) -> np.ndarray:
