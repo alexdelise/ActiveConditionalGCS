@@ -7,13 +7,12 @@ import os
 import re
 import shutil
 from pathlib import Path
-from statistics import NormalDist
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence
 
 import numpy as np
 import pandas as pd
 
-from sd15_conditioning_experiment import resolve_results_path
+from sd15_conditioning_experiment import resolve_results_path, student_t_mean_halfwidth
 
 
 _LOCAL_TEX_ROOT = Path(__file__).resolve().parent / "tex"
@@ -837,16 +836,6 @@ def load_cfg_ablation_rows(
     return attach_lpips_metrics(frame, root, result_namespace=namespace)
 
 
-def _z_value_for_confidence_level(confidence_level: float) -> float:
-    """Return the two-sided normal critical value for a confidence level."""
-
-    level = float(confidence_level)
-    if level <= 0.0:
-        return 0.0
-    level = min(level, 0.999999)
-    return float(NormalDist().inv_cdf(0.5 + 0.5 * level))
-
-
 def _band_suffix(band: str) -> str:
     """Return the metric-column suffix for an uncertainty band mode."""
 
@@ -890,7 +879,6 @@ def build_metric_summary(
         else:
             columns.append(str(column))
     grouped.columns = columns
-    z_value = _z_value_for_confidence_level(confidence_level)
     for metric, _ in METRIC_SPECS:
         std_col = f"{metric}_std"
         count_col = f"{metric}_count"
@@ -902,7 +890,9 @@ def build_metric_summary(
             grouped[sem_col] = 0.0
             valid = grouped[count_col] > 0
             grouped.loc[valid, sem_col] = grouped.loc[valid, std_col] / np.sqrt(grouped.loc[valid, count_col].astype(float))
-            grouped[ci_col] = grouped[sem_col] * z_value
+            grouped[ci_col] = student_t_mean_halfwidth(
+                grouped[sem_col], grouped[count_col], confidence_level,
+            )
     return grouped.sort_values(["distribution_rank", "line_rank", "samp_perc"], kind="stable").reset_index(drop=True)
 
 
@@ -976,7 +966,9 @@ def build_zero_filled_metric_summary(
     grouped[sem_col] = 0.0
     valid = grouped[count_col] > 0
     grouped.loc[valid, sem_col] = grouped.loc[valid, std_col] / np.sqrt(grouped.loc[valid, count_col].astype(float))
-    grouped[ci_col] = grouped[sem_col] * _z_value_for_confidence_level(confidence_level)
+    grouped[ci_col] = student_t_mean_halfwidth(
+        grouped[sem_col], grouped[count_col], confidence_level,
+    )
     return grouped.sort_values(["distribution_rank", "samp_perc"], kind="stable").reset_index(drop=True)
 
 
@@ -1232,7 +1224,7 @@ def plot_metric_curves(
                 if row_idx == 0:
                     ax.set_title(str(distribution["label"]))
                 if col_idx == 0:
-                    ax.set_ylabel(metric_label)
+                    ax.set_ylabel(r"LPIPS $\downarrow$" if metric == "lpips" else metric_label)
                 if row_idx == len(metric_specs) - 1:
                     _apply_sampling_axis(
                         ax,

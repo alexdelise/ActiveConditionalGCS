@@ -7,7 +7,6 @@ import json
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from statistics import NormalDist
 from typing import Any, Iterable, Optional, Sequence
 
 import matplotlib.pyplot as plt
@@ -17,6 +16,7 @@ from matplotlib.ticker import (
     FixedFormatter,
     FixedLocator,
     LogFormatterSciNotation,
+    MaxNLocator,
     NullFormatter,
     NullLocator,
 )
@@ -1693,7 +1693,7 @@ def plot_combined_aggregate_metric_forest(
             "font.size": 44,
             "axes.labelsize": 44,
             "legend.fontsize": 44,
-            "xtick.labelsize": 44,
+            "xtick.labelsize": 42,
             "ytick.labelsize": 44,
         }
     )
@@ -1775,6 +1775,8 @@ def plot_combined_aggregate_metric_forest(
                         labelpad=5.0,
                     )
                 axis.set_xscale(xscale)
+                if xscale == "linear":
+                    axis.xaxis.set_major_locator(MaxNLocator(nbins=3, min_n_ticks=3))
                 if xscale == "log" and experiment_index in (1, 2) and column_index == 3:
                     x_min, x_max = axis.get_xlim()
                     exponent_min = int(np.floor(np.log10(x_min))) - 1
@@ -1805,6 +1807,8 @@ def plot_combined_aggregate_metric_forest(
                 axis.set_ylim(len(row_specs) - 0.53, -0.53)
                 axis.grid(axis="x", alpha=0.28)
                 axis.tick_params(direction="out")
+                axis.tick_params(axis="x", which="major", length=7)
+                axis.tick_params(axis="x", which="minor", length=4)
 
         handles = [
             Line2D(
@@ -1984,11 +1988,6 @@ def zero_filled_metric_summary(frame: pd.DataFrame, metric: str) -> pd.DataFrame
     group_columns = [
         col for col in ["sampling_condition", "sampling_rank", "samp_perc"] if col in baseline.columns
     ]
-    z_value = 0.0
-    if METRIC_CONFIDENCE_LEVEL > 0.0:
-        z_value = float(
-            NormalDist().inv_cdf(0.5 + 0.5 * min(float(METRIC_CONFIDENCE_LEVEL), 0.999999))
-        )
     summary = (
         baseline.groupby(group_columns, dropna=False, sort=False)[column]
         .agg(mean="mean", std="std", count="count")
@@ -2001,7 +2000,9 @@ def zero_filled_metric_summary(frame: pd.DataFrame, metric: str) -> pd.DataFrame
     summary.loc[valid, "sem"] = summary.loc[valid, "std"] / np.sqrt(
         summary.loc[valid, "count"].astype(float)
     )
-    summary[ci_column] = summary["sem"] * z_value
+    summary[ci_column] = exp.student_t_mean_halfwidth(
+        summary["sem"], summary["count"], METRIC_CONFIDENCE_LEVEL,
+    )
     return summary.rename(columns={"mean": metric})[group_columns + [metric, ci_column]]
 
 
@@ -2167,7 +2168,7 @@ def plot_metric_curves(
             sampling_cases["sampling_condition"].tolist(),
         )
         fig.supylabel(
-            METRIC_LABELS.get(metric, title_case(metric)),
+            r"LPIPS $\downarrow$" if metric == "lpips" else METRIC_LABELS.get(metric, title_case(metric)),
             fontsize=exp.SD15_PRESENTATION_RC.get("axes.labelsize", 30),
             x=0.012,
         )

@@ -6,7 +6,6 @@ import os
 import json
 import hashlib
 from pathlib import Path
-from statistics import NormalDist
 import sys
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence
 
@@ -89,7 +88,8 @@ KTILDE_PRESENTATION_RC = {
     "ytick.labelsize": 26,
 }
 KTILDE_HEATMAP_FIGSIZE = (11.5, 10.8)
-KTILDE_HEATMAP_NUMERATOR_LABELSIZE = 24
+KTILDE_HEATMAP_NUMERATOR_LABELSIZE = 26
+KTILDE_HEATMAP_SAMPLING_LABELSIZE = 30
 
 
 def style_ktilde_colorbar(colorbar) -> None:
@@ -105,7 +105,7 @@ SD15_X_LABEL = r"Sampling Ratio $m/n$"
 KTILDE_CONVERGENCE_X_LABEL = r"Iterations ($M$)"
 KTILDE_CONVERGENCE_METRICS: Dict[str, Dict[str, str]] = {
     "relative_l2_error": {
-        "label": r"Relative $\ell^2$ Error",
+        "label": r"$\operatorname{Rel}_2(M)$",
         "filename": "relative_l2_error",
     },
     "relative_linf_error": {
@@ -960,7 +960,7 @@ def _mu_subscript(role: str) -> str:
 def _sampling_distribution_label(role: str) -> str:
     """Return the paper label for one sampling distribution."""
 
-    return rf"$\widetilde{{\mu}}_{{\mathrm{{{_mu_subscript(role)}}}}}$"
+    return rf"${_mu_symbol(role, hat=True)}$"
 
 
 def _mu_symbol(role: str, *, hat: bool = False) -> str:
@@ -1017,8 +1017,8 @@ def _ordered_prior_infos(
     bank = dict(tables["bank"])
     preferred_plot_order = {
         "k0": 0,
-        "k2_sunset_beach": 1,
-        "k1_daytime_beach": 2,
+        "k1_daytime_beach": 1,
+        "k2_sunset_beach": 2,
         "k4_cat": 3,
     }
     return [
@@ -1191,10 +1191,13 @@ def _draw_publication_heatmap(
 
     for row_idx in range(n_rows):
         for col_idx in range(n_cols):
+            # Round annotations only, keeping color normalization at full precision
+            value = annotation_values[row_idx, col_idx]
+            annotation = f"{value:.0f}" if np.isfinite(value) else r"$\infty$"
             ax.text(
                 col_idx,
                 row_idx,
-                _format_heatmap_number(annotation_values[row_idx, col_idx]),
+                annotation,
                 ha="center",
                 va="center",
                 fontsize=annotation_fontsize,
@@ -1249,7 +1252,7 @@ def plot_lambda_heatmap(
             cmap=cmap,
             colorbar_label=label,
             annotation_scale_power=scale_power,
-            tick_labelsize=KTILDE_PRESENTATION_RC["xtick.labelsize"],
+            tick_labelsize=KTILDE_HEATMAP_SAMPLING_LABELSIZE,
             x_tick_labelsize=KTILDE_HEATMAP_NUMERATOR_LABELSIZE,
             show_ylabels=True,
             x_rotation=0.0,
@@ -1419,7 +1422,7 @@ def export_lambda_figure_set(
         )
     outputs["distribution_row_uc_sb_db_ca"] = plot_sampling_distribution_row(
         tables,
-        roles=["k0", "k2_sunset_beach", "k1_daytime_beach", "k4_cat"],
+        roles=["k0", "k1_daytime_beach", "k2_sunset_beach", "k4_cat"],
         output_path=root / f"ktilde_sampling_distribution_row_uc_sb_db_ca.{suffix}",
         show=show,
         limits=limits,
@@ -1941,14 +1944,22 @@ def _display_reconstruction_label(condition: Any, label: Any) -> str:
     return str(label)
 
 
-def _z_value_for_confidence_level(confidence_level: float) -> float:
-    """Return the two-sided normal critical value for a confidence level."""
+def student_t_mean_halfwidth(
+    sem: Any, count: Any, confidence_level: float = DEFAULT_CONFIDENCE_LEVEL,
+) -> np.ndarray:
+    """Return two-sided Student-t mean interval halfwidths for each trial count."""
+
+    from scipy.stats import t as student_t
 
     level = float(confidence_level)
-    if level <= 0.0:
-        return 0.0
-    level = min(level, 0.999999)
-    return float(NormalDist().inv_cdf(0.5 + 0.5 * level))
+    if not 0.0 < level < 1.0:
+        raise ValueError("confidence_level must lie in (0, 1).")
+    errors, counts = np.broadcast_arrays(
+        np.asarray(sem, dtype=float), np.asarray(count, dtype=float),
+    )
+    # A single observation gives a mean but cannot estimate trial uncertainty
+    critical = student_t.ppf(0.5 + 0.5 * level, df=counts - 1)
+    return np.where(counts > 1, errors * critical, np.nan)
 
 
 def _metric_band_column(metric: str, band_mode: str) -> str:
@@ -1995,7 +2006,6 @@ def _aggregate_metric_statistics(
             flattened_columns.append(str(column))
     grouped.columns = flattened_columns
 
-    z_value = _z_value_for_confidence_level(confidence_level)
     for metric in metric_cols:
         std_col = f"{metric}_std"
         count_col = f"{metric}_count"
@@ -2006,7 +2016,9 @@ def _aggregate_metric_statistics(
         grouped[sem_col] = 0.0
         valid = grouped[count_col] > 0
         grouped.loc[valid, sem_col] = grouped.loc[valid, std_col] / np.sqrt(grouped.loc[valid, count_col].astype(float))
-        grouped[ci_col] = grouped[sem_col] * z_value
+        grouped[ci_col] = student_t_mean_halfwidth(
+            grouped[sem_col], grouped[count_col], confidence_level,
+        )
     return grouped
 
 

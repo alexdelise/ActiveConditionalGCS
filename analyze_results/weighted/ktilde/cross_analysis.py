@@ -23,20 +23,20 @@ CROSS_LAWS = (
         r"$\widetilde{\mu}_{c_{\mathrm{uc}},c_{\mathrm{sb}}}$",
     ),
     (
-        "sb",
-        "sunset beach",
-        "sunset beach",
-        "Ktilde_SD15__fft__k2sunsetbeach_512x512_S10000_ns20",
-        r"$\mathbb F_{c_{\mathrm{sb}}}-\mathbb F_{c_{\mathrm{sb}}}$",
-        r"$\widetilde{\mu}_{c_{\mathrm{sb}},c_{\mathrm{sb}}}$",
-    ),
-    (
         "db",
         "daytime beach",
         "sunset beach",
         "Ktilde_SD15__fft__cross_k1daytimebeach_minus_k2sunsetbeach_512x512_S10000_ns20",
         r"$\mathbb F_{c_{\mathrm{db}}}-\mathbb F_{c_{\mathrm{sb}}}$",
         r"$\widetilde{\mu}_{c_{\mathrm{db}},c_{\mathrm{sb}}}$",
+    ),
+    (
+        "sb",
+        "sunset beach",
+        "sunset beach",
+        "Ktilde_SD15__fft__k2sunsetbeach_512x512_S10000_ns20",
+        r"$\mathbb F_{c_{\mathrm{sb}}}-\mathbb F_{c_{\mathrm{sb}}}$",
+        r"$\widetilde{\mu}_{c_{\mathrm{sb}},c_{\mathrm{sb}}}$",
     ),
     (
         "ca",
@@ -86,8 +86,8 @@ SAMPLING_LABELS = {
     "k4_cat": r"$\widetilde{\mu}_{c_{\mathrm{ca}}}$",
 }
 
-SAMPLING_ORDER = ("k0", "k2_sunset_beach", "k1_daytime_beach", "k4_cat")
-RECOVERY_ORDER = ("unprompted", "sunset_beach", "daytime_beach", "cat")
+SAMPLING_ORDER = ("k0", "k1_daytime_beach", "k2_sunset_beach", "k4_cat")
+RECOVERY_ORDER = ("unprompted", "daytime_beach", "sunset_beach", "cat")
 NUMERATOR_TICK_LABELS = {
     "unprompted": r"$\widetilde K(\mathbb F_{c_{\mathrm{uc}}}-\mathbb F_{c_{\mathrm{sb}}})$",
     "daytime_beach": r"$\widetilde K(\mathbb F_{c_{\mathrm{db}}}-\mathbb F_{c_{\mathrm{sb}}})$",
@@ -344,9 +344,9 @@ def plot_lambda_matrix(
             axis,
             table,
             cmap=cmap,
-            colorbar_label=r"$\widetilde{\Lambda}(c_r,c_{\mathrm{sb}},c_s)$",
+            colorbar_label=r"$\widetilde{\Lambda}(c_1,c_{\mathrm{sb}},c_s)$",
             annotation_scale_power=shared_analysis._annotation_scale_power(values),
-            tick_labelsize=shared_analysis.KTILDE_PRESENTATION_RC["xtick.labelsize"],
+            tick_labelsize=shared_analysis.KTILDE_HEATMAP_SAMPLING_LABELSIZE,
             x_tick_labelsize=shared_analysis.KTILDE_HEATMAP_NUMERATOR_LABELSIZE,
             show_ylabels=True,
             x_rotation=0.0,

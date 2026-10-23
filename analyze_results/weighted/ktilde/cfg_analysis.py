@@ -13,9 +13,9 @@ import pandas as pd
 
 ZETA = 0.5
 PROMPTS = (
-    ("daytime_beach", "daytime beach", "Daytime Beach", r"$\widetilde{\mu}_{\mathrm{db}}$"),
-    ("sunset_beach", "sunset beach", "Sunset Beach", r"$\widetilde{\mu}_{\mathrm{sb}}$"),
-    ("cat", "cat", "Cat", r"$\widetilde{\mu}_{\mathrm{ca}}$"),
+    ("daytime_beach", "daytime beach", "Daytime Beach", r"$\widetilde{\mu}_{\mathrm{c}_{\mathrm{db}}}$"),
+    ("sunset_beach", "sunset beach", "Sunset Beach", r"$\widetilde{\mu}_{\mathrm{c}_{\mathrm{sb}}}$"),
+    ("cat", "cat", "Cat", r"$\widetilde{\mu}_{\mathrm{c}_{\mathrm{ca}}}$"),
 )
 CFG_VALUES = (1.0, 3.0, 5.0, 7.5)
 
@@ -270,10 +270,11 @@ def plot_lambda_panels(
     output_path: str | Path | None = None,
     show: bool = True,
 ):
-    """Plot one absolute compatibility matrix per prompt."""
+    """Plot compatibility with sampling CFG in rows and recovery CFG in columns."""
 
     import matplotlib.pyplot as plt
     from matplotlib.colors import LogNorm
+    from matplotlib.patches import Rectangle
     from matplotlib.ticker import LogFormatterMathtext
 
     if frame.empty:
@@ -292,28 +293,55 @@ def plot_lambda_panels(
         shared_analysis.SD15_LAMBDA_CMAP_COLORS,
     )
     with plt.rc_context(shared_analysis.KTILDE_PRESENTATION_RC):
-        fig, axes = plt.subplots(1, 3, figsize=(15.5, 5.1), constrained_layout=True)
-        fig.set_constrained_layout_pads(w_pad=0.04, h_pad=0.04, wspace=0.03, hspace=0.02)
+        fig = plt.figure(figsize=(26.0, 22.0))
+        # Center the lower panel between two closely spaced upper panels
+        panel_width = 0.36
+        panel_height = panel_width * 26.0 / 22.0
+        positions = ((0.065, 0.555), (0.585, 0.555), (0.325, 0.04))
+        axes = [fig.add_axes((left, bottom, panel_width, panel_height))
+                for left, bottom in positions]
         image = None
-        for ax, (_, _, prompt_label, _) in zip(axes, PROMPTS):
+        for ax, (left, bottom), (prompt_key, _, prompt_label, _) in zip(axes, positions, PROMPTS):
             subset = frame[frame["prompt"] == prompt_label]
-            table = subset.pivot(index="numerator_cfg", columns="sampling_cfg", values="lambda_tilde")
+            table = subset.pivot(index="sampling_cfg", columns="numerator_cfg", values="lambda_tilde")
             table = table.reindex(index=CFG_VALUES, columns=CFG_VALUES)
             plot_values = table.to_numpy(dtype=float)
             plot_values = np.where(np.isfinite(plot_values), plot_values, np.nan)
-            image = ax.imshow(plot_values, cmap=cmap, norm=norm)
-            ax.set_title(prompt_label)
-            ax.set_xticks(range(4), [f"{cfg:g}" for cfg in CFG_VALUES])
-            ax.set_yticks(range(4), [f"{cfg:g}" for cfg in CFG_VALUES])
-            ax.set_xlabel("Sampling CFG")
-            ax.set_ylabel("Numerator CFG")
+            image = ax.imshow(plot_values, cmap=cmap, norm=norm, interpolation="nearest")
+            prompt_symbol = {"daytime_beach": "db", "sunset_beach": "sb", "cat": "ca"}[prompt_key]
+            prompt = rf"c_{{\mathrm{{{prompt_symbol}}}}}"
+            label_size = 32.0
+            cfg_labels = [rf"$\mathrm{{CFG}}\ {cfg:g}$" for cfg in CFG_VALUES]
+            ax.set_xticks(range(4), cfg_labels)
+            ax.set_yticks(range(4), cfg_labels)
+            ax.xaxis.set_label_position("top")
+            ax.set_xlabel(
+                rf"$\widetilde K(\mathbb F_{{{prompt}}}-\mathbb F_{{{prompt}}})$",
+                fontsize=label_size, labelpad=26,
+            )
+            ax.set_ylabel(
+                rf"$\widetilde\mu_{{{prompt}}}$",
+                fontsize=label_size, labelpad=30, rotation=0, va="center",
+            )
+            ax.tick_params(top=True, bottom=False, labeltop=True, labelbottom=False, length=0, pad=9)
+            ax.tick_params(axis="x", labelsize=label_size,
+                           labelrotation=0)
+            ax.tick_params(axis="y", labelsize=label_size,
+                           labelrotation=90, pad=23)
+            for tick in ax.get_yticklabels():
+                tick.set_ha("center")
+                tick.set_va("center")
+            ax.set_xticks(np.arange(-0.5, 4, 1), minor=True)
+            ax.set_yticks(np.arange(-0.5, 4, 1), minor=True)
+            ax.grid(which="minor", color="white", linewidth=1.6)
+            ax.tick_params(which="minor", bottom=False, left=False)
             for row in range(4):
                 for col in range(4):
                     value = table.iloc[row, col]
                     if np.isinf(value):
                         annotation = r"$\infty$"
                     elif np.isfinite(value):
-                        annotation = shared_analysis._format_heatmap_number(float(value))
+                        annotation = f"{value:.0f}"
                     else:
                         continue
                     if np.isfinite(value) or np.isinf(value):
@@ -323,7 +351,7 @@ def plot_lambda_panels(
                             annotation,
                             ha="center",
                             va="center",
-                            fontsize=shared_analysis.KTILDE_PRESENTATION_RC["font.size"],
+                            fontsize=26.0,
                             fontweight="semibold",
                             color="#111827",
                             bbox={
@@ -332,11 +360,23 @@ def plot_lambda_panels(
                                 "edgecolor": "none",
                             },
                         )
-        if image is not None:
-            colorbar = fig.colorbar(image, ax=axes.ravel().tolist(), fraction=0.025, pad=0.02, aspect=28)
-            colorbar.set_label(r"$\widetilde{\Lambda}$")
+            for index in range(4):
+                ax.add_patch(Rectangle((index - 0.5, index - 0.5), 1, 1,
+                                       fill=False, edgecolor="#111827", linewidth=2.1))
+            # Match the shorter, centered color bars of the other heatmaps
+            colorbar_height = 0.92 * panel_height
+            colorbar_bottom = bottom + (panel_height - colorbar_height) / 2
+            colorbar_axis = fig.add_axes((left + panel_width + 0.012, colorbar_bottom, 0.0156, colorbar_height))
+            colorbar = fig.colorbar(image, cax=colorbar_axis)
+            recovery_prompt = rf"{prompt}^{{(\mathrm{{CFG}}_r)}}"
+            sampling_prompt = rf"{prompt}^{{(\mathrm{{CFG}}_s)}}"
+            colorbar.set_label(
+                rf"$\widetilde\Lambda\left({recovery_prompt},{recovery_prompt},{sampling_prompt}\right)$",
+                labelpad=12,
+            )
             colorbar.ax.yaxis.set_major_formatter(LogFormatterMathtext())
             shared_analysis.style_ktilde_colorbar(colorbar)
+            colorbar.ax.yaxis.label.set_fontsize(label_size)
         path = None
         if output_path is not None:
             path = Path(output_path)
