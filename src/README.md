@@ -35,5 +35,5 @@ reconstructions and their zero-filled inverses. LPIPS is evaluated on CPU
 after latent optimization so metric evaluation does not compete with the
 diffusion model for GPU memory.
 
-The sampling laws and reconstruction operators are described in
+The sampling distributions and reconstruction operators are described in
 [../ktilde/README.md](../ktilde/README.md).

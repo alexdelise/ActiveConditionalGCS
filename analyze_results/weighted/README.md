@@ -24,7 +24,7 @@ summarizes all three scenarios.
 ## Christoffel Studies
 
 [ktilde/ktilde_analysis.ipynb](ktilde/ktilde_analysis.ipynb) analyzes
-self-difference laws, convergence, sampling-CFG estimates, and cross-class
+self-difference distributions, convergence, sampling-CFG estimates, and cross-class
 compatibility values. It writes into
 [results/weighted/ktilde/figures/](../../results/weighted/ktilde/figures/).
 

@@ -6,7 +6,7 @@ Names in square brackets are placeholders. Replace them with the desired
 values and omit the brackets when running a command.
 
 ```text
-./scripts/weighted/run_main.sh [scenario] [sampling-law] [recovery-prompt]
+./scripts/weighted/run_main.sh [scenario] [sampling-distribution] [recovery-prompt]
 ```
 
 Example:
@@ -16,16 +16,16 @@ Example:
 ```
 
 Scenarios: `prompt_matched`, `prompt_mismatched`, `out_of_range`.
-Sampling laws: `k0`, `k1`, `k2`, `k4`, `mcs`, `inverse_square`.
+Sampling distributions: `k0`, `k1`, `k2`, `k4`, `mcs`, `inverse_square`.
 Recovery prompts: `unprompted`, `daytime_beach`, `sunset_beach`, `cat`.
 
 One command runs five sampling ratios and five trials, giving 25
-reconstructions. Different law/recovery settings can run independently.
+reconstructions. Different distribution/recovery settings can run independently.
 
 ## Recovery-CFG Ablation
 
 ```text
-./scripts/weighted/run_ablation.sh [scenario] [sampling-law] [cfg]
+./scripts/weighted/run_ablation.sh [scenario] [sampling-distribution] [cfg]
 ```
 
 Example:
@@ -34,7 +34,7 @@ Example:
 ./scripts/weighted/run_ablation.sh prompt_matched k2 3
 ```
 
-Use the same scenarios, the four Christoffel laws, and CFG `1`, `3`,
+Use the same scenarios, the four Christoffel distributions, and CFG `1`, `3`,
 `5`, or `7.5`. The recovery prompt is `"sunset beach"`. One setting
 contains 25 reconstructions. CFG 1 uses the main-study reference instead
 of writing a duplicate ablation result.
@@ -47,7 +47,7 @@ and honor `PYTHON_BIN`. Run an interrupted command again to resume.
 Run one independent convergence trial:
 
 ```text
-./scripts/weighted/ktilde_convergence/run_trial.sh [sampling-law] [trial]
+./scripts/weighted/ktilde_convergence/run_trial.sh [sampling-distribution] [trial]
 ```
 
 Example:
@@ -59,7 +59,7 @@ Example:
 Build a sampling-CFG estimate:
 
 ```text
-./scripts/weighted/ktilde_cfg_ablation/run.sh [sampling-law] [cfg]
+./scripts/weighted/ktilde_cfg_ablation/run.sh [sampling-distribution] [cfg]
 ```
 
 Example:

@@ -8,8 +8,8 @@ environment.
 Command templates:
 
 ```text
-./scripts/weighted/run_main.sh [scenario] [sampling-law] [recovery-prompt]
-./scripts/weighted/run_ablation.sh [scenario] [sampling-law] [cfg]
+./scripts/weighted/run_main.sh [scenario] [sampling-distribution] [recovery-prompt]
+./scripts/weighted/run_ablation.sh [scenario] [sampling-distribution] [cfg]
 ```
 
 Examples:

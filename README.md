@@ -3,13 +3,13 @@
 This repository accompanies *Active Learning for Conditional Generative
 Compressed Sensing*. The paper studies image recovery from subsampled Fourier
 measurements using a prompt-conditioned generative model. The sampling prompt
-$c_s$ determines the sampling law, while the recovery prompt $c_r$ defines
+$c_s$ determines the sampling distribution, while the recovery prompt $c_r$ defines
 the class used for reconstruction. The target prompt is denoted by $c_*$
 when the target belongs to a prompt-conditioned model class.
 
 The code estimates empirical Christoffel functions for Stable Diffusion 1.5,
-constructs Fourier sampling laws, and recovers images by latent optimization.
-The main experiments compare four empirical Christoffel laws with uniform MCS
+constructs Fourier sampling distributions, and recovers images by latent optimization.
+The main experiments compare four empirical Christoffel distributions with uniform MCS
 and inverse-square sampling. The repository also includes recovery-CFG
 ablations, Christoffel convergence studies, and analysis notebooks.
 
@@ -52,7 +52,7 @@ diffusion model. PDF figures use Computer Modern through LaTeX and require
 ├── 📁 <a href="datasets/">datasets/</a>                         ← Fixed target images and metadata
 ├── 📁 <a href="ktilde/weighted/">ktilde/weighted/</a>                    ← Christoffel estimates and convergence trials
 ├── 📁 <a href="scripts/weighted/">scripts/weighted/</a>                   ← Experiment launchers
-├── 📁 <a href="scripts/release/">scripts/release/</a>                    ← Data packaging and verified downloads
+├── 📁 <a href="scripts/release/">scripts/release/</a>                    ← Data packaging and downloads
 ├── 📁 <a href="analyze_results/weighted/">analyze_results/weighted/</a>           ← Figure-reproduction notebooks
 ├── 📁 <a href="analyze_results/paper_figures/">analyze_results/paper_figures/</a>      ← Selected reconstruction comparisons
 ├── 📁 <a href="unweighted/">unweighted/</a>                       ← Unweighted experiments and analysis
@@ -82,11 +82,11 @@ Folder guides describe the [source package](src/README.md),
 
 The external photograph is attributed to [Magnific](https://www.magnific.com/free-photo/sunset-time-tropical-beach-sea-with-coconut-palm-tree_3531881.htm).
 The other targets were generated with SD1.5 and were not used to estimate
-the sampling laws.
+the sampling distributions.
 
 The sampling and recovery prompt family consists of `""`, `"daytime beach"`, `"sunset beach"`, and `"cat"`,
 denoted by $c_{\mathrm{uc}}$, $c_{\mathrm{db}}$, $c_{\mathrm{sb}}$, and
-$c_{\mathrm{ca}}$. The Christoffel sampling-law identifiers used by the
+$c_{\mathrm{ca}}$. The Christoffel sampling-distribution identifiers used by the
 commands and configuration files are:
 
 - `k0`: unconditioned, $c_{\mathrm{uc}}=\texttt{""}$
@@ -94,16 +94,16 @@ commands and configuration files are:
 - `k2`: $c_{\mathrm{sb}}=\texttt{"sunset beach"}$
 - `k4`: $c_{\mathrm{ca}}=\texttt{"cat"}$
 
-The main experiments use these four laws together with uniform sampling
+The main experiments use these four distributions together with uniform sampling
 (`mcs`) and inverse-square variable-density sampling (`inverse_square`). They
 use four recovery prompts, ratios $m/n=0.01,0.02,0.03,0.04,0.05$, and five
 trials, giving 1,800 reconstructions. Recovery uses the weighted unitary
 Fourier operator and 2,000 Adam iterations. The learning rate is $0.1$ for the
 first 400 iterations, then decreases by cosine decay to $0.001$. The empirical
-Christoffel laws use $\zeta=1/2$ regularization.
+Christoffel distributions use $\zeta=1/2$ regularization.
 
 The recovery-CFG ablation fixes the recovery prompt to `"sunset beach"` and
-compares CFG 1, 3, 5, and 7.5 under the four Christoffel laws. It uses the same
+compares CFG 1, 3, 5, and 7.5 under the four Christoffel distributions. It uses the same
 ratios, five trials, and optimization settings. CFG 1 reuses 300 main-study
 reconstructions. The other CFG values add 900 reconstructions.
 
@@ -111,8 +111,7 @@ reconstructions. The other CFG values add 900 reconstructions.
 
 The [figure-reproduction data release](https://github.com/alexdelise/ActiveConditionalGCS/releases/tag/paper-results-v1)
 contains the completed weighted and unweighted experiments and Christoffel studies. The
-[release guide](scripts/release/README.md) describes its contents and integrity
-checks. Download and verify all required data from the repository root:
+[release guide](scripts/release/README.md) describes how to download the results. Download all required data from the repository root:
 
 ```bash
 python scripts/release/download_results.py
@@ -130,12 +129,12 @@ reproduces the selected image comparisons.
 
 Reconstruction is expensive. It is recommended to use the saved data from the release to reproduce figures without rerunning recovery.
 
-To run one sampling law and recovery prompt across all five ratios and trials,
+To run one sampling distribution and recovery prompt across all five ratios and trials,
 use the following template. Names in square brackets are placeholders. Replace
 them with the desired values and omit the brackets when running a command.
 
 ```text
-./scripts/weighted/run_main.sh [scenario] [sampling-law] [recovery-prompt]
+./scripts/weighted/run_main.sh [scenario] [sampling-distribution] [recovery-prompt]
 ```
 
 Examples:
@@ -149,7 +148,7 @@ Examples:
 Run one recovery-CFG setting across all five ratios and trials:
 
 ```text
-./scripts/weighted/run_ablation.sh [scenario] [sampling-law] [cfg]
+./scripts/weighted/run_ablation.sh [scenario] [sampling-distribution] [cfg]
 ```
 
 Example:
@@ -158,9 +157,9 @@ Example:
 ./scripts/weighted/run_ablation.sh prompt_matched k2 3
 ```
 
-Sampling laws are `k0`, `k1`, `k2`, `k4`, `mcs`, and `inverse_square`.
+Sampling distributions are `k0`, `k1`, `k2`, `k4`, `mcs`, and `inverse_square`.
 Recovery prompts are `unprompted`, `daytime_beach`, `sunset_beach`, and `cat`.
-The ablation accepts the four Christoffel laws and CFG `1`, `3`, `5`, or `7.5`.
+The ablation accepts the four Christoffel distributions and CFG `1`, `3`, `5`, or `7.5`.
 Append `--dry-run` to inspect a command without starting reconstruction.
 
 If a command is interrupted, you can run it again. Completed reconstructions are

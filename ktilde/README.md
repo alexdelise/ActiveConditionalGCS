@@ -19,7 +19,7 @@ For a sampling prompt $c$, the estimator generates independent pairs of
 images from the prompt-conditioned model class, normalizes their secants, and
 records the largest observed Fourier-coordinate energy. The resulting array
 $\widetilde K_c$ approximates the generalized Christoffel function of the
-self-difference class $\mathbb F_c-\mathbb F_c$. Its normalized sampling law
+self-difference class $\mathbb F_c-\mathbb F_c$. Its normalized sampling distribution
 is
 
 $$\widetilde\mu_c(i)=\frac{\widetilde K_c(i)}{\sum_{\ell=1}^{n}\widetilde{K}_c(\ell)}, \qquad i\in D.$$
@@ -56,11 +56,11 @@ $$A_{\Omega}x=\left[\frac{(F_{\mathrm u}x)(I_j)}{\sqrt{m\,\mu(I_j)}}\right]_{j=1
 The same spatial mask and weight are applied independently to each color
 channel. Christoffel sampling forces the DC coefficient and draws the
 remaining frequencies without replacement from the DC-excluded,
-renormalized proposal. Reconstruction weights still use the original law
+renormalized proposal. Reconstruction weights still use the original distribution
 $\mu$, not the proposal used for the conditional draw.
 
 The reconstruction experiments use the unitary operator above with
-the probability law associated with each sampling design. Uniform sampling
+the probability distribution associated with each sampling design. Uniform sampling
 uses $\mu(i)=1/n$, while inverse-square sampling uses
 
 $$

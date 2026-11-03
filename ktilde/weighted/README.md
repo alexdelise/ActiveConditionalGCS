@@ -12,7 +12,7 @@ Five independent convergence trials remain grouped by prompt and trial under
 Run one convergence trial with:
 
 ```text
-./scripts/weighted/ktilde_convergence/run_trial.sh [sampling-law] [trial]
+./scripts/weighted/ktilde_convergence/run_trial.sh [sampling-distribution] [trial]
 ```
 
 Example:
@@ -28,7 +28,7 @@ ordered cross-class artifact with
 Their command templates are:
 
 ```text
-./scripts/weighted/ktilde_cfg_ablation/run.sh [sampling-law] [cfg]
+./scripts/weighted/ktilde_cfg_ablation/run.sh [sampling-distribution] [cfg]
 ./scripts/weighted/ktilde_cross_class/run.sh [first-class]
 ```
 

@@ -3,7 +3,7 @@
 Run commands from the repository root in the configured Python environment:
 
 ```text
-./unweighted/scripts/run_suite.sh [experiment-type] [scenario] [sampling-law]
+./unweighted/scripts/run_suite.sh [experiment-type] [scenario] [sampling-distribution]
 ```
 
 The experiment type is `main` or `ablation`. Names in square brackets are
@@ -25,7 +25,7 @@ write into [the archived results](../results/).
 The original rate-split commands remain available for individual jobs:
 
 ```text
-./unweighted/scripts/run_split.sh [experiment-type] [scenario] [split] [sampling-law]
+./unweighted/scripts/run_split.sh [experiment-type] [scenario] [split] [sampling-distribution]
 ./unweighted/scripts/baselines/run_mcs_split.sh [scenario] [split] [recovery-prompt]
 ./unweighted/scripts/baselines/run_inverse_square_split.sh [scenario] [split] [recovery-prompt]
 ```

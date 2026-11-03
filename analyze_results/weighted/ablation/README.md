@@ -7,7 +7,7 @@ Open the [prompt-matched](prompt_matched_cfg_ablation.ipynb),
 three scenarios.
 
 The recovery prompt is `"sunset beach"`, with CFG 1, 3, 5, and 7.5.
-Sampling uses the four fixed Christoffel laws generated with CFG 7.5.
+Sampling uses the four fixed Christoffel distributions generated with CFG 7.5.
 Every setting uses ratios 1% through 5%, five trials, the weighted unitary
 operator, and the main experiment's 2,000-iteration learning-rate schedule.
 
@@ -24,7 +24,7 @@ summary tables are written under
 Command template:
 
 ```text
-./scripts/weighted/run_ablation.sh [scenario] [sampling-law] [cfg]
+./scripts/weighted/run_ablation.sh [scenario] [sampling-distribution] [cfg]
 ```
 
 Example:

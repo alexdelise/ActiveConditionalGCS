@@ -2,8 +2,7 @@
 
 The figure-reproduction data is published in the
 [`paper-results-v1` GitHub Release](https://github.com/alexdelise/ActiveConditionalGCS/releases/tag/paper-results-v1).
-The [data manifest](data_manifest.json) records archive sizes, checksums, file
-counts, and reconstruction counts.
+The [data manifest](data_manifest.json) records archive sizes, file counts, and reconstruction counts.
 
 | Archive | Reconstructions | Compressed size |
 | --- | ---: | ---: |
@@ -25,16 +24,16 @@ reads its 300 CFG 1 reference rows directly from the main results.
 
 Each reconstruction includes metrics, the complete saved optimization trace,
 sampled frequencies and probabilities, the recovered image, the zero-filled
-image, and metadata. The Christoffel archive includes the fixed sampling laws,
+image, and metadata. The Christoffel archive includes the fixed sampling distributions,
 sampling-CFG estimates, cross-class estimates, 20 independent convergence
 trials, scalar convergence traces, and fixed target datasets.
 
 The unweighted archives add 2,520 main reconstructions and 1,260 new CFG-ablation
 reconstructions. The ablation reads its 420 CFG 7.5 reference observations from
-the main results. `unweighted_support.tar.gz` contains the four sampling laws
-and saved LPIPS values. Archive sizes and checksums are in the manifest.
+the main results. `unweighted_support.tar.gz` contains the four sampling distributions
+and saved LPIPS values. Archive sizes are in the manifest.
 
-## Download and Verify
+## Download
 
 Run from the repository root:
 
@@ -42,9 +41,7 @@ Run from the repository root:
 python scripts/release/download_results.py
 ```
 
-The downloader checks each archive and every file inside it before installing
-the data. It does not replace different existing local files. To select a
-separate destination, use:
+To select a separate destination, use:
 
 ```text
 python scripts/release/download_results.py --destination [checkout-path]
@@ -53,7 +50,7 @@ python scripts/release/download_results.py --destination [checkout-path]
 Example:
 
 ```bash
-python scripts/release/download_results.py --destination results/download_verification
+python scripts/release/download_results.py --destination results/downloaded_results
 ```
 
 The [weighted](../../analyze_results/weighted/README.md) and

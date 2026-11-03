@@ -1,6 +1,6 @@
 # Unweighted Experiments
 
-The unweighted experiments compare four Christoffel sampling laws with uniform
+The unweighted experiments compare four Christoffel sampling distributions with uniform
 and inverse-square sampling, and include a recovery-CFG ablation. The code uses the
 shared [source package](../src/), [datasets](../datasets/), and
 [analysis helpers](../analyze_results/) at the repository root.
@@ -16,11 +16,11 @@ shared [source package](../src/), [datasets](../datasets/), and
 Run these commands from the repository root in the configured Python environment:
 
 ```text
-./unweighted/scripts/run_suite.sh [experiment-type] [scenario] [sampling-law]
+./unweighted/scripts/run_suite.sh [experiment-type] [scenario] [sampling-distribution]
 ```
 
 Here, `[experiment-type]` is `main` or `ablation`, `[scenario]` is
-`prompt_matched`, `prompt_mismatched`, or `out_of_range`, and `[sampling-law]`
+`prompt_matched`, `prompt_mismatched`, or `out_of_range`, and `[sampling-distribution]`
 is `k0`, `k1`, `k2`, or `k4`. Omit the brackets when running a command.
 
 Examples:
@@ -33,7 +33,7 @@ python unweighted/scripts/validate_suite.py
 
 The main experiments use seven sampling ratios, five trials, recovery CFG 7.5,
 and 500 Adam iterations. The recovery-CFG ablation compares CFG 1, 3, 5, and 7.5
-under the four Christoffel laws. Results are written into [results/](results/).
+under the four Christoffel distributions. Results are written into [results/](results/).
 Run the same command again after an interruption to reuse completed reconstructions and resume
 unfinished optimization. Download the saved results with
 `python scripts/release/download_results.py`.

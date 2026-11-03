@@ -2,14 +2,14 @@
 
 [weighted/](weighted/) contains the three main reconstruction experiments and
 the recovery-CFG ablation. Each suite selects a base configuration, sampling
-law, recovery condition, and output tag. The base configuration specifies the
+distribution, recovery condition, and output tag. The base configuration specifies the
 sampling ratios, trials, optimizer, and Fourier convention.
 
 Inspect a main or ablation setting from the repository root:
 
 ```text
-./scripts/weighted/run_main.sh [scenario] [sampling-law] [recovery-prompt] --dry-run
-./scripts/weighted/run_ablation.sh [scenario] [sampling-law] [cfg] --dry-run
+./scripts/weighted/run_main.sh [scenario] [sampling-distribution] [recovery-prompt] --dry-run
+./scripts/weighted/run_ablation.sh [scenario] [sampling-distribution] [cfg] --dry-run
 ```
 
 Examples:
