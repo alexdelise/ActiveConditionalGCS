@@ -9,6 +9,7 @@ import io
 import json
 from pathlib import Path
 import tarfile
+import sys
 
 import numpy as np
 
@@ -21,6 +22,64 @@ RUN_FILES = {
     "run_summary.txt", "zero_filled_ifft.png",
 }
 CASE_FILES = {"dataset_ref.json", "ktilde_ref.json", "env_info.json", "run_config.json"}
+CONTENT_OVERRIDES: dict[Path, bytes] = {}
+
+
+def unweighted_studies() -> list[tuple[str, list[Path], int]]:
+    """Select and validate the unweighted reconstruction grids."""
+    import pandas as pd
+    sys.path[:0] = [str(ROOT / "analyze_results"), str(ROOT / "unweighted/analyze_results")]
+    import analysis as unweighted
+    main, ablation = unweighted.load_results()
+    groups = []
+    all_paths = set()
+    paper_rows = []
+    for frames, is_ablation in ((main, False), (ablation, True)):
+        for scenario, frame in zip(SCENARIOS, frames):
+            if is_ablation:
+                frame = frame[frame.line_condition.isin(("cfg1", "cfg3", "cfg5"))]
+            expected = 420 if is_ablation else 840
+            if len(frame) != expected or frame.artifact_relpath.duplicated().any():
+                raise ValueError(f"Incomplete paper grid: {scenario}, ablation={is_ablation}")
+            paper_rows.append(frame)
+            files = set()
+            for row in frame.itertuples():
+                run = ROOT / row.artifact_relpath
+                all_paths.add(row.artifact_relpath)
+                method = "cs" if is_ablation else row.sampling_method
+                with np.load(run / "run_data.npz", allow_pickle=False) as saved:
+                    completed = int(saved["bp_completed_iterations"])
+                    reason = str(saved["early_stop_reason"].item()) if "early_stop_reason" in saved else ""
+                    if not (0 < completed <= 500) or (completed < 500 and not reason):
+                        raise ValueError(f"Incomplete optimization: {run}")
+                for filename in ("run_data.npz", "run_config.json", f"recon_{method}.png", "zero_filled_ifft.png"):
+                    if not (run / filename).is_file():
+                        raise FileNotFoundError(run / filename)
+                files.update(p for p in run.iterdir() if p.name in RUN_FILES or p.name == f"recon_{method}.png")
+                case = run.parents[3]
+                files.update(p for p in case.iterdir() if p.is_file() and p.name in CASE_FILES)
+                # Main loading uses the resolved case list, not stale aggregate CSVs.
+                if not is_ablation:
+                    manifest = case.parent / "resolved_suite_manifest.json"
+                    if not manifest.is_file():
+                        raise FileNotFoundError(manifest)
+                    files.add(manifest)
+            name = f"unweighted_{'ablation_' if is_ablation else ''}{scenario}"
+            groups.append((name, sorted(files), expected))
+    sidecar = ROOT / "unweighted/results/metrics/lpips.csv"
+    metrics = pd.concat(paper_rows, ignore_index=True)[["artifact_relpath", "lpips", "zero_filled_lpips"]]
+    metrics = metrics.drop_duplicates("artifact_relpath").sort_values("artifact_relpath")
+    if set(metrics.artifact_relpath) != all_paths or metrics.artifact_relpath.duplicated().any():
+        raise ValueError("Missing or duplicate paper LPIPS sidecar rows")
+    CONTENT_OVERRIDES[sidecar] = metrics.to_csv(index=False).encode()
+    files = [sidecar, ROOT / "unweighted/ktilde/config.json"]
+    catalog = json.loads((ROOT / "unweighted/ktilde/config.json").read_text())["ktilde"]
+    if len(catalog) != 4:
+        raise ValueError("Expected the four paper sampling laws")
+    for name in catalog:
+        files.extend([ROOT / f"unweighted/ktilde/{name}.npz", ROOT / f"unweighted/ktilde/{name}.meta.json"])
+    groups.append(("unweighted_support", sorted(files), 0))
+    return groups
 
 
 def sha256(path: Path) -> str:
@@ -123,6 +182,8 @@ def studies() -> list[tuple[str, list[Path], int]]:
 def file_bytes(path: Path) -> bytes:
     """Normalize JSON sidecars while preserving checksum-linked numerical artifacts."""
 
+    if path in CONTENT_OVERRIDES:
+        return CONTENT_OVERRIDES[path]
     if path.suffix == ".json":
         return (json.dumps(portable_metadata(json.loads(path.read_text())), indent=2, sort_keys=True) + "\n").encode()
     return path.read_bytes()
@@ -158,8 +219,9 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, default=ROOT / "results" / "releases" / "paper-results-v1")
     parser.add_argument("--inventory-only", action="store_true")
+    parser.add_argument("--unweighted-only", action="store_true", help="Add paper-only unweighted assets to the existing manifest")
     args = parser.parse_args()
-    groups = studies()
+    groups = unweighted_studies() if args.unweighted_only else studies()
     if args.inventory_only:
         for name, files, runs in groups:
             size = sum(path.stat().st_size for path in files)
@@ -171,6 +233,10 @@ def main() -> None:
         print(f"Packaging {name}: {runs} runs, {len(files)} files", flush=True)
         asset = package(name, files, args.output)
         asset["reconstruction_count"] = runs
+        if args.unweighted_only and name != "unweighted_support":
+            asset["requires"] = ["unweighted_support"]
+            if name.startswith("unweighted_ablation_"):
+                asset["requires"].append(name.replace("unweighted_ablation_", "unweighted_"))
         assets.append(asset)
     catalog = {
         "schema_version": 1, "repository": "alexdelise/ActiveConditionalGCS",
@@ -178,6 +244,12 @@ def main() -> None:
         "main_reconstructions": 1800, "new_ablation_reconstructions": 900,
         "reused_main_ablation_rows": 300, "assets": assets,
     }
+    if args.unweighted_only:
+        previous = json.loads(Path(__file__).with_name("data_manifest.json").read_text())
+        previous["assets"] = [a for a in previous["assets"] if not a["name"].startswith("unweighted_")] + assets
+        previous.update(unweighted_main_reconstructions=2520,
+                        unweighted_new_ablation_reconstructions=1260, unweighted_reused_main_ablation_rows=420)
+        catalog = previous
     (args.output / "data_manifest.json").write_text(json.dumps(catalog, indent=2) + "\n")
     print(json.dumps(catalog, indent=2))
 

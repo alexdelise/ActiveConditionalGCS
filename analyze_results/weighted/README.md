@@ -9,7 +9,7 @@
 Each notebook shows completion counts, metric sweeps, recovered-image panels,
 optimization traces with trial uncertainty, and aggregate metrics. It reads
 the corresponding directory under [results/weighted/](../../results/weighted/)
-and writes PDFs and tables into that experiment's figures folder.
+and writes figures and numerical summaries into that experiment's figures folder.
 
 [weighted_main_forest.ipynb](weighted_main_forest.ipynb) produces the combined
 main-experiment forest plot.

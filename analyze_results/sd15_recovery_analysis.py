@@ -144,9 +144,9 @@ LPIPS_METRICS_RELATIVE_PATHS = {
 
 AGGREGATE_FOREST_METRICS: tuple[tuple[str, str, str], ...] = (
     ("lpips", r"LPIPS $\downarrow$", "linear"),
+    ("bp_best_loss", r"Best Weighted Loss $\downarrow$", "log"),
     ("psnr_db", r"PSNR (dB) $\uparrow$", "linear"),
     ("ssim", r"SSIM $\uparrow$", "linear"),
-    ("bp_best_loss", r"Best Weighted Loss $\downarrow$", "log"),
 )
 AGGREGATE_FOREST_LOWER_IS_BETTER = {"lpips", "bp_best_loss"}
 
@@ -1012,6 +1012,8 @@ def attach_lpips_metrics(
         return result
 
     sidecar = pd.read_csv(sidecar_path)
+    sidecar["artifact_relpath"] = sidecar["artifact_relpath"].str.replace(
+        "results/unweighted/", "unweighted/results/", regex=False)
     required = {"artifact_relpath", "lpips"}
     if not required.issubset(sidecar.columns):
         raise ValueError(
@@ -1059,6 +1061,8 @@ def _load_lpips_records(path: Path) -> dict[str, dict[str, Any]]:
     frame = pd.read_csv(path)
     if "artifact_relpath" not in frame:
         raise ValueError(f"{path} does not contain artifact_relpath.")
+    frame["artifact_relpath"] = frame["artifact_relpath"].str.replace(
+        "results/unweighted/", "unweighted/results/", regex=False)
     if frame["artifact_relpath"].duplicated().any():
         raise ValueError(f"{path} contains duplicate artifact paths.")
     return {
@@ -1777,7 +1781,20 @@ def plot_combined_aggregate_metric_forest(
                 axis.set_xscale(xscale)
                 if xscale == "linear":
                     axis.xaxis.set_major_locator(MaxNLocator(nbins=3, min_n_ticks=3))
-                if xscale == "log" and experiment_index in (1, 2) and column_index == 3:
+                    if metric == "bp_best_loss":
+                        # Show the actual arithmetic-t interval, including any
+                        # negative lower endpoint, with zero near the left edge.
+                        means = summary[f"{metric}_mean"].to_numpy(dtype=float)
+                        intervals = summary[f"{metric}_ci"].to_numpy(dtype=float)
+                        lower = min(0.0, float(np.min(means - intervals)))
+                        upper = float(np.max(means + intervals))
+                        padding = 0.04 * (upper - lower)
+                        axis.set_xlim(lower - padding, upper + padding)
+                        ticks = MaxNLocator(nbins=3, min_n_ticks=3).tick_values(0.0, upper)
+                        axis.xaxis.set_major_locator(FixedLocator(
+                            [value for value in ticks if 0.0 <= value <= upper]
+                        ))
+                if xscale == "log" and experiment_index in (1, 2) and metric == "bp_best_loss":
                     x_min, x_max = axis.get_xlim()
                     exponent_min = int(np.floor(np.log10(x_min))) - 1
                     exponent_max = int(np.ceil(np.log10(x_max))) + 1
@@ -2825,11 +2842,11 @@ def plot_recovery_grid(
                         pad=6,
                     )
                 image_objective = pd.to_numeric(
-                    pd.Series([record.get("final_data_loss", np.nan)]),
+                    pd.Series([record.get("bp_best_loss", np.nan)]),
                     errors="coerce",
                 ).iloc[0]
                 objective_line = (
-                    f"Objective {float(image_objective):.3e}\n"
+                    f"{'U. Loss' if str(record.get('run_tag', '')).startswith('unweighted/') else 'W. Loss'} {float(image_objective):.3e}\n"
                     if pd.notna(image_objective)
                     else ""
                 )
@@ -2843,10 +2860,10 @@ def plot_recovery_grid(
                     else ""
                 )
                 metric_text = (
-                    objective_line
+                    lpips_line
+                    + objective_line
                     + f"PSNR {float(record['psnr_db']):.2f} dB\n"
                     + f"SSIM {float(record['ssim']):.3f}\n"
-                    + lpips_line
                     + f"PPMAE {float(record['pixel_mae']):.4f}"
                 )
                 ax.text(

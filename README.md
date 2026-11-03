@@ -54,6 +54,8 @@ diffusion model. PDF figures use Computer Modern through LaTeX and require
 ├── 📁 <a href="scripts/weighted/">scripts/weighted/</a>                   ← Experiment launchers
 ├── 📁 <a href="scripts/release/">scripts/release/</a>                    ← Data packaging and verified downloads
 ├── 📁 <a href="analyze_results/weighted/">analyze_results/weighted/</a>           ← Figure-reproduction notebooks
+├── 📁 <a href="analyze_results/paper_figures/">analyze_results/paper_figures/</a>      ← Selected reconstruction comparisons
+├── 📁 <a href="unweighted/">unweighted/</a>                       ← Unweighted experiments and analysis
 ├── 📁 <a href="assets/">assets/</a>                           ← README target-image panel
 └── 📁 <a href="results/weighted/">results/weighted/</a>                   ← Downloaded or locally generated results
     ├── 📁 <a href="results/weighted/prompt_matched/">prompt_matched/</a>
@@ -108,7 +110,7 @@ reconstructions. The other CFG values add 900 reconstructions.
 ## Reproduce the Figures
 
 The [figure-reproduction data release](https://github.com/alexdelise/ActiveConditionalGCS/releases/tag/paper-results-v1)
-contains the completed weighted experiments and Christoffel studies. The
+contains the completed weighted and unweighted experiments and Christoffel studies. The
 [release guide](scripts/release/README.md) describes its contents and integrity
 checks. Download and verify all required data from the repository root:
 
@@ -116,11 +118,13 @@ checks. Download and verify all required data from the repository root:
 python scripts/release/download_results.py
 ```
 
-Then open the [weighted analysis notebooks](analyze_results/weighted/README.md).
+Then open the [weighted](analyze_results/weighted/README.md) or
+[unweighted](unweighted/analyze_results/README.md) analysis notebooks.
 They reproduce sampling-ratio sweeps, recovered-image panels, optimization
 traces, aggregate forest plots, and Christoffel figures from the saved data.
-PDFs and summary tables are written to each experiment's own figures folder
-under [results/weighted/](results/weighted/).
+Figures and numerical summaries are written to each experiment's results folder.
+[paper_figures.ipynb](analyze_results/paper_figures/paper_figures.ipynb)
+reproduces the selected image comparisons.
 
 ## Run Reconstructions
 
@@ -161,8 +165,6 @@ Append `--dry-run` to inspect a command without starting reconstruction.
 
 If a command is interrupted, you can run it again. Completed reconstructions are
 reused, and unfinished optimization resumes from its latest saved checkpoint.
-The data release includes completed artifacts for figure reproduction, not
-optimizer checkpoints for continuing those reconstructions.
 
 ## Reproducibility
 

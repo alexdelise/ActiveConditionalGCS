@@ -1,7 +1,7 @@
 # Unweighted Experiments
 
-This archive contains the earlier reconstruction experiments, CFG ablations,
-uniform-sampling baselines, and inverse-square baselines. The code uses the
+The unweighted experiments compare four Christoffel sampling laws with uniform
+and inverse-square sampling, and include a recovery-CFG ablation. The code uses the
 shared [source package](../src/), [datasets](../datasets/), and
 [analysis helpers](../analyze_results/) at the repository root.
 
@@ -31,11 +31,12 @@ Examples:
 python unweighted/scripts/validate_suite.py
 ```
 
-The archived launchers retain the original seven sampling ratios and five
-trials. They write results into [results/](results/). Run the same command
-again after an interruption to reuse completed reconstructions and resume
-unfinished optimization. The archived results are local and are not included
-in the weighted figure-reproduction release.
+The main experiments use seven sampling ratios, five trials, recovery CFG 7.5,
+and 500 Adam iterations. The recovery-CFG ablation compares CFG 1, 3, 5, and 7.5
+under the four Christoffel laws. Results are written into [results/](results/).
+Run the same command again after an interruption to reuse completed reconstructions and resume
+unfinished optimization. Download the saved results with
+`python scripts/release/download_results.py`.
 
 Open the [main notebooks](analyze_results/main/),
 [CFG-ablation notebooks](analyze_results/ablation/), or

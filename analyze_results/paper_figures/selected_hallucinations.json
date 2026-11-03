@@ -1,0 +1,86 @@
+[
+  {
+    "scenario": "prompt_matched",
+    "sampling": "mcs",
+    "recovery_prompt": "sunset beach",
+    "image": "unweighted/results/prompt_matched/sunset/last3_mcs_recover_sunset_beach/baseline_mcs__recover_sunset_beach/mcs/item_000/samp_0p01000/rep_02/recon_mcs.png",
+    "sha256": "1e68012b58bd187960c3e5718810af2a6b3f184dd654b36e51593caa3e8f2be9"
+  },
+  {
+    "scenario": "prompt_matched",
+    "sampling": "k2_sunset_beach",
+    "recovery_prompt": "sunset beach",
+    "image": "unweighted/results/prompt_matched/sunset/last3_sample_k2_sunset_beach/sample_k2_sunset_beach__recover_prompt_sunset_beach/cs/item_000/samp_0p01000/rep_02/recon_cs.png",
+    "sha256": "b6936ed44a69c22c9de3d1bfbcfa339edf7820fcb76507cc9050bf4ec255be48"
+  },
+  {
+    "scenario": "prompt_matched",
+    "sampling": "k2_sunset_beach",
+    "recovery_prompt": "cat",
+    "image": "unweighted/results/prompt_matched/sunset/last3_sample_k2_sunset_beach/sample_k2_sunset_beach__recover_prompt_cat/cs/item_000/samp_0p01000/rep_03/recon_cs.png",
+    "sha256": "5327f6fa0d1b00a35fd6b5c2184c5041c050bdd858943e427d4f1fca833fcf3e"
+  },
+  {
+    "scenario": "prompt_matched",
+    "sampling": "mcs",
+    "recovery_prompt": "cat",
+    "image": "unweighted/results/prompt_matched/sunset/last3_mcs_recover_cat/baseline_mcs__recover_cat/mcs/item_000/samp_0p01000/rep_03/recon_mcs.png",
+    "sha256": "788b26be9160cba198cb8593d7a452a42dfa58117d659b45b525647773f32728"
+  },
+  {
+    "scenario": "prompt_mismatched",
+    "sampling": "mcs",
+    "recovery_prompt": "sunset beach",
+    "image": "unweighted/results/prompt_mismatched/sunset/last3_mcs_recover_sunset_beach/baseline_mcs__recover_sunset_beach/mcs/item_000/samp_0p01000/rep_02/recon_mcs.png",
+    "sha256": "d6141a00f9569032681aaa993331e569c4beb97be00d5fee58720581b08a0f6a"
+  },
+  {
+    "scenario": "prompt_mismatched",
+    "sampling": "k2_sunset_beach",
+    "recovery_prompt": "sunset beach",
+    "image": "unweighted/results/prompt_mismatched/sunset/last3_sample_k2_sunset_beach/sample_k2_sunset_beach__recover_prompt_sunset_beach/cs/item_000/samp_0p01000/rep_02/recon_cs.png",
+    "sha256": "ae7ab3aa8d8874290aa6ee14be8e6de6b70e8a5184143709190e56838a8425a4"
+  },
+  {
+    "scenario": "prompt_mismatched",
+    "sampling": "k2_sunset_beach",
+    "recovery_prompt": "cat",
+    "image": "unweighted/results/prompt_mismatched/sunset/last3_sample_k2_sunset_beach/sample_k2_sunset_beach__recover_prompt_cat/cs/item_000/samp_0p01000/rep_04/recon_cs.png",
+    "sha256": "c1b297b98078eeed9e77f7cea651caff1d9a237439548f2f543b9248d14ab8ad"
+  },
+  {
+    "scenario": "prompt_mismatched",
+    "sampling": "mcs",
+    "recovery_prompt": "cat",
+    "image": "unweighted/results/prompt_mismatched/sunset/last3_mcs_recover_cat/baseline_mcs__recover_cat/mcs/item_000/samp_0p01000/rep_04/recon_mcs.png",
+    "sha256": "4a045ae4e5a858c595eaf2d4674dbc8512d20e0b82a06f83e7ea744cc3ed6340"
+  },
+  {
+    "scenario": "out_of_range",
+    "sampling": "mcs",
+    "recovery_prompt": "sunset beach",
+    "image": "unweighted/results/out_of_range/sunset/last3_mcs_recover_sunset_beach/baseline_mcs__recover_sunset_beach/mcs/item_000/samp_0p01000/rep_02/recon_mcs.png",
+    "sha256": "c0f56c33d9e7688db1e3e09357f510ce15b6bf791b4499a9354fdbcd2c2383db"
+  },
+  {
+    "scenario": "out_of_range",
+    "sampling": "k2_sunset_beach",
+    "recovery_prompt": "sunset beach",
+    "image": "unweighted/results/out_of_range/sunset/last3_sample_k2_sunset_beach/sample_k2_sunset_beach__recover_prompt_sunset_beach/cs/item_000/samp_0p01000/rep_04/recon_cs.png",
+    "sha256": "ce41c24232321068d92ca87d9706ed7ad0ff245fec75393a5eb6683dcdfe4d8b"
+  },
+  {
+    "scenario": "out_of_range",
+    "sampling": "k2_sunset_beach",
+    "recovery_prompt": "cat",
+    "image": "unweighted/results/out_of_range/sunset/last3_sample_k2_sunset_beach/sample_k2_sunset_beach__recover_prompt_cat/cs/item_000/samp_0p01000/rep_00/recon_cs.png",
+    "sha256": "373731221984e0e21ddb8998d73f9bda24abb258f18b42b3ea203480211b08a9"
+  },
+  {
+    "scenario": "out_of_range",
+    "sampling": "mcs",
+    "recovery_prompt": "cat",
+    "image": "unweighted/results/out_of_range/sunset/last3_mcs_recover_cat/baseline_mcs__recover_cat/mcs/item_000/samp_0p01000/rep_00/recon_mcs.png",
+    "sha256": "25733ed2e0d7582d15ef019212554651c263e0e4413b9133568f8e6a78c139a7"
+  }
+]

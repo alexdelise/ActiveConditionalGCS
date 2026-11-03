@@ -14,7 +14,7 @@ counts, and reconstruction counts.
 | Prompt-mismatched CFG ablation | 300 | 285.60 MiB |
 | Out-of-range CFG ablation | 300 | 349.41 MiB |
 | Christoffel studies and targets | — | 138.82 MiB |
-| **Total** | **2,700** | **2.74 GiB** |
+| **Weighted subtotal** | **2,700** | **2.74 GiB** |
 
 ## Contents
 
@@ -29,7 +29,10 @@ image, and metadata. The Christoffel archive includes the fixed sampling laws,
 sampling-CFG estimates, cross-class estimates, 20 independent convergence
 trials, scalar convergence traces, and fixed target datasets.
 
-Optimizer states, latent checkpoints, and generated figures are not included.
+The unweighted archives add 2,520 main reconstructions and 1,260 new CFG-ablation
+reconstructions. The ablation reads its 420 CFG 7.5 reference observations from
+the main results. `unweighted_support.tar.gz` contains the four sampling laws
+and saved LPIPS values. Archive sizes and checksums are in the manifest.
 
 ## Download and Verify
 
@@ -53,5 +56,6 @@ Example:
 python scripts/release/download_results.py --destination results/download_verification
 ```
 
-The [analysis guide](../../analyze_results/weighted/README.md) lists the
-notebooks to run after downloading the data.
+The [weighted](../../analyze_results/weighted/README.md) and
+[unweighted](../../unweighted/analyze_results/README.md) analysis guides list
+the notebooks to run after downloading the data.

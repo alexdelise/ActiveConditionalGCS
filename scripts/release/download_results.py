@@ -107,11 +107,21 @@ def main() -> None:
     names = {asset["name"] for asset in catalog["assets"]}
     if args.assets and not set(args.assets).issubset(names):
         parser.error(f"Choose assets from: {', '.join(sorted(names))}")
+    selected = set(args.assets or names)
+    pending = list(selected)
+    by_name = {asset["name"]: asset for asset in catalog["assets"]}
+    while pending:
+        for required in by_name[pending.pop()].get("requires", []):
+            if required not in names:
+                parser.error(f"Unknown asset dependency: {required}")
+            if required not in selected:
+                selected.add(required)
+                pending.append(required)
     base_url = args.base_url or f"https://github.com/{catalog['repository']}/releases/download/{catalog['release_tag']}"
     args.destination.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="gcs-download-") as temporary:
         for asset in catalog["assets"]:
-            if args.assets and asset["name"] not in args.assets:
+            if asset["name"] not in selected:
                 continue
             filename = asset["filename"]
             if Path(filename).name != filename:

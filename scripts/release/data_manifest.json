@@ -69,6 +69,93 @@
       "file_count": 127,
       "unpacked_size_bytes": 145618809,
       "reconstruction_count": 0
+    },
+    {
+      "name": "unweighted_prompt_matched",
+      "filename": "unweighted_prompt_matched.tar.gz",
+      "archive_size_bytes": 368750532,
+      "sha256": "917b1d016cfbcd374cfcdbc6ad14c74f187d1eb6d452e4bb9f2d493c21095b35",
+      "file_count": 5520,
+      "unpacked_size_bytes": 378202255,
+      "reconstruction_count": 840,
+      "requires": [
+        "unweighted_support"
+      ]
+    },
+    {
+      "name": "unweighted_prompt_mismatched",
+      "filename": "unweighted_prompt_mismatched.tar.gz",
+      "archive_size_bytes": 331976569,
+      "sha256": "015a9d6c98ec102f7e35dbb32ef801762cb1d9809a39a4d57add8c356b3a7016",
+      "file_count": 5520,
+      "unpacked_size_bytes": 341607364,
+      "reconstruction_count": 840,
+      "requires": [
+        "unweighted_support"
+      ]
+    },
+    {
+      "name": "unweighted_out_of_range",
+      "filename": "unweighted_out_of_range.tar.gz",
+      "archive_size_bytes": 406969757,
+      "sha256": "25fcffd0dcdd174e7a99d9bbf4cf9a57e0de34560dd58571e8ff0bc37a80c5cd",
+      "file_count": 5520,
+      "unpacked_size_bytes": 416545816,
+      "reconstruction_count": 840,
+      "requires": [
+        "unweighted_support"
+      ]
+    },
+    {
+      "name": "unweighted_ablation_prompt_matched",
+      "filename": "unweighted_ablation_prompt_matched.tar.gz",
+      "archive_size_bytes": 194939054,
+      "sha256": "79144cb78650d3f6031337503f75834dcff7b7b95b73bd2f5a0058e8e9548f30",
+      "file_count": 2616,
+      "unpacked_size_bytes": 198755629,
+      "reconstruction_count": 420,
+      "requires": [
+        "unweighted_support",
+        "unweighted_prompt_matched"
+      ]
+    },
+    {
+      "name": "unweighted_ablation_prompt_mismatched",
+      "filename": "unweighted_ablation_prompt_mismatched.tar.gz",
+      "archive_size_bytes": 173179003,
+      "sha256": "1ea55c683d9b78a3d5e5dd4bd84f636a8ab2a2318612ca7f2d3a0df16e2663de",
+      "file_count": 2616,
+      "unpacked_size_bytes": 176961782,
+      "reconstruction_count": 420,
+      "requires": [
+        "unweighted_support",
+        "unweighted_prompt_mismatched"
+      ]
+    },
+    {
+      "name": "unweighted_ablation_out_of_range",
+      "filename": "unweighted_ablation_out_of_range.tar.gz",
+      "archive_size_bytes": 217248705,
+      "sha256": "da6398ac306042588b8f90121674eb6183bb9764ea28905473fc17304a6086a8",
+      "file_count": 2616,
+      "unpacked_size_bytes": 221040510,
+      "reconstruction_count": 420,
+      "requires": [
+        "unweighted_support",
+        "unweighted_out_of_range"
+      ]
+    },
+    {
+      "name": "unweighted_support",
+      "filename": "unweighted_support.tar.gz",
+      "archive_size_bytes": 15983688,
+      "sha256": "b1a32c09b88965f32c739c844f62577d1146a05fe22e5a7f0927dceef735abef",
+      "file_count": 10,
+      "unpacked_size_bytes": 16620928,
+      "reconstruction_count": 0
     }
-  ]
+  ],
+  "unweighted_main_reconstructions": 2520,
+  "unweighted_new_ablation_reconstructions": 1260,
+  "unweighted_reused_main_ablation_rows": 420
 }

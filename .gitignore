@@ -19,6 +19,8 @@
 /configs/weighted/diagnostics/
 /analyze_results/weighted/diagnostics/
 /unweighted/results/
+/unweighted/ktilde/*_cfg*.npz
+/unweighted/ktilde/*_cfg*.meta.json
 /unweighted/notes/
 /tests/
 /ktilde/*.npz

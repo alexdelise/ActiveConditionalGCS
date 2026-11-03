@@ -322,6 +322,9 @@ RUN_DATA_KEYS = {
     "recon_num_steps",
     "method",
     "recon_method",
+    "bp_best_loss",
+    "lpips",
+    "zero_filled_lpips",
 }
 
 
@@ -480,6 +483,13 @@ def case_root_candidate_groups(
     old_roots = [resolve_results_path(root, str(tag)) for tag in distribution["old_tags"]]
     unsplit_new_root = resolve_results_path(root, str(distribution["new_tag"]))
     unsplit_old_root = resolve_results_path(root, str(distribution["old_tag"]))
+
+    # Paper controls are read in place, without copying main runs into ablations.
+    if not str(distribution.get("experiment", "")).startswith("weighted_"):
+        if line_key in {"unconditioned", "cfg7p5"}:
+            suffix = "recover_unprompted" if line_key == "unconditioned" else "recover_prompt_sunset_beach"
+            return [[old_root / f"{prefix}__{suffix}" for old_root in old_roots],
+                    [unsplit_old_root / f"{prefix}__{suffix}"]]
 
     if line_key == "unconditioned":
         return [
@@ -736,6 +746,8 @@ def attach_lpips_metrics(
         return result
 
     sidecar = pd.read_csv(sidecar_path)
+    sidecar["artifact_relpath"] = sidecar["artifact_relpath"].str.replace(
+        "results/unweighted/", "unweighted/results/", regex=False)
     required = {"artifact_relpath", "lpips"}
     if not required.issubset(sidecar.columns):
         raise ValueError(
@@ -1400,13 +1412,19 @@ def _best_zero_filled_panel_row(frame: pd.DataFrame, *, distribution_key: str, s
 def _add_metric_overlay(ax: Any, row: pd.Series) -> None:
     lpips_line = ""
     if "lpips" in row and pd.notna(row["lpips"]):
-        lpips_line = f"\nLPIPS {float(row['lpips']):.3f}"
+        lpips_line = f"LPIPS {float(row['lpips']):.3f}\n"
+    loss_line = ""
+    if pd.notna(row.get("bp_best_loss")):
+        weighted = (str(row.get("experiment", "")).startswith("weighted_") or
+                    "/results/weighted/" in str(row.get("_run_data_path", row.get("case_root", ""))))
+        loss_label = "W. Loss" if weighted else "U. Loss"
+        loss_line = f"{loss_label} {float(row['bp_best_loss']):.3e}\n"
     ax.text(
         0.02,
         0.96,
-        f"PSNR {float(row['psnr_db']):.2f} dB\n"
+        lpips_line + loss_line + f"PSNR {float(row['psnr_db']):.2f} dB\n"
         f"SSIM {float(row['ssim']):.3f}"
-        f"{lpips_line}\n"
+        "\n"
         f"PPMAE {float(row['pixel_mae']):.4f}",
         transform=ax.transAxes,
         ha="left",
